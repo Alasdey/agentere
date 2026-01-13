@@ -1,0 +1,5 @@
+The data setup will be to download the various datasets in a folder named dataprep
+then execute the datasetprep for each and llm format on all
+to have a huggingface dataset that works (or directly use mine)
+then the dataset load module can do the rest
+

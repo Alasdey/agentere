@@ -1,6 +1,4 @@
-================================================
-FILE: utils/data_loader.py
-================================================
+
 from __future__ import annotations
 
 import re
@@ -104,7 +102,7 @@ def load_hf_dataset_parsed(
         
         # Use existing 'id' column or fallback to index
         row_id = str(row.get("id", f"idx_{i}"))
-        lang = row.get("lang", "unknown")
+        lang = row.get("lang", "eng")
 
         gold_triples = parse_annotations(ann_text, valid_labels=valid_labels)
 
