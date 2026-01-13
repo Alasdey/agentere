@@ -3,3 +3,15 @@ then execute the datasetprep for each and llm format on all
 to have a huggingface dataset that works (or directly use mine)
 then the dataset load module can do the rest
 
+Tools 
+Coherence rules can be under two forms:
+two mention rules: 
+Has four arguments
+the relation r1, (from any mention m1 to any mention m2)
+the relation r2, that is the consequence 
+the negation (if r1 means r2 there is no negation, but if m1 means no r2 then there is a negation)
+the orientation of consequence (if r2 (or no r2) is from m1 to m2 or from m2 to m1)
+three mentions rules:
+Same thing except there are two observed relations:
+r1 (between m1 and m2) and r2 (between m2 and m3)
+and one consequence relation r3 (between m1 and m3 (or m3 and m1 depending on the direction of course))
