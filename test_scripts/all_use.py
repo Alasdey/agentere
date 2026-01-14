@@ -14,124 +14,134 @@ os.environ["LANGCHAIN_PROJECT"] = "Toto"
 # =============================================================================
 # IMPORTS
 # =============================================================================
+from dataprep.dataprep import load_hf_dataset_parsed
 from tools.coherence import coherence_check
 from model.model import build_chat_graph
 from langchain_core.messages import HumanMessage, SystemMessage
 
-# =============================================================================
-# DATA MOCKING (From your provided samples)
-# =============================================================================
+# List of datasets to process
+DATASETS = [
+    {
+        "repo_id": "Nofing/MAVEN-ERE-Causal-Events",
+        "split": "test",
+        "text_field": "text",
+        "ann_field": "annots"
+    },
+    {
+        "repo_id": "Nofing/MECI-v0.1-public-span",
+        "split": "test",
+        "text_field": "text",
+        "ann_field": "annots"
+    },
+    {
+        "repo_id": "Nofing/EventStoryLine-1.5-Causal",
+        "split": "test", # Assuming test split exists
+        "text_field": "text",
+        "ann_field": "annots"
+    }
+]
 
-MAVEN_ERE_ROW = {
-    "id": "ce42b57b90199c73b1bc5c1b46cd9f0b",
-    "annots": "<e15 headed> PRECONDITION <e16 freed>, <e1 fought> PRECONDITION <e15 headed>, <e1 fought> PRECONDITION <e16 freed>",
-    "text": "Battle of Saint Gotthard..."
-}
-
-MECI_ROW = {
-    "id": "economic_crisis-week4-isik-41860_chunk_5.ann",
-    "annots": "<T1 ölümünden> CauseEffect <T2 oldu>, <T2 oldu> CauseEffect <T7 oldu>, <T2 oldu> CauseEffect <T4 etti>, <T2 oldu> EffectCause <T1 ölümünden>, <T7 oldu> EffectCause <T2 oldu>, <T4 etti> EffectCause <T2 oldu>, <T0 ulaştı> NoRel <T1 ölümünden>, <T0 ulaştı> NoRel <T4 etti>, <T1 ölümünden> NoRel <T6 uzaklaştırdı>, <T2 oldu> NoRel <T0 ulaştı>, <T4 etti> NoRel <T0 ulaştı>, <T4 etti> NoRel <T5 pekiştirdi>, <T4 etti> NoRel <T6 uzaklaştırdı>, <T5 pekiştirdi> NoRel <T7 oldu>, <T6 uzaklaştırdı> NoRel <T0 ulaştı>, <T6 uzaklaştırdı> NoRel <T4 etti>, <T6 uzaklaştırdı> NoRel <T5 pekiştirdi>, <T7 oldu> NoRel <T4 etti>,",
-    "text": "1954 yılında..."
-}
+# How many examples to process per dataset (for demo purposes)
+MAX_EXAMPLES_PER_DATASET = 3 
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
-# Borrowing the regex from dataprep/dataprep.py for consistency
-RELATION_TRIPLE_RE = re.compile(
-    r"<([^>\s]+)\s+([^>\n]+)>"       # Source Tag: <ID Content>
-    r"\s+"                           # Space
-    r"([A-Za-z0-9_\-]+)"             # Relation Label
-    r"\s+"                           # Space
-    r"<([^>\s]+)\s+([^>\n]+)>"       # Target Tag: <ID Content>
-)
 
-def parse_annots_to_pairs(annots_str: str) -> List[Dict[str, str]]:
+def convert_triples_to_tool_pairs(gold_triples: List[tuple]) -> List[Dict[str, str]]:
     """
-    Converts the raw annotation string into the format expected by the coherence tool.
-    Format: [{"pair": "ID1,ID2", "label": "REL"}, ...]
+    Converts the (src, label, tgt) format from dataprep to the 
+    [{"pair": "src,tgt", "label": "label"}] format required by the tool.
     """
-    pairs = []
-    if not annots_str:
-        return pairs
-    
-    for match in RELATION_TRIPLE_RE.finditer(annots_str):
-        src_id = match.group(1)
-        label = match.group(3)
-        tgt_id = match.group(4)
-        
-        pairs.append({
-            "pair": f"{src_id},{tgt_id}",
-            "label": label
-        })
-        
-    return pairs
+    return [{"pair": f"{src},{tgt}", "label": lbl} for src, lbl, tgt in gold_triples]
 
-def run_coherence_agent():
+def run_hf_coherence_agent():
     # 1. Setup the Model/Graph
+    print("Initializing Agent...")
     graph, invoke, _ = build_chat_graph(
-        # model_id="deepseek/deepseek-r1",
         model_id="mistralai/mistral-small-3.2-24b-instruct",
+        # model_id="openai/gpt-5-mini",
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
-        tools=[coherence_check], # The updated tool
+        tools=[coherence_check],
         enable_tools=True
     )
 
-    datasets = [
-        {"name": "MavenERE", "data": MAVEN_ERE_ROW},
-        {"name": "Meci", "data": MECI_ROW}
-    ]
-
     print("=" * 80)
-    print("RUNNING COHERENCE CHECK AGENT (Config-based)")
+    print("RUNNING COHERENCE CHECK ON HF DATASETS")
     print("=" * 80)
 
-    for dataset_info in datasets:
-        name = dataset_info["name"]
-        row = dataset_info["data"]
+    # 2. Iterate over Datasets
+    for ds_config in DATASETS:
+        repo_id = ds_config["repo_id"]
+        split = ds_config["split"]
         
-        print(f"\n🔍 Processing Dataset: {name}")
-        
-        # A. Parse Raw Data
-        pairs = parse_annots_to_pairs(row["annots"])
-        
-        # B. Construct Prompt
-        # NOTE: We NO LONGER pass 'rules' in the JSON. 
-        # We strictly pass the 'pairs'. The tool handles the rest.
-        system_prompt = "You are a data quality assistant."
-        
-        user_prompt = (
-            f"Analyze the relations from the {name} dataset for logical coherence.\n\n"
-            f"Here is the relation data. Call the coherence_check tool with these pairs:\n\n"
-            f"{json.dumps({'pairs': pairs}, indent=2)}\n\n"
-            f"Please report the summary of incoherence provided by the tool."
-        )
+        print(f"\n{'='*80}")
+        print(f"Dataset: {repo_id} (Split: {split})")
+        print(f"{'='*80}")
 
-        # C. Invoke Graph
         try:
-            config = {"configurable": {"thread_id": f"coherence-{name}"}}
-            result = invoke(
-                messages=[
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_prompt)
-                ],
-                config=config
+            # Load dataset generator
+            loader = load_hf_dataset_parsed(
+                repo_id=repo_id,
+                split=split,
+                text_field=ds_config["text_field"],
+                ann_field=ds_config["ann_field"],
+                streaming=True,
+                max_examples=MAX_EXAMPLES_PER_DATASET
             )
 
-            # D. Display Results
-            for msg in result["messages"]:
-                # Print the content directly, which will be the human summary from the tool
-                print(msg.content)
+            for item in loader:
+                doc_id = item.get('id', 'unknown')
+                triples = item.get('gold_triples', [])
                 
-            print("-" * 80)
+                # Skip documents with no relations
+                if not triples:
+                    print(f"🔍 Doc ID {doc_id}: Skipped (No relations found).")
+                    continue
+
+                print(f"🔍 Doc ID {doc_id}: Analyzing {len(triples)} relations...")
+
+                # A. Convert data format for the tool
+                pairs = convert_triples_to_tool_pairs(triples)
+
+                # B. Construct Prompt
+                # We only pass pairs. Rules are loaded from config.yaml inside the tool.
+                system_prompt = "You are a data quality assistant."
+                
+                user_prompt = (
+                    f"Analyze the relations from document {doc_id} for logical coherence.\n\n"
+                    f"Here is the relation data. Call the coherence_check tool with these pairs:\n\n"
+                    f"{json.dumps({'pairs': pairs}, indent=2)}"
+                )
+
+                # C. Invoke Graph
+                try:
+                    config = {"configurable": {"thread_id": f"{repo_id}-{doc_id}"}}
+                    result = invoke(
+                        messages=[
+                            SystemMessage(content=system_prompt),
+                            HumanMessage(content=user_prompt)
+                        ],
+                        config=config
+                    )
+
+                    # D. Display Results
+                    # We print the last message which contains the summary
+                    last_message = result["messages"][-1]
+                    print(f"\n📝 Result:\n{last_message.content}")
+                    print("-" * 80)
+
+                except Exception as e:
+                    print(f"❌ Error invoking agent for doc {doc_id}: {e}")
 
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"❌ Failed to load or process dataset {repo_id}: {e}")
+            print("   (This might be due to incorrect split names or missing fields)")
 
 if __name__ == "__main__":
     if not os.environ.get("OPENROUTER_API_KEY"):
         print("Please set OPENROUTER_API_KEY environment variable.")
     else:
-        run_coherence_agent()
+        run_hf_coherence_agent()
