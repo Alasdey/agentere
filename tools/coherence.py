@@ -1,34 +1,60 @@
-
+# tools/coherence.py
 from typing import Any, Dict, List, Tuple, Optional
+import os
+import yaml
 
 from langchain_core.tools import tool
-from langsmith.run_helpers import traceable
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+# =============================================================================
+# CONFIG LOADER
+# =============================================================================
+
+def load_coherence_rules() -> List[Dict[str, Any]]:
+    """
+    Loads coherence rules from the config.yaml file located in the project root.
+    """
+    # Assuming config.yaml is in the parent directory of the 'tools' folder
+    config_path = os.path.join(os.path.dirname(__file__), "../config.yaml")
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Configuration file not found at {config_path}")
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+        
+    return config.get("coherence_rules", [])
+
+# =============================================================================
+# TOOL
+# =============================================================================
 
 @tool
 def coherence_check(
-    *,
     pairs: List[Dict[str, str]],
-    rules: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+) -> str:
     """
-    General coherence checker for arbitrary relation labels.
+    Analyzes the logical coherence of extracted relations.
 
-    pairs: [{"pair":"A,B","label":"REL"}, ...]   # directional A->B
-    rules: list of rules in one of these forms:
+    Rules are automatically loaded from 'config.yaml'. 
+    This tool detects violations (e.g., missing transitive links, conflicting directions).
 
-      Two-mention rule:
-        {"type":"two", "if": {"rel":"R1"}, "then":{"rel":"R2", "dir":"12"}, "negated": False}
+    Args:
+        pairs: A list of relations in the format [{"pair": "ID1,ID2", "label": "REL"}, ...].
+               The pair string implies direction ID1 -> ID2.
 
-      Three-mention rule:
-        {"type":"three",
-         "if1":{"rel":"R1"}, "if2":{"rel":"R2"},
-         "then":{"rel":"R3", "dir":"13"}, "negated": False}
+    Returns:
+        A human-readable summary of any incoherence found.
     """
+    # --- Load Rules ---
+    try:
+        rules = load_coherence_rules()
+    except Exception as e:
+        return f"Error loading configuration: {str(e)}"
 
-    # --- parse predictions ---
+    if not rules:
+        return "No rules configured in config.yaml. Cannot perform check."
+
+    # --- Parse predictions ---
     rel: Dict[Tuple[str, str], str] = {}
     mentions = set()
 
@@ -61,8 +87,8 @@ def coherence_check(
     violations: List[Dict[str, Any]] = []
     triggered = 0
 
-    # --- check rules ---
-    for ridx, r in enumerate(rules or []):
+    # --- Check rules ---
+    for ridx, r in enumerate(rules):
         rtype = (r.get("type") or "").lower()
         neg = bool(r.get("negated", False))
 
@@ -83,18 +109,12 @@ def coherence_check(
                     found = get(a, b)
 
                     ok = (found == r2) if not neg else (found is not None and found != r2)
-                    if ok:
-                        continue
-
-                    kind = "missing" if found is None else "conflict"
-                    violations.append({
-                        "rule_index": ridx,
-                        "type": "two",
-                        "bindings": {"m1": m1, "m2": m2},
-                        "expected": {"pair": f"{a},{b}", "label": r2, "negated": neg},
-                        "found": found if found is not None else "<missing>",
-                        "kind": kind,
-                    })
+                    if not ok:
+                        violations.append({
+                            "rule_index": ridx,
+                            "desc": f"Two-mention rule: If '{m1}' to '{m2}' is '{r1}', then '{a}' to '{b}' should be '{r2}'.",
+                            "found": found if found is not None else "<missing>",
+                        })
 
         elif rtype == "three":
             r1 = r["if1"]["rel"]
@@ -104,39 +124,40 @@ def coherence_check(
 
             for m1 in mentions:
                 for m2 in mentions:
-                    if m1 == m2:
-                        continue
+                    if m1 == m2: continue
                     for m3 in mentions:
-                        if m3 == m1 or m3 == m2:
-                            continue
+                        if m3 == m1 or m3 == m2: continue
 
-                        if get(m1, m2) != r1:
-                            continue
-                        if get(m2, m3) != r2:
-                            continue
+                        if get(m1, m2) != r1: continue
+                        if get(m2, m3) != r2: continue
 
                         triggered += 1
                         a, b = pick(m1, m2, m3, d3)
                         found = get(a, b)
 
                         ok = (found == r3) if not neg else (found is not None and found != r3)
-                        if ok:
-                            continue
+                        if not ok:
+                            violations.append({
+                                "rule_index": ridx,
+                                "desc": f"Three-mention rule (Transitivity): If '{m1}'->'{m2}' is '{r1}' and '{m2}'->'{m3}' is '{r2}', then '{a}'->'{b}' should be '{r3}'.",
+                                "found": found if found is not None else "<missing>",
+                            })
 
-                        kind = "missing" if found is None else "conflict"
-                        violations.append({
-                            "rule_index": ridx,
-                            "type": "three",
-                            "bindings": {"m1": m1, "m2": m2, "m3": m3},
-                            "expected": {"pair": f"{a},{b}", "label": r3, "negated": neg},
-                            "found": found if found is not None else "<missing>",
-                            "kind": kind,
-                        })
+    # --- Generate Human Summary ---
+    if triggered == 0:
+        return "No relations matched the rule premises, so no coherence checks were triggered."
 
-    coherence_rate = (1.0 - len(violations) / triggered) if triggered else 1.0
+    if not violations:
+        return f"Checked {triggered} potential rule applications. No incoherence found; the graph is logically consistent."
 
-    return {
-        "triggered": triggered,
-        "violations": violations,
-        "coherence_rate": coherence_rate,
-    }
+    summary_lines = [
+        f"I found **{len(violations)} incoherence violations** out of {triggered} checks.\n",
+        "Here are the specific issues detected:\n"
+    ]
+
+    for v in violations:
+        summary_lines.append(f"- **Violation:** {v['desc']}")
+        summary_lines.append(f"  - **Expected:** Relation between the indicated mentions.")
+        summary_lines.append(f"  - **Found:** {v['found']}\n")
+
+    return "\n".join(summary_lines)

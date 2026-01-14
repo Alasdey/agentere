@@ -1,0 +1,34 @@
+# config.yaml
+coherence_rules:
+  # Three-mention rule: Transitivity for CauseEffect
+  # If A causes B, and B causes C, then A should cause C.
+  - type: "three"
+    if1:
+      rel: "CauseEffect"
+    if2:
+      rel: "CauseEffect"
+    then:
+      rel: "CauseEffect"
+      dir: "13"
+    negated: false
+
+  # Three-mention rule: Transitivity for PRECONDITION
+  - type: "three"
+    if1:
+      rel: "PRECONDITION"
+    if2:
+      rel: "PRECONDITION"
+    then:
+      rel: "PRECONDITION"
+      dir: "13"
+    negated: false
+
+  # Two-mention rule: Symmetry for EffectCause/CauseEffect
+  # If A has an 'EffectCause' relation to B, B should have a 'CauseEffect' relation to A.
+  - type: "two"
+    if:
+      rel: "EffectCause"
+    then:
+      rel: "CauseEffect"
+      dir: "21"
+    negated: false
