@@ -9,11 +9,11 @@ from langchain_core.tools import tool
 # CONFIG LOADER
 # =============================================================================
 
-def load_coherence_rules() -> List[Dict[str, Any]]:
+def get_active_rules() -> List[Dict[str, Any]]:
     """
-    Loads coherence rules from the config.yaml file located in the project root.
+    Loads the rules specifically for the active dataset defined in config.yaml.
+    This enforces hard-set configuration per dataset without exposing choices to the LLM.
     """
-    # Assuming config.yaml is in the parent directory of the 'tools' folder
     config_path = os.path.join(os.path.dirname(__file__), "../config.yaml")
     
     if not os.path.exists(config_path):
@@ -21,8 +21,36 @@ def load_coherence_rules() -> List[Dict[str, Any]]:
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
+    
+    # 1. Identify the active dataset key
+    active_key = config.get("active_dataset")
+    if not active_key:
+        raise ValueError("No 'active_dataset' specified in config.yaml")
         
-    return config.get("coherence_rules", [])
+    # 2. Retrieve the specific dataset configuration
+    datasets = config.get("datasets", {})
+    if active_key not in datasets:
+        raise ValueError(f"Active dataset key '{active_key}' not found in datasets config")
+        
+    ds_config = datasets[active_key]
+    
+    # 3. Identify the rule set name assigned to this dataset
+    rule_set_name = ds_config.get("rule_set", "default")
+    
+    # 4. Load the actual rules from the rule_sets dictionary
+    all_rule_sets = config.get("rule_sets", {})
+    rules = all_rule_sets.get(rule_set_name)
+    
+    if rules is None:
+        # Fallback to top-level legacy structure if rule_sets not found (optional safeguard)
+        if "coherence_rules" in config:
+            print(f"Warning: Rule set '{rule_set_name}' not found. Using legacy top-level rules.")
+            return config.get("coherence_rules", [])
+        else:
+            raise ValueError(f"Rule set '{rule_set_name}' defined for dataset '{active_key}' not found in config.")
+
+    print(f"[Coherence Tool] Loaded '{rule_set_name}' rules for active dataset '{active_key}'.")
+    return rules
 
 # =============================================================================
 # TOOL
@@ -34,25 +62,22 @@ def coherence_check(
 ) -> str:
     """
     Analyzes the logical coherence of extracted relations.
-
-    Rules are automatically loaded from 'config.yaml'. 
-    This tool detects violations (e.g., missing transitive links, conflicting directions).
+    This tool uses the rules defined for the currently active dataset in config.yaml.
 
     Args:
         pairs: A list of relations in the format [{"pair": "ID1,ID2", "label": "REL"}, ...].
-               The pair string implies direction ID1 -> ID2.
 
     Returns:
         A human-readable summary of any incoherence found.
     """
-    # --- Load Rules ---
+    # --- Load Rules (Context-Dependent) ---
     try:
-        rules = load_coherence_rules()
+        rules = get_active_rules()
     except Exception as e:
-        return f"Error loading configuration: {str(e)}"
+        return f"Configuration Error: {str(e)}"
 
     if not rules:
-        return "No rules configured in config.yaml. Cannot perform check."
+        return "No rules configured. Cannot perform check."
 
     # --- Parse predictions ---
     rel: Dict[Tuple[str, str], str] = {}
