@@ -1,10 +1,12 @@
 # tools/__init__.py
 from .coherence import coherence_check
+from .counterfactual import counterfactual_check
 from .placeholder import placeholder
 
 TOOL_REGISTRY = {
     "coherence_check": coherence_check,
     "placeholder": placeholder,
+    "counterfactual_check": counterfactual_check,
 }
 
 def get_enabled_tools(tool_names: list):

@@ -36,6 +36,6 @@ def load_first_row(dataset_id):
 
 if __name__ == "__main__":
     # The specific dataset you requested
-    dataset_name = "Nofing/MECI-v0.1-public-span"
+    dataset_name = "Nofing/MAVEN-ERE-Causal-Events"
     
     load_first_row(dataset_name)

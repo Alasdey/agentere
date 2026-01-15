@@ -10,17 +10,17 @@ datasets:
   maven_ere:
     name: "MAVEN-ERE-Causal"
     repo_id: "Nofing/MAVEN-ERE-Causal-Events"
-    split: "test"
+    split: "dev"
     text_field: "text"
     ann_field: "annots"
     prompt: "maven_ere_1"
     rule_set: "maven-ere" 
-    max_examples: 10
+    max_examples: 50
 
   meci:
     name: "MECI-v0.1"
     repo_id: "Nofing/MECI-v0.1-public-span"
-    split: "test"
+    split: "dev"
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
@@ -40,7 +40,7 @@ datasets:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-active_dataset: "meci"
+active_dataset: "maven_ere"
 
 # =============================================================================
 # MODEL CONFIGURATION
@@ -59,7 +59,8 @@ experiment:
   enable_tools: true
   tools: 
     - "coherence_check"
-  concurrency: 100
+    - "counterfactual_check"
+  concurrency: 200
   retries: 3           # How many times to retry a failed sample
   resampling:
     enabled: false
