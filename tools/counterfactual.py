@@ -36,7 +36,7 @@ def _make_llm() -> ChatOpenAI:
 # =============================================================================
 
 @tool
-def counterfactual_test(
+def counterfactual_check(
     pair: str,
     context_text: str,
     event_i_text: Optional[str] = None,

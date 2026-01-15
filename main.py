@@ -6,6 +6,7 @@ import uuid
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
+import os
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
@@ -17,6 +18,9 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # --- Load Config ---
 with open("config.yaml", "r") as f:
     CONFIG = yaml.safe_load(f)
+
+os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"] 
+os.environ["LANGCHAIN_PROJECT"] = CONFIG["experiment"]["tracing_name"]
 
 active_ds_key = CONFIG["active_dataset"]
 ds_cfg = CONFIG["datasets"][active_ds_key]

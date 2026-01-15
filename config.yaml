@@ -46,9 +46,9 @@ active_dataset: "maven_ere"
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
-  default_model_id: "aion-labs/aion-1.0-mini"
+  # default_model_id: "aion-labs/aion-1.0-mini"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
 
@@ -56,10 +56,12 @@ model:
 # GENERAL EXPERIMENT SETTINGS
 # =============================================================================
 experiment:
+  tracing: "true"
+  tracing_name: "Deepseek_coherence_mavenere_50"
   enable_tools: true
   tools: 
     - "coherence_check"
-    - "counterfactual_check"
+    # - "counterfactual_check"
   concurrency: 200
   retries: 3           # How many times to retry a failed sample
   resampling:
