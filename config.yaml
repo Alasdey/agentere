@@ -13,6 +13,7 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
+    prompt: "maven_ere_1"
     rule_set: "maven-ere" 
     max_examples: 10
 
@@ -23,7 +24,8 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    max_examples: 2
+    prompt: "meci"
+    max_examples: 10
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -38,13 +40,15 @@ datasets:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-active_dataset: "maven_ere"
+active_dataset: "meci"
 
 # =============================================================================
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  # default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  default_model_id: "aion-labs/aion-1.0-mini"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
 
@@ -53,7 +57,14 @@ model:
 # =============================================================================
 experiment:
   enable_tools: true
-  system_prompt: "You are a data quality assistant."
+  tools: 
+    - "coherence_check"
+  concurrency: 100
+  retries: 3           # How many times to retry a failed sample
+  resampling:
+    enabled: false
+    n_runs: 3          # Votes per document
+    tie_breaking: "norel"
 
 
 prompts:
@@ -78,6 +89,8 @@ prompts:
          - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
 
       # Instructions
+      Follow the instruction by reasoning on the text and the relations, explore and rationalize.
+      Then output the results in json format
       1. **Scope**: Examine **all** possible pairs of event mentions in the document.
       2. **Directionality**: Relations are directional. "ei CAUSE ej" does not imply "ej CAUSE ei".
       3. **Sparsity**: Return **only** the positive relations (CAUSE or PRECONDITION). Do not output "NoRel" pairs in the JSON.
@@ -157,7 +170,7 @@ prompts:
       
       Constraint: Return ONLY the JSON array.
 
-      
+
   meci:
     system: |
       # Role and Objective
