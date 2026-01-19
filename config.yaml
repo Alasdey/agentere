@@ -1,6 +1,41 @@
 # config.yaml
 
 
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+model:
+  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "openai/gpt-5-mini"
+  # default_model_id: "mistralai/ministral-3b-2512"
+  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  base_url: "https://openrouter.ai/api/v1"
+  temperature: 0.0
+
+# =============================================================================
+# GENERAL EXPERIMENT SETTINGS
+# =============================================================================
+experiment:
+  tracing: "true"
+  tracing_name: "gpt5mini-mavenere-100-resample3"
+  # tracing_name: "Mistral-tools-resample2-50"
+  # tracing_name: "Toto"  
+  enable_tools: false
+  tools: 
+    - "coherence_check"
+    # - "counterfactual_check"
+  concurrency: 100
+  retries: 30          # How many times to retry a failed sample
+  resampling:
+    enabled: true
+    n_runs: 3          # Votes per document
+    tie_breaking: "norel"
+
+# =============================================================================
+# ACTIVE RUN CONFIGURATION
+# =============================================================================
+# Set this to the key of the dataset you want to evaluate.
+active_dataset: "maven_ere"
 
 # =============================================================================
 # DATASETS
@@ -15,7 +50,7 @@ datasets:
     ann_field: "annots"
     prompt: "maven_ere_1"
     rule_set: "maven-ere" 
-    max_examples: 50
+    max_examples: 100
 
   meci:
     name: "MECI-v0.1"
@@ -25,7 +60,7 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     prompt: "meci"
-    max_examples: 10
+    max_examples: 5
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -34,41 +69,12 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    max_examples: 2
+    max_examples: 5
+
 
 # =============================================================================
-# ACTIVE RUN CONFIGURATION
+# Promtps
 # =============================================================================
-# Set this to the key of the dataset you want to evaluate.
-active_dataset: "maven_ere"
-
-# =============================================================================
-# MODEL CONFIGURATION
-# =============================================================================
-model:
-  default_model_id: "deepseek/deepseek-v3.2"
-  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
-  # default_model_id: "aion-labs/aion-1.0-mini"
-  base_url: "https://openrouter.ai/api/v1"
-  temperature: 0.0
-
-# =============================================================================
-# GENERAL EXPERIMENT SETTINGS
-# =============================================================================
-experiment:
-  tracing: "true"
-  tracing_name: "Deepseek_coherence_mavenere_50"
-  enable_tools: true
-  tools: 
-    - "coherence_check"
-    # - "counterfactual_check"
-  concurrency: 200
-  retries: 3           # How many times to retry a failed sample
-  resampling:
-    enabled: false
-    n_runs: 3          # Votes per document
-    tie_breaking: "norel"
-
 
 prompts:
   maven_ere_1:
@@ -119,14 +125,13 @@ prompts:
       Text:
       {doc_text}
 
-      Events found (Reference):
-      {event_list}
-
       Output format example:
       [
         {{"pair": "e0,e1", "label": "CAUSE"}},
         {{"pair": "e5,e2", "label": "PRECONDITION"}}
       ]
+
+      Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
 
   maven_ere_2:
     system: |
@@ -171,7 +176,7 @@ prompts:
 
       Task: Identify all pairs of events (ei, ej) where ei is a CAUSE or PRECONDITION of ej.
       
-      Constraint: Return ONLY the JSON array.
+      Constraint: Return ONLY the JSON array. Do not use '//' commentary
 
 
   meci:

@@ -27,134 +27,154 @@ ds_cfg = CONFIG["datasets"][active_ds_key]
 prompt_cfg = CONFIG["prompts"][ds_cfg["prompt"]]
 exp_cfg = CONFIG.get("experiment", {})
 
-# --- Parsing Helper with Strict Validation ---
-def parse_llm_json(ai_msg) -> List[Tuple[str, str, str]]:
-    content = ai_msg.content
-    if not content:
-        raise ValueError("Empty response from LLM")
-        
+import asyncio
+import yaml
+import json
+import re
+import os
+from typing import List, Dict, Any, Tuple
+
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
+from dataprep.dataprep import load_hf_dataset_parsed
+from model.model import build_chat_graph
+from tools import get_enabled_tools
+from utils.metrics import compute_ere_metrics
+from utils.resample import aggregate_run_triples
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
+    """Parses the LLM response message into a list of (src, label, tgt) triples."""
+    content = message.content
     try:
-        # Locate JSON array
-        start = content.find("[")
-        end = content.rfind("]") + 1
-        if start == -1 or end == 0:
+        # Regex to find JSON array in case of conversational filler
+        match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
+        if not match:
             raise ValueError("No JSON array found in output")
-            
-        json_str = content[start:end]
-        data = json.loads(json_str)
         
-        # Transform and validate shape
+        data = json.loads(match.group(0))
         triples = []
-        for obj in data:
-            if "pair" in obj and "label" in obj:
-                parts = obj["pair"].split(",")
-                if len(parts) == 2:
-                    triples.append((parts[0].strip(), obj["label"].strip(), parts[1].strip()))
+        for item in data:
+            pair = item.get("pair", "")
+            if "," in pair:
+                src, tgt = [part.strip() for part in pair.split(",", 1)]
+                triples.append((src, item.get("label", "Unknown"), tgt))
         return triples
     except Exception as e:
-        # Re-raise to trigger the retry loop
         raise ValueError(f"JSON Parsing failed: {str(e)}")
 
-# --- Robust Single Sample with Retries ---
-async def run_single_sample_no_retry(doc, ainvoke_func, thread_id) -> List[Tuple[str, str, str]]:
-    """
-    Directly calls the graph and parser. 
-    Does NOT catch exceptions (JSON or API), allowing them to crash for debugging.
-    """
-    sys_msg = SystemMessage(prompt_cfg["system"])
-    user_msg = HumanMessage(prompt_cfg["user_template"].format(
-        doc_text=doc["doc_text"],
-        event_list="Extracted from tags"
-    ))
-    config = {"configurable": {"thread_id": thread_id}}
-    
-    state = await ainvoke_func([sys_msg, user_msg], config=config)
-    # If parse_llm_json raises ValueError, it is NOT caught here
+# =============================================================================
+# CORE EXECUTION LOGIC
+# =============================================================================
+
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> List[Tuple[str, str, str]]:
+    """Executes a single pass through the LangGraph and parses JSON."""
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt)
+    ]
+    state = await graph_ainvoke(messages)
+    # The last message in state contains the final answer after tool loops
     return parse_llm_json(state["messages"][-1])
 
-# --- Resampling Execution ---
-async def process_document_resampled(doc, ainvoke_func, semaphore):
-    """
-    Switchboard: Robust resampling vs. Debug single-run.
-    """
-    resamp_cfg = exp_cfg.get("resampling", {})
-    is_resampling_enabled = resamp_cfg.get("enabled", False)
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int):
+    """Retries the inference if parsing fails."""
+    last_exception = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await run_single_inference(graph_ainvoke, system_prompt, user_prompt)
+        except ValueError as e:
+            last_exception = e
+            print(f"  [Attempt {attempt+1}/{max_retries+1}] Parsing failed: {e}")
+            await asyncio.sleep(1) 
+    raise last_exception
 
-    async with semaphore:
-        if not is_resampling_enabled:
-            # DEBUG MODE: Single run, no retries, crash on error
-            final_preds = await run_single_sample_no_retry(
-                doc, ainvoke_func, f"{doc['id']}_debug"
-            )
-            return doc["gold_triples"], final_preds
-        
-        # PRODUCTION MODE: Multiple runs with individual retry logic
-        n_runs = resamp_cfg.get("n_runs", 1)
-        sampling_tasks = [
-            run_single_sample_with_retry(
-                doc, 
-                ainvoke_func, 
-                f"{doc['id']}_run{i}_{uuid.uuid4().hex[:4]}"
-            )
-            for i in range(n_runs)
-        ]
-        
-        all_run_outputs = await asyncio.gather(*sampling_tasks)
-        
-        # Aggregation
-        final_preds = aggregate_run_triples(
-            all_run_outputs, 
-            tie_breaking=resamp_cfg.get("tie_breaking", "norel")
-        )
-        
-        return doc["gold_triples"], final_preds
-
-# --- Main Entry ---
-async def main():
-    # 1. Dynamic Tool Loading
-    enabled_tool_names = exp_cfg.get("tools", [])
-    tools = get_enabled_tools(enabled_tool_names)
-
-    # 2. Build Modular Graph
-    graph, invoke, ainvoke = build_chat_graph(
-        model_id=CONFIG["model"]["default_model_id"],
-        temperature=CONFIG["model"]["temperature"],
-        enable_tools=exp_cfg.get("enable_tools", True),
-        tools=tools
+async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
+    """Handles resampling (N votes per doc) and retries per vote."""
+    n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
+    retries = config["experiment"].get("retries", 3)
+    
+    prompt_cfg = config["prompts"][ds_config["prompt"]]
+    system_prompt = prompt_cfg["system"]
+    
+    # Simple event listing placeholder for cleaner prompts
+    user_prompt = prompt_cfg["user_template"].format(
+        doc_text=doc["doc_text"],
+        pair_lines="" # Used by MECI-style prompts
     )
 
-    # 3. Load Dataset
-    dataset = list(load_hf_dataset_parsed(
-        repo_id=ds_cfg["repo_id"],
-        split=ds_cfg["split"],
-        text_field=ds_cfg["text_field"],
-        ann_field=ds_cfg["ann_field"],
-        max_examples=ds_cfg.get("max_examples", 0)
-    ))
-
-    # 4. Run loop
-    concurrency = exp_cfg.get("concurrency", 5)
-    sem = asyncio.Semaphore(concurrency)
-    tasks = [process_document_resampled(doc, ainvoke, sem) for doc in dataset]
+    sampling_tasks = [
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)
+        for _ in range(n_runs)
+    ]
     
-    print(f"Engine started. Dataset: {active_ds_key} | Resampling: {exp_cfg.get('resampling', {}).get('n_runs', 1)}x | Retries: {exp_cfg.get('retries', 3)}")
+    try:
+        # Run all samples for this document in parallel
+        runs_outputs = await asyncio.gather(*sampling_tasks)
+        
+        # Aggregate using voting logic from utils/resample.py
+        if len(runs_outputs) > 1:
+            final_preds = aggregate_run_triples(
+                runs_outputs, 
+                tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
+            )
+        else:
+            final_preds = runs_outputs[0]
+            
+        metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
+        return {"id": doc["id"], "metrics": metrics, "preds": final_preds}
+    
+    except Exception as e:
+        print(f"Document {doc['id']} failed after all retries: {e}")
+        return None
+
+# =============================================================================
+# MAIN ENTRYPOINT
+# =============================================================================
+
+async def main():
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)
+
+    active_ds_key = config["active_dataset"]
+    ds_config = config["datasets"][active_ds_key]
+    
+    # Initialize LangGraph with defined tools
+    tools = get_enabled_tools(config["experiment"].get("tools", []))
+    _, _, graph_ainvoke = build_chat_graph(
+        model_id=config["model"]["default_model_id"],
+        temperature=config["model"]["temperature"],
+        base_url=config["model"]["base_url"],
+        tools=tools,
+        enable_tools=config["experiment"]["enable_tools"]
+    )
+
+    print(f"Engine started. Dataset: {ds_config['name']} | Retries: {config['experiment'].get('retries', 0)}")
+
+    dataset_iter = load_hf_dataset_parsed(
+        repo_id=ds_config["repo_id"],
+        split=ds_config["split"],
+        text_field=ds_config["text_field"],
+        ann_field=ds_config["ann_field"],
+        max_examples=ds_config.get("max_examples", 0)
+    )
+
+    # Process documents concurrently based on config
+    semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
+    
+    async def sem_task(doc):
+        async with semaphore:
+            return await process_document_resampled(doc, config, ds_config, graph_ainvoke)
+
+    tasks = [sem_task(doc) for doc in dataset_iter]
     results = await asyncio.gather(*tasks)
-
-    # 5. Global Metrics
-    all_gold, all_pred = [], []
-    for g, p in results:
-        all_gold.extend(g)
-        all_pred.extend(p)
-
-    final_metrics = compute_ere_metrics(all_gold, all_pred)
     
-    print("\n" + "="*40)
-    print(f"PERFORMANCE SUMMARY: {active_ds_key}")
-    print(f"Total Docs: {len(dataset)}")
-    print(f"F1-Score:   {final_metrics['f1']:.4f}")
-    print(f"Precision:  {final_metrics['precision']:.4f}")
-    print(f"Recall:     {final_metrics['recall']:.4f}")
-    print("="*40)
+    # filter None and report aggregate
+    valid_results = [r for r in results if r]
+    avg_f1 = sum(r["metrics"]["f1"] for r in valid_results) / len(valid_results) if valid_results else 0
+    print(f"Eval completed. Avg F1: {avg_f1:.4f}")
 
 if __name__ == "__main__":
     asyncio.run(main())
