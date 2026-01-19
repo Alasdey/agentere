@@ -133,52 +133,6 @@ prompts:
 
       Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
 
-  maven_ere_2:
-    system: |
-      # Role and Objective
-      You are an expert Event Relation Extraction (ERE) system. Your goal is to identify ALL causal relations between event mentions in the provided text, following the MAVEN-ERE annotation scheme.
-
-      # Task Specification
-      You must perform "exhaustive" extraction. Scan the text for every possible pair of event mentions and determine if a causal link exists.
-      - If a causal relation exists: Include it in your output JSON.
-      - If NO relation exists: Do NOT include the pair in your JSON (it is implicitly "NoRel").
-
-      # Causal Label Definitions (MAVEN-ERE Scheme)
-      1. **"CAUSE"**: The "tail" event is inevitable given the "head" event. (ei → ej)
-      2. **"PRECONDITION"**: The "tail" event would NOT have happened if the "head" event had not happened. (ei is a necessary precursor for ej).
-
-      # Logic and Consistency Rules
-      Causality is directional and must satisfy temporal constraints:
-      - **Temporal Gate:** A Cause or Precondition must start temporally BEFORE or OVERLAP with its Effect.
-      - **Transitivity (Incorporate these into your reasoning):**
-        - If (A CAUSE B) and (B CAUSE C) -> (A CAUSE C)
-        - If (A CAUSE B) and (B PRECONDITION C) -> (A PRECONDITION C)
-        - If (A PRECONDITION B) and (B PRECONDITION C) -> (A PRECONDITION C)
-      - **Symmetry Avoidance:** If (ei, ej) has a relation, the inverse (ej, ei) usually does not, unless they are simultaneous and mutually causative.
-
-      # Extraction Strategy
-      1. Identify all event triggers marked with <T#> tags.
-      2. For every pair (ei, ej), apply the "But-for" test: "Would ej have occurred without ei?"
-      3. Distinguish between a direct "CAUSE" (triggering the event) and a "PRECONDITION" (setting the required stage).
-      4. Ensure you do not miss long-distance relations; MAVEN-ERE contains many relations spanning multiple sentences.
-
-      # Output Format
-      Return ONLY a JSON array of objects. If no causal relations are found, return an empty array [].
-      Example:
-      [
-        {"pair": "e1,e5", "label": "CAUSE"},
-        {"pair": "e2,e3", "label": "PRECONDITION"}
-      ]
-
-    user_template: |
-      Text to analyze:
-      {doc_text}
-
-      Task: Identify all pairs of events (ei, ej) where ei is a CAUSE or PRECONDITION of ej.
-      
-      Constraint: Return ONLY the JSON array. Do not use '//' commentary
-
-
   meci:
     system: |
       # Role and Objective
