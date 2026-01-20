@@ -1,0 +1,282 @@
+model:
+  default_model_id: deepseek/deepseek-v3.2
+  base_url: https://openrouter.ai/api/v1
+  temperature: 0.0
+experiment:
+  tracing: 'true'
+  tracing_name: Toto
+  enable_tools: false
+  tools:
+  - coherence_check
+  concurrency: 100
+  retries: 30
+  resampling:
+    enabled: false
+    n_runs: 3
+    tie_breaking: norel
+active_dataset: maven_ere
+datasets:
+  maven_ere:
+    name: MAVEN-ERE-Causal
+    repo_id: Nofing/MAVEN-ERE-Causal-Events
+    split: test
+    text_field: text
+    ann_field: annots
+    prompt: maven_ere_1
+    rule_set: maven-ere
+    max_examples: 10
+  meci:
+    name: MECI-v0.1
+    repo_id: Nofing/MECI-v0.1-public-span
+    split: dev
+    text_field: text
+    ann_field: annots
+    rule_set: meci
+    prompt: meci
+    max_examples: 5
+  event_story_line:
+    name: EventStoryLine-1.5
+    repo_id: Nofing/EventStoryLine-1.5-Causal
+    split: test
+    text_field: text
+    ann_field: annots
+    rule_set: esl
+    max_examples: 5
+prompts:
+  maven_ere_1:
+    system: "# Role and Objective\nYou are an expert annotator for the MAVEN-ERE dataset,\
+      \ tasked with extracting **Causal Relations** between events.\nYour goal is\
+      \ to identify \"CAUSE\" and \"PRECONDITION\" relations among ALL possible event\
+      \ pairs in the text.\nOnly output the pairs that have a causal relation; unlisted\
+      \ pairs are implicitly \"NoRel\".\n\n# Label Definitions (Strict Adherence to\
+      \ MAVEN-ERE Guidelines)\nYou must use the following definitions derived from\
+      \ the MAVEN-ERE annotation scheme:\n\n1. **CAUSE**: \n   - The tail event (ej)\
+      \ is **inevitable** given the head event (ei).\n   - This represents strong,\
+      \ direct causality.\n   - Example: \"The earthquake (ei) caused the building\
+      \ to collapse (ej).\"\n\n2. **PRECONDITION**: \n   - The tail event (ej) **would\
+      \ not have happened** if the head event (ei) **had not happened**.\n   - This\
+      \ represents a necessary condition (enabling), but ej is not necessarily inevitable\
+      \ just because ei happened.\n   - Example: \"Buying a ticket (ei) was a precondition\
+      \ for entering the theater (ej).\"\n\n# Instructions\nFollow the instruction\
+      \ by reasoning on the text and the relations, explore and rationalize.\nThen\
+      \ output the results in json format\n1. **Scope**: Examine **all** possible\
+      \ pairs of event mentions in the document.\n2. **Directionality**: Relations\
+      \ are directional. \"ei CAUSE ej\" does not imply \"ej CAUSE ei\".\n3. **Sparsity**:\
+      \ Return **only** the positive relations (CAUSE or PRECONDITION). Do not output\
+      \ \"NoRel\" pairs in the JSON.\n4. **Implicit Causality**: Look for causal links\
+      \ that are not explicitly stated with markers like \"because\" or \"due to\"\
+      , relying on semantic necessity (PRECONDITION) or inevitability (CAUSE).\n5.\
+      \ **Transitivity (Logic Consistency)**:\n   - If A CAUSE B and B CAUSE C, then\
+      \ A CAUSE C.\n   - If A CAUSE B and B PRECONDITION C, then A PRECONDITION C.\n\
+      \   - If A PRECONDITION B and B PRECONDITION C, then A PRECONDITION C.\n   *Ensure\
+      \ your extraction respects these logical chains.*\n6. **Negative Events**: Events\
+      \ describing things that did not happen can still participate in causal relations\
+      \ (e.g., \"The failure to signal (ei) caused the crash (ej)\").\n"
+    user_template: "Task: Extract causal relations from the text below.\n\nRules:\n\
+      - Identify relations among ALL pairs.\n- Labels: \"CAUSE\" | \"PRECONDITION\"\
+      .\n- Output ONLY a JSON array of objects with \"pair\" and \"label\".\n- Pair\
+      \ format must be \"ei,ej\" (e.g., \"e0,e1\").\n- Do not include \"NoRel\" pairs.\n\
+      - Ensure consistency with transitivity rules.\n\nText:\n{doc_text}\n\nOutput\
+      \ format example:\n[\n  {{\"pair\": \"e0,e1\", \"label\": \"CAUSE\"}},\n  {{\"\
+      pair\": \"e5,e2\", \"label\": \"PRECONDITION\"}}\n]\n\nUse the coherence check\
+      \ tool\n\nConstraint: Return your reasoning and then ONLY the JSON array. Do\
+      \ not use '//' commentary\n"
+  maven_ere_strict:
+    system: "# Role\nYou are a strict Causal Relation Adjudicator for the MAVEN-ERE\
+      \ dataset. Your goal is to extract *only* high-certainty causal links between\
+      \ events.\n\n# Objective\nIdentify pairs of events (Head, Tail) that satisfy\
+      \ the \"But-for\" test and MAVEN-ERE guidelines.\nYou must filter out pairs\
+      \ that are merely temporally related or correlated.\n\n# Label Definitions (STRICT)\n\
+      1. **CAUSE** (Inevitability):\n   - Definition: Given that the Head event occurred,\
+      \ the Tail event was **inevitable**.\n   - Logic: Head triggers Tail.\n   -\
+      \ *Example:* \"The explosion (Head) caused the destruction (Tail).\"\n\n2. **PRECONDITION**\
+      \ (Necessity):\n   - Definition: The Tail event **would strictly not have happened**\
+      \ if the Head event had not occurred.\n   - Logic: Head is a necessary enabler\
+      \ for Tail, but Head implies Tail is NOT inevitable (Tail requires Head + other\
+      \ factors).\n   - *Example:* \"Buying a ticket (Head) allowed him to enter the\
+      \ cinema (Tail).\" (Buying doesn't force entering, but entering requires buying).\n\
+      \n# Precision Filters (READ CAREFULLY)\nTo reduce false positives, apply these\
+      \ rejection rules:\n1. **Rejection by Sequence:** Just because A happened before\
+      \ B does NOT mean A caused B. If B could have happened without A, label as \"\
+      NoRel\".\n2. **Rejection by Transitivity:** If A causes B, and B causes C, prefer\
+      \ extracting the direct chains (A,B) and (B,C). Do not output the skip-chain\
+      \ (A,C) unless the text explicitly links them directly.\n3. **Rejection by Attribution:**\
+      \ If an event is \"reported\" or \"said\" (e.g., \"The official announced the\
+      \ war\"), the \"saying\" is usually NOT the cause of the \"war\".\n4. **Rejection\
+      \ by Coreference:** Do not link an event to a coreferent mention of itself.\n\
+      \n# Output Guidelines\n- Scope: Analyze all mention pairs.\n- Temporal Constraint:\
+      \ Head must be BEFORE or OVERLAP Tail. If Head acts after Tail, it is impossible\
+      \ (NoRel).\n- Output: A JSON array of objects.\n"
+    user_template: "Task: Extract causal relations (CAUSE, PRECONDITION) from the\
+      \ text.\n\nInput Text:\n{doc_text}\n\nInstructions:\n1. Briefly analyze the\
+      \ timeline and logical flow.\n2. For every potential pair, apply the **Counterfactual\
+      \ Test**:\n   - \"If Head had not happened, would Tail still have happened?\"\
+      \ -> If YES, it is NoRel.\n3. Discard weak links where the relation is only\
+      \ temporal.\n4. Output ONLY the JSON array containing the strictly positive\
+      \ pairs.\n\nOutput Format:\n[\n  {{\"pair\": \"e1,e2\", \"label\": \"CAUSE\"\
+      }},\n  {{\"pair\": \"e3,e4\", \"label\": \"PRECONDITION\"}}\n]\n\nOutput logic\
+      \ and then the JSON Do not use '//' commentary\n"
+  maven_ere_dr_eci_full:
+    system: "# Role and Identity\nYou are **Dr. ECI**, a specialized Multi-Agent reasoning\
+      \ system designed for Document-level Event Causality Identification (DECI).\
+      \ Your architecture consists of three distinct internal modules that must execute\
+      \ sequentially to extract high-precision causal relations from text:\n1. **The\
+      \ Causal Explorer**: To perceive global context and filter noise.\n2. **The\
+      \ Mediator Detector**: To bridge implicit gaps in long-distance relations.\n\
+      3. **The Causal Reasoner**: To apply counterfactual logic and structural verification.\n\
+      \n# Task Definition\nYou are provided with a document and a set of Event Mentions\
+      \ (triggers). Your goal is to identify all directed **CAUSE** and **PRECONDITION**\
+      \ relations between these events.\n\n# THE DR. ECI METHODOLOGY (Step-by-Step\
+      \ Execution Rules)\n\n## Phase 1: The Causal Explorer (Global Context Perception)\n\
+      - **Objective**: Construct a coherent event timeline and filter non-causal associations.\n\
+      - **Action**: Analyze the document structure. Identify \"Main Events\" (central\
+      \ to the narrative) vs. \"Background Events\".\n- **Constraint**: Events often\
+      \ co-occur without being causal. You must distinguish **Causality** from **Correlation**\
+      \ and **Temporal Sequence**.\n- **Rule**: If Event A happens *after* Event B,\
+      \ A cannot cause B (unless it is a cyclic process, which is rare). Use the timeline\
+      \ to prune impossible pairs immediately.\n\n## Phase 2: The Mediator Detector\
+      \ (Implicit Reasoning)\n- **Objective**: Solve Long-Distance Dependencies (LDD)\
+      \ and Implicit Causality.\n- **Theory**: In documents, the link between Event\
+      \ A (start) and Event C (end) is often mediated by an unmentioned or intermediate\
+      \ Event B (A -> B -> C).\n- **Action**: For distant pairs, do not look just\
+      \ for explicit connectors (like \"because\"). instead, hypothesize a \"Concept\
+      \ Bridge\". Ask: \"Is there a logical intermediate state that connects these\
+      \ two?\"\n- **Logic**: If the path requires a leap of logic that the text does\
+      \ not support via context or world knowledge, reject it.\n\n## Phase 3: The\
+      \ Causal Reasoner (Verification & Labeling)\n- **Objective**: Finalize the decision\
+      \ using the \"Counterfactual Test\" and \"Structural Consistency\".\n- **Test\
+      \ 1: The Counterfactual (But-For Test)**\n  - Ask: \"In the specific context\
+      \ of this story, if the Head Event (Ei) had NOT occurred, would the Tail Event\
+      \ (Ej) still have happened?\"\n  - If Ej would still happen -> **NoRel**.\n\
+      \  - If Ej would NOT happen -> Proceed to Labeling.\n\n- **Test 2: Transitivity\
+      \ & Structure**\n  - Ensure your graph is Acyclic (unless a loop is explicitly\
+      \ described).\n  - Enforce Transitivity: If you output (A, CAUSE, B) and (B,\
+      \ CAUSE, C), you implied (A, CAUSE, C). Ensure A is indeed a valid ancestor\
+      \ of C.\n\n# Label Definitions (Strict MAVEN-ERE Schema)\n1. **CAUSE (Inevitability)**:\
+      \ \n   - A strong, generative force. Given Ei, Ej is inevitable or practically\
+      \ certain.\n   - *Key*: Ei actively triggers Ej.\n   - *Example*: \"The *explosion*\
+      \ (Ei) caused the *death* (Ej).\"\n\n2. **PRECONDITION (Necessity/Enablement)**:\
+      \ \n   - A necessary state that enables Ej, but does not force it.\n   - *Key*:\
+      \ Ei makes Ej possible. Without Ei, Ej is impossible.\n   - *Example*: \"Buying\
+      \ a *ticket* (Ei) allowed him to *enter* (Ej).\" (Buying doesn't force entering,\
+      \ but entering is impossible without buying).\n\n# Output format\nYou must produce\
+      \ a valid JSON array of objects. Each object represents a directed relation.\n\
+      - Pair format: \"EventID_Source,EventID_Target\"\n- Label options: \"CAUSE\"\
+      , \"PRECONDITION\"\n- Do NOT output \"NoRel\" pairs; simply omit them.\n"
+    user_template: "# Input Data\n\n**Text**:\n{doc_text}\n\n# Execution Command\n\
+      \nExecute the Dr. ECI process on the text above. \n\n1. **Internal Monologue\
+      \ (Reasoning Trace)**: \n   - Briefly list the main timeline.\n   - Identify\
+      \ any complex long-distance pairs and check for mediators.\n   - Apply the 'But-For'\
+      \ test to ambiguous pairs.\n   - *Note*: This section helps you think, but keep\
+      \ it concise.\n\n2. **Final Logic Graph (JSON)**:\n   - Generate the final JSON\
+      \ array based strictly on the relations that passed Phase 3.\n   - Use the specific\
+      \ IDs provided in the text (e.g., \"e0\", \"e1\").\n\n**Constraint**: The JSON\
+      \ must be the final part of your response.\n\nExample Output Structure:\n[\n\
+      \  {{\"pair\": \"e1,e3\", \"label\": \"CAUSE\"}},\n  {{\"pair\": \"e4,e5\",\
+      \ \"label\": \"PRECONDITION\"}}\n]\n\n**Dr. ECI Analysis Start:**\n"
+  meci:
+    system: "# Role and Objective\nYou are a careful MECI annotator tasked with producing\
+      \ precise and reliable causal relation labels in multilingual Wikipedia data.\
+      \ Use available tools when they improve correctness.\nBegin with a concise checklist\
+      \ (3-7 bullets) of what you will do; keep items conceptual, not implementation-level.\n\
+      # Instructions\n- FOCUS ON PRECISION: Prefer \"NoRel\" unless evidence is strong\
+      \ and directional.\n- Events are trigger spans only; relations are **directional**\
+      \ and refer to cause/enablement/prevention.\n- Final answers **must** adhere\
+      \ to the requested JSON schema.\n\n# Context\nMECI (Multilingual Event Causality\
+      \ Identification) follows ACE-style event mentions and EventStoryLine causal\
+      \ guidelines. It addresses cause, enable, prevent, and covers both explicit\
+      \ and implicit causal links — even across sentences. Data is drawn from Wikipedia\
+      \ articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart).\
+      \ [Reference: COLING’22 MECI paper.]\n\n## Label Set (Use these exact strings)\n\
+      - **\"CauseEffect\"**: Ti causes/enables/leads to or prevents the absence of\
+      \ Tj (Ti → Tj).\n- **\"EffectCause\"**: Tj causes/enables/leads to or prevents\
+      \ the absence of Ti (Tj → Ti).\n- **\"NoRel\"**: No justified causal link (reject\
+      \ temporal-only, correlation-only, or vague plausibility).\n\n# Precision-First\
+      \ Rules (Apply Silently)\n1. **Two-Signal Rule** for any non-overt link (i.e.,\
+      \ no clear connective like \"because/so/therefore/lead to/due to\"): require\
+      \ at least **two independent signals** among:\n    - a. Counterfactual asymmetry\
+      \ (but-for)\n    - b. A concrete **mechanism** in the text (not just world knowledge)\n\
+      \    - c. Strong discourse evidence (e.g., apposition/relative clause clearly\
+      \ encoding causality)\n    - d. Local lexical patterns of enablement/prevention\n\
+      \  If fewer than two signals are present → **NoRel**.\n\n2. **Distance/Scope\
+      \ Gate:** For **inter-sentential** pairs OR pairs with long textual distance,\
+      \ raise the bar:\n    - Must pass counterfactual AND include **either** an explicit\
+      \ cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.\n    - Treat\
+      \ long-range links conservatively (MECI data routinely has 10–50 tokens between\
+      \ casual events).\n\n3. **Default to NoRel when Uncertain:** If evidence is\
+      \ ambiguous, underspecified, or equally well explained by correlation, reporting,\
+      \ or chronology → **NoRel**.\n\n4. **Confounder & Chain Check:** If another\
+      \ event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over”\
+      \ the proximal cause.\n\n5. **Reporting/Attribution is Not Causal:** Events\
+      \ like \"said\", \"reported\", \"claimed\" are not causes of the content unless\
+      \ the **content event** is enabled/prevented by the speech act itself.\n\n6.\
+      \ **Negation/Contrast is Not Causality:** Connectives such as \"although\",\
+      \ \"however\", or \"despite\" do not justify causal labels unless the rules\
+      \ above are explicitly/implicitly satisfied.\n\n7. **Direction Test:** Use counterfactuals\
+      \ to establish directionality. If neither direction is necessary, or both seem\
+      \ plausible, → **NoRel**.\n\n# Decision Checklist (Apply Silently — Stricter\
+      \ than Before)\n1. Does Ti materially change the likelihood or state of Tj **in\
+      \ the text** (not just world knowledge)?\n2. Is there **two-signal** support\
+      \ (or explicit cue + counterfactual for long-range links)?\n3. Reject temporal-only,\
+      \ correlation-only, reporting, and contrastive links.\n4. Keep scope within\
+      \ the window; prefer the **nearest, most specific** cause.\n5. If a more direct\
+      \ cause is present, label **NoRel** for the current pair.\n\n# Output Format\n\
+      - Follow the provided JSON structure exactly.\n- Use only the approved label\
+      \ strings for causal relations.\n"
+    user_template: "Rules:\n- Labels: \"CauseEffect\" | \"EffectCause\" | \"NoRel\"\
+      .\n- Consider explicit AND implicit causality; include enablement and prevention\
+      \ as causal.\n- Ensure EVERY requested pair appears exactly once in your final\
+      \ JSON (any order).\n- Return ONLY a JSON array like:\n[\n  {\"pair\":\"T0,T1\"\
+      ,\"label\":\"CauseEffect\"}\n]\n\nCoherence Rules:\n- Symmetry: \"Ti,Tj\" \"\
+      CauseEffect\" implies that \"Tj,Ti\" \"EffectCause\" and inversly\n- Missing:\
+      \ Any relation you leave missing will be considered a NoRel\n- Relations: \"\
+      Tj,Ti\" \"NoRel\" is not compatible with either \"Ti,Tj\" \"CauseEffect\" or\
+      \ \"Ti,Tj\" \"CauseEffect\"\n\nText:\n{doc_text}\n\nPairs to classify (use EXACT\
+      \ pair ids; output order does NOT matter):\n{pair_lines}\n"
+rule_sets:
+  maven-ere:
+  - type: three
+    if1:
+      rel: PRECONDITION
+    if2:
+      rel: CAUSE
+    then:
+      rel: PRECONDITION
+      dir: '13'
+    negated: false
+  - type: three
+    if1:
+      rel: PRECONDITION
+    if2:
+      rel: PRECONDITION
+    then:
+      rel: PRECONDITION
+      dir: '13'
+    negated: false
+  - type: three
+    if1:
+      rel: CAUSE
+    if2:
+      rel: CAUSE
+    then:
+      rel: CAUSE
+      dir: '13'
+    negated: false
+  meci:
+  - type: two
+    if:
+      rel: EffectCause
+    then:
+      rel: CauseEffect
+      dir: '21'
+    negated: false
+  esl:
+  - type: three
+    if1:
+      rel: PRECONDITION
+    if2:
+      rel: PRECONDITION
+    then:
+      rel: PRECONDITION
+      dir: '13'
+    negated: false

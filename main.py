@@ -14,6 +14,8 @@ from tools import get_enabled_tools
 from utils.resample import aggregate_run_triples
 from utils.metrics import compute_ere_metrics
 from langchain_core.messages import SystemMessage, HumanMessage
+from utils.logger import log_experiment
+from utils.reporting import generate_run_report
 
 # --- Load Config ---
 with open("config.yaml", "r") as f:

@@ -1,0 +1,241 @@
+diff --git a/config.yaml b/config.yaml
+index e7ae955..08bbe63 100644
+--- a/config.yaml
++++ b/config.yaml
+@@ -48,10 +48,11 @@ datasets:
+     split: "test"
+     text_field: "text"
+     ann_field: "annots"
+-    prompt: "maven_ere_1"
++    # prompt: "maven_ere_1"
++    prompt: "maven_ere_dr_eci_full"
+     # prompt: "maven_ere_strict"
+     rule_set: "maven-ere" 
+-    max_examples: 700
++    max_examples: 100
+ 
+   meci:
+     name: "MECI-v0.1"
+@@ -132,6 +133,8 @@ prompts:
+         {{"pair": "e5,e2", "label": "PRECONDITION"}}
+       ]
+ 
++      Use the coherence check tool
++
+       Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
+   
+   maven_ere_strict:
+@@ -185,7 +188,90 @@ prompts:
+         {{"pair": "e3,e4", "label": "PRECONDITION"}}
+       ]
+       
+-      Output logic and then the JSON Do not use '//' commentary:
++      Output logic and then the JSON Do not use '//' commentary
++
++  maven_ere_dr_eci_full:
++    system: |
++      # Role and Identity
++      You are **Dr. ECI**, a specialized Multi-Agent reasoning system designed for Document-level Event Causality Identification (DECI). Your architecture consists of three distinct internal modules that must execute sequentially to extract high-precision causal relations from text:
++      1. **The Causal Explorer**: To perceive global context and filter noise.
++      2. **The Mediator Detector**: To bridge implicit gaps in long-distance relations.
++      3. **The Causal Reasoner**: To apply counterfactual logic and structural verification.
++
++      # Task Definition
++      You are provided with a document and a set of Event Mentions (triggers). Your goal is to identify all directed **CAUSE** and **PRECONDITION** relations between these events.
++
++      # THE DR. ECI METHODOLOGY (Step-by-Step Execution Rules)
++
++      ## Phase 1: The Causal Explorer (Global Context Perception)
++      - **Objective**: Construct a coherent event timeline and filter non-causal associations.
++      - **Action**: Analyze the document structure. Identify "Main Events" (central to the narrative) vs. "Background Events".
++      - **Constraint**: Events often co-occur without being causal. You must distinguish **Causality** from **Correlation** and **Temporal Sequence**.
++      - **Rule**: If Event A happens *after* Event B, A cannot cause B (unless it is a cyclic process, which is rare). Use the timeline to prune impossible pairs immediately.
++
++      ## Phase 2: The Mediator Detector (Implicit Reasoning)
++      - **Objective**: Solve Long-Distance Dependencies (LDD) and Implicit Causality.
++      - **Theory**: In documents, the link between Event A (start) and Event C (end) is often mediated by an unmentioned or intermediate Event B (A -> B -> C).
++      - **Action**: For distant pairs, do not look just for explicit connectors (like "because"). instead, hypothesize a "Concept Bridge". Ask: "Is there a logical intermediate state that connects these two?"
++      - **Logic**: If the path requires a leap of logic that the text does not support via context or world knowledge, reject it.
++
++      ## Phase 3: The Causal Reasoner (Verification & Labeling)
++      - **Objective**: Finalize the decision using the "Counterfactual Test" and "Structural Consistency".
++      - **Test 1: The Counterfactual (But-For Test)**
++        - Ask: "In the specific context of this story, if the Head Event (Ei) had NOT occurred, would the Tail Event (Ej) still have happened?"
++        - If Ej would still happen -> **NoRel**.
++        - If Ej would NOT happen -> Proceed to Labeling.
++      
++      - **Test 2: Transitivity & Structure**
++        - Ensure your graph is Acyclic (unless a loop is explicitly described).
++        - Enforce Transitivity: If you output (A, CAUSE, B) and (B, CAUSE, C), you implied (A, CAUSE, C). Ensure A is indeed a valid ancestor of C.
++
++      # Label Definitions (Strict MAVEN-ERE Schema)
++      1. **CAUSE (Inevitability)**: 
++         - A strong, generative force. Given Ei, Ej is inevitable or practically certain.
++         - *Key*: Ei actively triggers Ej.
++         - *Example*: "The *explosion* (Ei) caused the *death* (Ej)."
++      
++      2. **PRECONDITION (Necessity/Enablement)**: 
++         - A necessary state that enables Ej, but does not force it.
++         - *Key*: Ei makes Ej possible. Without Ei, Ej is impossible.
++         - *Example*: "Buying a *ticket* (Ei) allowed him to *enter* (Ej)." (Buying doesn't force entering, but entering is impossible without buying).
++
++      # Output format
++      You must produce a valid JSON array of objects. Each object represents a directed relation.
++      - Pair format: "EventID_Source,EventID_Target"
++      - Label options: "CAUSE", "PRECONDITION"
++      - Do NOT output "NoRel" pairs; simply omit them.
++
++    user_template: |
++      # Input Data
++      
++      **Text**:
++      {doc_text}
++
++      # Execution Command
++      
++      Execute the Dr. ECI process on the text above. 
++      
++      1. **Internal Monologue (Reasoning Trace)**: 
++         - Briefly list the main timeline.
++         - Identify any complex long-distance pairs and check for mediators.
++         - Apply the 'But-For' test to ambiguous pairs.
++         - *Note*: This section helps you think, but keep it concise.
++
++      2. **Final Logic Graph (JSON)**:
++         - Generate the final JSON array based strictly on the relations that passed Phase 3.
++         - Use the specific IDs provided in the text (e.g., "e0", "e1").
++      
++      **Constraint**: The JSON must be the final part of your response.
++
++      Example Output Structure:
++      [
++        {{"pair": "e1,e3", "label": "CAUSE"}},
++        {{"pair": "e4,e5", "label": "PRECONDITION"}}
++      ]
++
++      **Dr. ECI Analysis Start:**
+ 
+   meci:
+     system: |
+diff --git a/main.py b/main.py
+index e447199..2a0e5c3 100644
+--- a/main.py
++++ b/main.py
+@@ -14,6 +14,8 @@ from tools import get_enabled_tools
+ from utils.resample import aggregate_run_triples
+ from utils.metrics import compute_ere_metrics
+ from langchain_core.messages import SystemMessage, HumanMessage
++from utils.logger import log_experiment
++from utils.reporting import generate_run_report
+ 
+ # --- Load Config ---
+ with open("config.yaml", "r") as f:
+diff --git a/utils/metrics.py b/utils/metrics.py
+index 7ff9b18..279413d 100644
+--- a/utils/metrics.py
++++ b/utils/metrics.py
+@@ -4,8 +4,9 @@ from typing import List, Dict, Any, Set
+ 
+ def compute_ere_metrics(gold_triples: List[tuple], pred_triples: List[tuple]):
+     """
+-    Computes precision, recall, and F1 for relation triples.
++    Computes set-based precision, recall, and F1 for relation triples.
+     Expected format: (src_id, label, tgt_id)
++    Useful for simple checks, but not for the full log report.
+     """
+     gold_set = set(gold_triples)
+     pred_set = set(pred_triples)
+@@ -24,6 +25,90 @@ def compute_ere_metrics(gold_triples: List[tuple], pred_triples: List[tuple]):
+         "f1": f1,
+         "support": len(gold_set),
+         "predicted": len(pred_set),
+-        "tp": tp,
+-        "Causal existence": None,
++        "tp": tp
++    }
++
++def compute_multiclass_metrics(y_true: List[str], y_pred: List[str], labels: List[str]):
++    """
++    Standard multiclass classification metrics (Precision/Recall/F1 per label).
++    Replicates the logic from the old code.
++    """
++    # Normalize inputs to ensure strings
++    y_true = [str(x) for x in y_true]
++    y_pred = [str(x) for x in y_pred]
++
++    # Initialize counts
++    # If dynamic labels in data exceed provided labels list, add them or they won't be counted in PER-LABEL
++    # But usually we want strict adherence to the schema.
++    
++    unique_labels = set(labels) | set(y_true) | set(y_pred)
++    # Ensure NoRel is tracked but maybe excluded from macro calculation depending on preference
++    
++    counts = {lab: {"tp": 0, "fp": 0, "fn": 0} for lab in unique_labels}
++    
++    for gt, pr in zip(y_true, y_pred):
++        if gt == pr:
++            counts[gt]["tp"] += 1
++        else:
++            counts[gt]["fn"] += 1
++            counts[pr]["fp"] += 1
++
++    per_label = {}
++    for lab in unique_labels:
++        tp, fp, fn = counts[lab]["tp"], counts[lab]["fp"], counts[lab]["fn"]
++        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
++        rec  = tp / (tp + fn) if (tp + fn) > 0 else 0.0
++        f1   = (2 * prec * rec) / (prec + rec) if (prec + rec) > 0 else 0.0
++        per_label[lab] = {"precision": prec, "recall": rec, "f1": f1, "support": tp + fn}
++
++    # Macro: usually exclude NoRel and heavily skewed classes if strictly following strict eval, 
++    # but here we follow standard logic: avg of all relevant classes.
++    eval_labels = [lab for lab in unique_labels if lab.lower() not in ("norel", "none")]
++    
++    if not eval_labels:
++        macro_f1 = 0.0
++    else:
++        macro_f1 = sum(per_label[lab]["f1"] for lab in eval_labels) / len(eval_labels)
++
++    # Micro: Aggregate TP/FP/FN across positive classes
++    total_tp = sum(counts[lab]["tp"] for lab in eval_labels)
++    total_fp = sum(counts[lab]["fp"] for lab in eval_labels)
++    total_fn = sum(counts[lab]["fn"] for lab in eval_labels)
++
++    micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0.0
++    micro_rec  = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0.0
++    micro_f1   = (2 * micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0.0
++
++    return {
++        "per_label": per_label,
++        "macro_f1": macro_f1,
++        "micro_precision": micro_prec, 
++        "micro_recall": micro_rec,
++        "micro_f1": micro_f1,
++        "total": len(y_true)
++    }
++
++def compute_binary_metrics(y_true: List[str], y_pred: List[str]):
++    """
++    Computes metrics treating ANY relation as Positive versus NoRel as Negative.
++    """
++    def binarize(y):
++        return "NEG" if str(y).lower() in ("norel", "none", "unknown") else "POS"
++        
++    yt = [binarize(x) for x in y_true]
++    yp = [binarize(x) for x in y_pred]
++    
++    tp = sum(1 for a, b in zip(yt, yp) if a == "POS" and b == "POS")
++    fp = sum(1 for a, b in zip(yt, yp) if a == "NEG" and b == "POS")
++    fn = sum(1 for a, b in zip(yt, yp) if a == "POS" and b == "NEG")
++    
++    prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
++    rec  = tp / (tp + fn) if (tp + fn) > 0 else 0.0
++    f1   = (2 * prec * rec) / (prec + rec) if (prec + rec) > 0 else 0.0
++    
++    return {
++        "precision": prec, 
++        "recall": rec, 
++        "f1": f1, 
++        "support_pos": sum(1 for v in yt if v == "POS")
+     }
+\ No newline at end of file
