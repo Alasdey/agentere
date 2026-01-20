@@ -81,18 +81,18 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> Lis
 
 async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int):
     """Retries the inference if parsing fails."""
-    last_exception = None
     for attempt in range(max_retries + 1):
         try:
             return await run_single_inference(graph_ainvoke, system_prompt, user_prompt)
-        except ValueError as e:
-            last_exception = e
-            print(f"  [Attempt {attempt+1}/{max_retries+1}] Parsing failed: {e}")
-            await asyncio.sleep(1) 
-    raise last_exception
+        except ValueError:
+            await asyncio.sleep(1)
+    raise ValueError("Max retries reached")
 
 async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
-    """Handles resampling (N votes per doc) and retries per vote."""
+    """
+    Runs inference (optionally resampled) for a single document.
+    Returns a dict containing inputs, outputs, stats, and basic metrics.
+    """
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
     
@@ -104,7 +104,8 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
         doc_text=doc["doc_text"],
         pair_lines="" # Used by MECI-style prompts
     )
-
+    
+    # 1. Run inference N times
     sampling_tasks = [
         run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)
         for _ in range(n_runs)
@@ -115,17 +116,32 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
         runs_outputs = await asyncio.gather(*sampling_tasks)
         
         # Aggregate using voting logic from utils/resample.py
+        pair_stats = {}
         if len(runs_outputs) > 1:
-            final_preds = aggregate_run_triples(
+            final_preds, pair_stats = aggregate_run_triples(
                 runs_outputs, 
                 tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
             )
         else:
             final_preds = runs_outputs[0]
-            
+            # Create dummy stats for single run so reporting logic stays consistent
+            pair_stats = {} 
+            for src, lbl, tgt in final_preds:
+                pair_stats[f"{src},{tgt}"] = {"vote_counts": {lbl: 1}}
+
+        # 3. Quick metrics (for real-time filtering if needed, though mostly redundant now)
         metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
-        return {"id": doc["id"], "metrics": metrics, "preds": final_preds}
-    
+        
+        # Return everything needed for the Reporting module
+        return {
+            "id": doc["id"],
+            "doc_idx": doc["doc_idx"],
+            "lang": doc.get("lang", "unknown"),
+            "gold_triples": doc["gold_triples"],
+            "pred_triples": final_preds,
+            "pair_stats": pair_stats, 
+            "metrics": metrics
+        }
     except Exception as e:
         print(f"Document {doc['id']} failed after all retries: {e}")
         return None
@@ -135,13 +151,14 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
 # =============================================================================
 
 async def main():
+    # 1. Load Config
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
     
-    # Initialize LangGraph with defined tools
+    # 2. Build Graph
     tools = get_enabled_tools(config["experiment"].get("tools", []))
     _, _, graph_ainvoke = build_chat_graph(
         model_id=config["model"]["default_model_id"],
@@ -153,6 +170,7 @@ async def main():
 
     print(f"Engine started. Dataset: {ds_config['name']} | Retries: {config['experiment'].get('retries', 0)}")
 
+    # 3. Load Data
     dataset_iter = load_hf_dataset_parsed(
         repo_id=ds_config["repo_id"],
         split=ds_config["split"],
@@ -161,7 +179,7 @@ async def main():
         max_examples=ds_config.get("max_examples", 0)
     )
 
-    # Process documents concurrently based on config
+    # 4. Execute Concurrently
     semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
     
     async def sem_task(doc):
@@ -171,10 +189,30 @@ async def main():
     tasks = [sem_task(doc) for doc in dataset_iter]
     results = await asyncio.gather(*tasks)
     
-    # filter None and report aggregate
-    valid_results = [r for r in results if r]
-    avg_f1 = sum(r["metrics"]["f1"] for r in valid_results) / len(valid_results) if valid_results else 0
-    print(f"Eval completed. Avg F1: {avg_f1:.4f}")
+    # 5. Generate Report (Using new module)
+    print("Aggregating results and computing metrics...")
+    
+    final_report = generate_run_report(
+        results=results,
+        total_processed_count=len(tasks),
+        config=config,
+        # Optional: Override labels if needed, otherwise uses default ERE set
+        # valid_labels=["CauseEffect", "EffectCause", "CAUSE", "PRECONDITION", "NoRel"]
+    )
+
+    print(f"Eval completed. Metric F1: {final_report['micro_f1']:.4f}")
+
+    # 6. Log to Disk
+    outfile = log_experiment(
+        config=config,
+        cli_args=sys.argv,
+        results=final_report,
+        filename_prefix="run"
+    )
+    print(f"Results logged to: {outfile}")
+    keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]
+    for key in keys:
+        print(key, ":", final_report[key])
 
 if __name__ == "__main__":
     asyncio.run(main())

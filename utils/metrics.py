@@ -24,5 +24,6 @@ def compute_ere_metrics(gold_triples: List[tuple], pred_triples: List[tuple]):
         "f1": f1,
         "support": len(gold_set),
         "predicted": len(pred_set),
-        "tp": tp
+        "tp": tp,
+        "Causal existence": None,
     }
