@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 test_script/
 test_script/*
+logs/
+logs/*
 
 # C extensions
 *.so
