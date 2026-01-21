@@ -101,10 +101,18 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     prompt_cfg = config["prompts"][ds_config["prompt"]]
     system_prompt = prompt_cfg["system"]
     
-    # Simple event listing placeholder for cleaner prompts
+    # --- FIX: Generate pair_lines for MECI-style classification ---
+    # We extract the pairs from gold_triples to tell the model which IDs to classify
+    pair_lines = ""
+    if ds_config.get("rule_set") == "meci":
+        # Format: T0,T1\nT1,T2...
+        pairs = [f"{src},{tgt}" for src, lbl, tgt in doc["gold_triples"]]
+        pair_lines = "\n".join(pairs)
+
+    # Inject variables into the template
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
-        pair_lines="" # Used by MECI-style prompts
+        pair_lines=pair_lines,
     )
     
     # 1. Run inference N times

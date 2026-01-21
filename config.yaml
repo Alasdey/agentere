@@ -5,10 +5,11 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-r1-0528"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "mistralai/ministral-3b-2512"
-  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
 
@@ -35,7 +36,8 @@ experiment:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-active_dataset: "maven_ere"
+# active_dataset: "maven_ere"
+active_dataset: "meci"
 
 # =============================================================================
 # DATASETS
@@ -48,11 +50,11 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
-    # prompt: "maven_ere_1"
-    prompt: "maven_ere_dr_eci_full"
+    prompt: "maven_ere_1"
+    # prompt: "maven_ere_dr_eci_full"
     # prompt: "maven_ere_strict"
     rule_set: "maven-ere" 
-    max_examples: 100
+    max_examples: 10
 
   meci:
     name: "MECI-v0.1"
@@ -62,7 +64,7 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     prompt: "meci"
-    max_examples: 5
+    max_examples: 10
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -334,7 +336,7 @@ prompts:
       - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
       - Return ONLY a JSON array like:
       [
-        {"pair":"T0,T1","label":"CauseEffect"}
+        {{"pair":"T0,T1","label":"CauseEffect"}}
       ]
 
       Coherence Rules:
