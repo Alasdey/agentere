@@ -5,11 +5,11 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "deepseek/deepseek-r1-0528"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "mistralai/ministral-3b-2512"
-  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
 
@@ -36,8 +36,8 @@ experiment:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-# active_dataset: "maven_ere"
-active_dataset: "event_story_line"
+active_dataset: "maven_ere"
+# active_dataset: "event_story_line"
 
 # =============================================================================
 # DATASETS
@@ -54,7 +54,7 @@ datasets:
     # prompt: "maven_ere_dr_eci_full"
     # prompt: "maven_ere_strict"
     rule_set: "maven-ere" 
-    max_examples: 10
+    max_examples: 50
 
   meci:
     name: "MECI-v0.1"
@@ -73,7 +73,7 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    prompt: "event_story_line_v1"
+    prompt: "event_story_line_v2"
     max_examples: 50
 
 
@@ -432,7 +432,6 @@ prompts:
     # Note: Tool Guidance was commented out in the original request as tools like thinker/critic are removed.
     # If you enable tools like coherence_check in the graph, the model may decide to use them based on general instructions.
 
-prompts:
   event_story_line_v1:
     system: |
       # Role and Context
@@ -493,6 +492,49 @@ prompts:
 
       Analysis and Logic:
       (Provide a brief timeline analysis, then the JSON)
+
+  event_story_line_v2:
+    system: |
+      # Role
+      You are an expert annotator for the Event StoryLine Corpus (ESC). Your objective is to extract pairs of event mentions that form the "Explanatory Structure" of a news story.
+
+      # Task Guidelines
+      Identify directed relations where one event explains or enables another. In ESC, these are categorized as:
+      
+      1. **PRECONDITION**:
+         - The Head event is a necessary state or an enabler for the Tail event.
+         - Logic: The Tail event could not have happened (or would not make sense) without the Head event.
+         - *Patterns*: (Fire -> Hire), (Killing -> Trial), (Accused -> Appear in Court), (Air strike -> Explosion).
+
+      2. **FALLING_ACTION**:
+         - The Head event represents a logical "step down" or consequence of the Tail event.
+         - Logic: Head is the result, reaction, or outcome of Tail.
+         - *Patterns*: (Trial -> Accused), (Accused -> Killing), (Injuries -> Beaten), (Absence -> Danger).
+         - *Note*: If Event A is the result of Event B, the relation is (A FALLING_ACTION B).
+
+      # Extraction Filters
+      - **Focus**: Only link "semantically full" actions (Occurrences, States, Perceptions).
+      - **Ignore**: Attribution/Reporting verbs (e.g., "said", "announced") are almost never causal heads or tails in this schema.
+      - **Directionality**: Pay close attention to the IDs. ESC relations are highly specific to the narrative "plot-link" logic.
+
+    user_template: |
+      # Input Text
+      {doc_text}
+
+      # Instructions
+      1. Identify all events tagged with IDs (e.g., <a1 EventText>).
+      2. Identify the logical explanatory links between them.
+      3. Use the label "PRECONDITION" for enabling/necessary prior events.
+      4. Use the label "FALLING_ACTION" for outcomes/consequences/secondary results.
+      
+      # Constraint
+      Output a JSON array of objects with "pair" and "label".
+      Example: [{{"pair": "a1,a2", "label": "PRECONDITION"}}]
+
+      Analysis of the Narrative Logic:
+      (Provide your reasoning here)
+
+      Final JSON:
 
 # =============================================================================
 # RULE SETS
@@ -559,7 +601,7 @@ rule_sets:
       then:
         rel: "FALLING_ACTION"
         dir: "21"
-      negated: true
+      negated: false
 
     - type: "two"
       if:
@@ -567,4 +609,4 @@ rule_sets:
       then:
         rel: "PRECONDITION"
         dir: "21"
-      negated: true
+      negated: false

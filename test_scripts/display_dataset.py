@@ -1,7 +1,7 @@
 
 from datasets import load_dataset
 
-def load_first_row(dataset_id):
+def load_first_row(dataset_id, number_of_rows):
     try:
         # Load the dataset from Hugging Face
         print(f"Loading dataset: {dataset_id}...")
@@ -16,19 +16,20 @@ def load_first_row(dataset_id):
         first_split_name = available_splits[0]
         selected_split = dataset_dict[first_split_name]
 
-        # Access the first row (index 0)
-        first_row = selected_split[0]
+        for i in range(number_of_rows):
+            # Access the first row (index 0)
+            row = selected_split[i]
 
-        print(f"\n--- First Row from '{first_split_name}' split ---")
-        
-        # Print nicely formatted if it's a dictionary
-        if isinstance(first_row, dict):
-            for key, value in first_row.items():
-                print(f"{key}: {value}")
-        else:
-            print(first_row)
+            print(f"\n--- Row {i} from '{first_split_name}' split ---")
             
-        return first_row
+            # Print nicely formatted if it's a dictionary
+            if isinstance(row, dict):
+                for key, value in row.items():
+                    print(f"{key}: {value}")
+            else:
+                print(row)
+            
+        return
 
     except Exception as e:
         print(f"An error occurred: {e}")
@@ -36,6 +37,7 @@ def load_first_row(dataset_id):
 
 if __name__ == "__main__":
     # The specific dataset you requested
-    dataset_name = "Nofing/MAVEN-ERE-Causal-Events"
-    
-    load_first_row(dataset_name)
+    # dataset_name = "Nofing/MAVEN-ERE-Causal-Events"
+    dataset_name = "Nofing/EventStoryLine-1.5-Causal"
+    number_of_rows = 5    
+    load_first_row(dataset_name, number_of_rows)
