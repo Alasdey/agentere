@@ -3,6 +3,8 @@ import yaml
 import copy
 import random
 import re
+import json
+import time
 from typing import List, Dict, Any, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage
 from main import process_document_resampled, build_chat_graph
@@ -12,168 +14,197 @@ from dataprep.dataprep import load_hf_dataset_parsed
 # OPTIMIZATION PARAMETERS
 # =============================================================================
 OPTIM_CONFIG = {
-    "max_prompts": 8,       # Population size
-    "n_selected": 2,       # Elites to keep and use as parents
-    "initial_samples": 5,  # Starting documents for evaluation
-    "sample_increment": 5, # How many docs to add per cycle
+    "max_prompts": 8,           
+    "n_selected": 2,           
+    "initial_samples": 10,      
+    "sample_increment": 2,     
     "max_cycles": 10,
-    "eval_concurrency": 10
 }
+
+# Revised template: Instead of "Pairs to classify", we provide "Events present"
+# This mirrors how MAVEN-ERE works (finding relations among present events)
+CONSTANT_USER_TEMPLATE = """
+Task: Extract causal relations from the text below.
+Only use the Event IDs provided in the text (e.g., e0, e1).
+
+Text:
+{doc_text}
+
+List of all events mentioned in the text:
+{pair_lines}
+
+Output ONLY a JSON array of objects with "pair" and "label".
+Example: [{"pair": "e1,e2", "label": "CAUSE"}]
+"""
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+def get_event_ids_from_text(text: str) -> str:
+    """Finds all instances of <eID ...> in text and returns a unique list of IDs."""
+    # Matches <e123 or <T123
+    ids = re.findall(r"<([a-zA-Z0-9]+)\s+", text)
+    unique_ids = sorted(list(set(ids)), key=lambda x: (len(x), x))
+    return ", ".join(unique_ids)
+
+def triples_to_json_format(triples: List[Tuple[str, str, str]]) -> str:
+    return json.dumps([{"pair": f"{t[0]},{t[2]}", "label": t[1]} for t in triples])
 
 class PromptCandidate:
     def __init__(self, system_prompt: str, version: int = 0):
+        self.id = f"v{version}-{random.getrandbits(16):04x}"
         self.system_prompt = system_prompt
-        self.version = version
         self.score = 0.0
+        self.tp, self.fp, self.fn, self.support = 0, 0, 0, 0
         self.results = []
 
-    def __repr__(self):
-        return f"[V{self.version}] F1: {self.score:.4f}"
+# =============================================================================
+# OPTIMIZER
+# =============================================================================
 
-class EvolutionaryPromptOptimizer:
+class EvolutionaryOptimizer:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.ds_cfg = config["datasets"][config["active_dataset"]]
-        # Initialize population with the base prompt from config
-        initial_prompt = config["prompts"][self.ds_cfg["prompt"]]["system"]
-        self.population = [PromptCandidate(initial_prompt) for _ in range(OPTIM_CONFIG["max_prompts"])]
+        self.ds_key = config["active_dataset"]
+        self.ds_cfg = config["datasets"][self.ds_key]
         
-        # Tools and Graph setup
-        from tools import get_enabled_tools
-        self.tools = get_enabled_tools(config["experiment"].get("tools", []))
+        # Load initial prompt from config
+        initial_sys = config["prompts"][self.ds_cfg["prompt"]]["system"]
+        self.population = [PromptCandidate(initial_sys) for _ in range(OPTIM_CONFIG["max_prompts"])]
+
+    async def evaluate_candidate(self, candidate: PromptCandidate, dataset: List[Dict], engine_ainvoke):
+        """Evaluates a prompt against the dataset."""
+        print(f"  [EVAL] Testing {candidate.id}...")
         
-    async def evaluate_population(self, n_samples: int):
-        """Asynchronously evaluates all prompts in the population."""
-        # Load dataset slice
-        dataset = list(load_hf_dataset_parsed(
-            repo_id=self.ds_cfg["repo_id"],
-            split=self.ds_cfg["split"],
-            max_examples=n_samples
-        ))
+        # Setup local config for this candidate
+        eval_config = copy.deepcopy(self.config)
+        eval_config["prompts"]["evolved"] = {
+            "system": candidate.system_prompt,
+            "user_template": CONSTANT_USER_TEMPLATE
+        }
+        
+        # Force the framework to run this candidate
+        ds_copy = copy.deepcopy(self.ds_cfg)
+        ds_copy["prompt"] = "evolved"
 
-        _, _, graph_ainvoke = build_chat_graph(
-            model_id=self.config["model"]["default_model_id"],
-            temperature=self.config["model"]["temperature"],
-            base_url=self.config["model"]["base_url"],
-            tools=self.tools,
-            enable_tools=self.config["experiment"]["enable_tools"]
-        )
+        # Prepare docs: generate the 'pair_lines' locally as a list of IDs for the prompt
+        processed_docs = []
+        for doc in dataset:
+            d = copy.deepcopy(doc)
+            # This ensures {pair_lines} in CONSTANT_USER_TEMPLATE is a list of IDs
+            d["pair_lines"] = get_event_ids_from_text(doc["doc_text"])
+            processed_docs.append(d)
 
-        async def eval_candidate(candidate: PromptCandidate):
-            # Temporarily override config prompt for this call
-            local_config = copy.deepcopy(self.config)
-            local_config["prompts"]["temp_optim"] = {
-                "system": candidate.system_prompt,
-                "user_template": self.config["prompts"][self.ds_cfg["prompt"]]["user_template"]
-            }
-            local_config["datasets"][local_config["active_dataset"]]["prompt"] = "temp_optim"
-            
-            # Execute inference for all docs in subset
-            tasks = [process_document_resampled(doc, local_config, self.ds_cfg, graph_ainvoke) for doc in dataset]
-            results = await asyncio.gather(*tasks)
-            valid_results = [r for r in results if r is not None]
-            
-            # Calculate Micro-F1
-            tp, fp, fn = 0, 0, 0
-            for r in valid_results:
-                m = r["metrics"]
-                tp += m.get("tp", 0)
-                # Recalculate precision/recall components for global micro-F1
-                fp += (m["predicted"] - m["tp"])
-                fn += (m["support"] - m["tp"])
-            
-            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-            candidate.score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-            candidate.results = valid_results
+        tasks = [process_document_resampled(d, eval_config, ds_copy, engine_ainvoke) for d in processed_docs]
+        raw_results = await asyncio.gather(*tasks)
+        
+        valid = [r for r in raw_results if r is not None]
+        tp, fp, fn, support = 0, 0, 0, 0
+        
+        for r in valid:
+            m = r["metrics"]
+            tp += m["tp"]
+            fp += (m["predicted"] - m["tp"])
+            fn += (m["support"] - m["tp"])
+            support += m["support"]
 
-        await asyncio.gather(*(eval_candidate(c) for c in self.population))
+        candidate.support = support
+        candidate.tp, candidate.fp, candidate.fn = tp, fp, fn
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0
+        rec = tp / (tp + fn) if (tp + fn) > 0 else 0
+        candidate.score = (2 * prec * rec) / (prec + rec) if (prec + rec) > 0 else 0
+        candidate.results = valid
 
     async def audit_and_evolve(self, parent: PromptCandidate, cycle: int) -> List[PromptCandidate]:
-        """Diagnostic Audit & Pruning via LLM."""
-        _, _, graph_ainvoke = build_chat_graph(
-            model_id="openai/gpt-4o", # Use a strong model for meta-reasoning
-            temperature=0.5
+        """Uses LLM to prune and improve the system prompt based on errors."""
+        _, _, meta_llm = build_chat_graph(
+            model_id="deepseek/deepseek-v3.2", # Use a strong model for meta-analysis
+            temperature=0.6,
+            base_url=self.config["model"]["base_url"]
         )
 
-        # Build error context from parent's failed samples
-        error_context = ""
-        for res in parent.results[:3]: # Look at first 3 results for context
-            error_context += f"\nDoc ID: {res['id']}\nGold: {res['gold_triples']}\nPred: {res['pred_triples']}\n"
+        # Get a mix of errors (Precision vs Recall)
+        errors = [r for r in parent.results if r["metrics"]["f1"] < 0.9]
+        random.shuffle(errors)
+        example_str = ""
+        for r in errors[:2]:
+            example_str += f"\nTEXT: {r['id']}\nGOLD: {triples_to_json_format(r['gold_triples'])}\nPRED: {triples_to_json_format(r['pred_triples'])}\n"
 
-        audit_prompt = f"""
-        # Task: Instructional Refinement
-        You are an expert prompt engineer. Analyze the performance of an ERE extraction prompt.
+        meta_prompt = f"""
+        Analyze this Event Relation Extraction prompt. 
+        Current Prompt: {parent.system_prompt}
         
-        # Current Prompt:
-        {parent.system_prompt}
+        Errors observed:
+        {example_str}
         
-        # Sample Error Analysis:
-        {error_context}
-
-        # Objective:
-        1. PRUNE: Identify specific paragraphs or rules in the Current Prompt that are causing false positives or logic errors.
-        2. AUGMENT: Create 2-3 new 'Instructional Chunks' to fix these errors.
+        1. Identify the 'harmful' instruction causes the error (PRUNE).
+        2. Create 2 refined instructions to improve logic (AUG).
         
-        # Output Format:
-        [PRUNE_START] text to remove [PRUNE_END]
-        [CHUNK_START] new instruction [CHUNK_END]
+        Output format:
+        PRUNE: <text to delete>
+        AUG1: <new rule 1>
+        AUG2: <new rule 2>
         """
         
-        msg = await graph_ainvoke([HumanMessage(content=audit_prompt)])
-        content = msg["messages"][-1].content
+        try:
+            resp = await meta_llm([HumanMessage(content=meta_prompt)])
+            text = resp["messages"][-1].content
+            
+            p_match = re.search(r"PRUNE:\s*(.*)", text)
+            augs = re.findall(r"AUG\d:\s*(.*)", text)
+            
+            base = parent.system_prompt
+            if p_match and "none" not in p_match.group(1).lower():
+                base = base.replace(p_match.group(1).strip(), "")
+                
+            return [PromptCandidate(base + "\n" + a.strip(), cycle) for a in augs]
+        except:
+            return []
 
-        # Simple regex parsing for evolution
-        prune_match = re.search(r"\[PRUNE_START\](.*?)\[PRUNE_END\]", content, re.DOTALL)
-        chunks = re.findall(r"\[CHUNK_START\](.*?)\[CHUNK_END\]", content, re.DOTALL)
-
-        pruned_base = parent.system_prompt
-        if prune_match:
-            pruned_base = pruned_base.replace(prune_match.group(1).strip(), "")
-
-        new_variants = []
-        for chunk in chunks:
-            new_variants.append(PromptCandidate(pruned_base + "\n" + chunk.strip(), version=cycle))
+    async def run(self):
+        samples = OPTIM_CONFIG["initial_samples"]
         
-        return new_variants
-
-    async def run_optimization(self):
-        current_samples = OPTIM_CONFIG["initial_samples"]
-
         for cycle in range(OPTIM_CONFIG["max_cycles"]):
-            print(f"\n--- Cycle {cycle} (Samples: {current_samples}) ---")
+            print(f"\n--- CYCLE {cycle} (Samples: {samples}) ---")
             
-            # 1. Evaluate
-            await self.evaluate_population(current_samples)
+            # Load fresh dataset slice
+            dataset = list(load_hf_dataset_parsed(
+                repo_id=self.ds_cfg["repo_id"], split=self.ds_cfg["split"], max_examples=samples
+            ))
+
+            _, _, engine = build_chat_graph(
+                model_id=self.config["model"]["default_model_id"],
+                temperature=0.0,
+                base_url=self.config["model"]["base_url"]
+            )
+
+            # Evaluate all
+            await asyncio.gather(*(self.evaluate_candidate(c, dataset, engine) for c in self.population))
             
-            # Sort by score descending
+            # Select
             self.population.sort(key=lambda x: x.score, reverse=True)
             elites = self.population[:OPTIM_CONFIG["n_selected"]]
             
-            avg_f1 = sum(c.score for c in self.population) / len(self.population)
-            print(f"Cycle Result: Best F1: {elites[0].score:.4f} | Avg F1: {avg_f1:.4f}")
-            print(f"Top Prompt Version: {elites[0].version}")
+            print(f"Top Score: {elites[0].score:.4f} (TP: {elites[0].tp}, Support: {elites[0].support})")
 
-            # 2. Evolve (Audit & Prune)
-            new_population = copy.deepcopy(elites) # Elitism: Preserved as-is
+            # Evolve
+            evo_tasks = [self.audit_and_evolve(p, cycle) for p in elites]
+            evo_results = await asyncio.gather(*evo_tasks)
             
-            evolution_tasks = [self.audit_and_evolve(parent, cycle) for parent in elites]
-            variant_groups = await asyncio.gather(*evolution_tasks)
+            new_pop = copy.deepcopy(elites)
+            for res in evo_results:
+                new_pop.extend(res)
             
-            for group in variant_groups:
-                new_population.extend(group)
+            while len(new_pop) < OPTIM_CONFIG["max_prompts"]:
+                new_pop.append(PromptCandidate(random.choice(elites).system_prompt, cycle))
+            
+            self.population = new_pop[:OPTIM_CONFIG["max_prompts"]]
+            samples += OPTIM_CONFIG["sample_increment"]
 
-            # 3. Fill remaining slots
-            while len(new_population) < OPTIM_CONFIG["max_prompts"]:
-                parent = random.choice(elites)
-                new_population.append(PromptCandidate(parent.system_prompt, version=cycle))
-
-            self.population = new_population[:OPTIM_CONFIG["max_prompts"]]
-            current_samples += OPTIM_CONFIG["sample_increment"]
+        print(f"\nFINAL PROMPT:\n{self.population[0].system_prompt}")
 
 if __name__ == "__main__":
     with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
-    
-    optimizer = EvolutionaryPromptOptimizer(config)
-    asyncio.run(optimizer.run_optimization())
+        cfg = yaml.safe_load(f)
+    asyncio.run(EvolutionaryOptimizer(cfg).run())

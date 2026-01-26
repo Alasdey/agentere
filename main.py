@@ -108,7 +108,7 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
         # Format: T0,T1\nT1,T2...
         pairs = [f"{src},{tgt}" for src, lbl, tgt in doc["gold_triples"]]
         pair_lines = "\n".join(pairs)
-
+    
     # Inject variables into the template
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],

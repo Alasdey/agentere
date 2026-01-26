@@ -36,8 +36,8 @@ experiment:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
+# active_dataset: "meci"
 active_dataset: "maven_ere"
-# active_dataset: "event_story_line"
 
 # =============================================================================
 # DATASETS
@@ -47,7 +47,7 @@ datasets:
   maven_ere:
     name: "MAVEN-ERE-Causal"
     repo_id: "Nofing/MAVEN-ERE-Causal-Events"
-    split: "test"
+    split: "train"
     text_field: "text"
     ann_field: "annots"
     prompt: "maven_ere_1"
@@ -139,6 +139,12 @@ prompts:
       Use the coherence check tool
 
       Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
+
+      Text:
+      {doc_text}
+      
+      Pairs: all of them
+      {pair_lines}
   
   maven_ere_strict:
     system: |
