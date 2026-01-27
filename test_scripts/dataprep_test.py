@@ -13,7 +13,8 @@ from dataprep.dataprep import load_hf_dataset_parsed
 def run_test():
     # Configuration
     # You may need to change these column names depending on the specific dataset's schema
-    REPO_ID = "Nofing/Hievents-span" 
+    # REPO_ID = "Nofing/Hievents-span" 
+    REPO_ID = "Nofing/MECI-v0.1-public-span" 
     SPLIT = "train"       # Using validation usually provides a good sample
     TEXT_FIELD = "text"        # The column containing the document
     ANN_FIELD = "annots"  # The column containing the <e1> label <e2> string
@@ -38,6 +39,7 @@ def run_test():
         )
 
         for item in loader:
+            print(item)
             print(f"\n[Document ID]: {item['id']}")
             print(f"[Language]:    {item['lang']}")
             

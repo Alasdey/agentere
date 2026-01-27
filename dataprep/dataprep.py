@@ -103,15 +103,32 @@ def load_hf_dataset_parsed(
         # Use existing 'id' column or fallback to index
         row_id = str(row.get("id", f"idx_{i}"))
         lang = row.get("lang", "eng")
+        tokens = row.get("tokens", [])
+        spans = row.get("spans", [])
+        mentions = row.get("mentions", [])
 
         gold_triples = parse_annotations(ann_text, valid_labels=valid_labels)
+        
+        mentions_map = {}
+        if tokens and spans and mentions and len(spans) == len(mentions):
+            for i, mention_id in enumerate(mentions):
+                token_indices = spans[i]
+                # Ensure indices are valid and gather the text parts
+                text_parts = []
+                for idx in token_indices:
+                    if 0 <= idx < len(tokens):
+                        text_parts.append(tokens[idx])
+                
+                if text_parts:
+                    mentions_map[mention_id] = " ".join(text_parts)
 
         yield {
             "id": row_id,
             "doc_idx": i,
             "doc_text": doc_text,
             "gold_triples": gold_triples,
-            "lang": lang
+            "lang": lang,
+            "mentions_map": mentions_map,
         }
         
         count += 1

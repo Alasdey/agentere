@@ -22,6 +22,28 @@ def compute_undirected_binary_metrics(log_file: str):
     with open(log_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
+    # --- Extract Run Configuration ---
+    config = data.get("config", {})
+    active_ds = config.get("active_dataset", "Unknown")
+    ds_cfg = config.get("datasets", {}).get(active_ds, {})
+    exp_cfg = config.get("experiment", {})
+    
+    dataset_name = ds_cfg.get("name", "Unknown")
+    dataset_split = ds_cfg.get("split", "Unknown")
+    model_id = config.get("model", {}).get("default_model_id", "Unknown")
+    resampling = exp_cfg.get("resampling", {}).get("enabled", False)
+    tools = exp_cfg.get("enable_tools", False)
+    num_samples = ds_cfg.get("max_examples", 0)
+
+    # --- Print Configuration Header ---
+    print(f"  Dataset:      {dataset_name} ({active_ds})")
+    print(f"  Split:        {dataset_split}")
+    print(f"  Model:        {model_id}")
+    print(f"  Resampling:   {'Yes' if resampling else 'No'}")
+    print(f"  Tools:        {'Yes' if tools else 'No'}")
+    print(f"  Samples:      {num_samples}")
+    print("-" * 50)
+
     # 1. Extract per-pair predictions
     # We use a set of (doc_id, {undirected_pair}) to track unique items
     # Value is: { 'gold_is_rel': bool, 'pred_is_rel': bool }
@@ -86,7 +108,8 @@ def compute_undirected_binary_metrics(log_file: str):
     print(f"  Binary Undirected Precision: {precision:.4f}")
     print(f"  Binary Undirected Recall:    {recall:.4f}")
     print(f"  Binary Undirected F1:        {f1:.4f}")
-    print("-" * 50)
+    print("=" * 50)
+    print("\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Calculate Undirected Binary Metrics from Logs")

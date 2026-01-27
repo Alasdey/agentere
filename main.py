@@ -101,20 +101,32 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     prompt_cfg = config["prompts"][ds_config["prompt"]]
     system_prompt = prompt_cfg["system"]
     
-    # --- FIX: Generate pair_lines for MECI-style classification ---
-    # We extract the pairs from gold_triples to tell the model which IDs to classify
-    pair_lines = ""
-    if ds_config.get("rule_set") == "meci":
-        # Format: T0,T1\nT1,T2...
-        pairs = [f"{src},{tgt}" for src, lbl, tgt in doc["gold_triples"]]
-        pair_lines = "\n".join(pairs)
+    # Generate pair_lines for MECI-style classification
+    if ds_config.get("rule_set") == "meci": 
+        # We extract the pairs from gold_triples to tell the model which IDs to classify
+        pair_lines = ""
+        
+        # Retrieve the mentions_map we added in dataprep.py
+        mentions_map = doc.get("mentions_map", {})
+
+        # Logic to format: "ID (Quote), ID (Quote)"
+        formatted_pairs = []
+        for src, lbl, tgt in doc["gold_triples"]:
+            src_quote = mentions_map.get(src, "")
+            tgt_quote = mentions_map.get(tgt, "")
+            
+            # Format example: "T0 (shooting), T1 (trial)"
+            formatted_pairs.append(f"{src} (\"{src_quote}\"), {tgt} (\"{tgt_quote}\")")
+        
+        pair_lines = "\n".join(formatted_pairs)
+    else:
+        pair_lines = "Predict all the pairs, all pairs not predicted will be considered NoRel"
     
     # Inject variables into the template
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
         pair_lines=pair_lines,
     )
-    
     # 1. Run inference N times
     sampling_tasks = [
         run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)

@@ -34,7 +34,7 @@ List of all events mentioned in the text:
 {pair_lines}
 
 Output ONLY a JSON array of objects with "pair" and "label".
-Example: [{"pair": "e1,e2", "label": "CAUSE"}]
+Example: [{{"pair": "e1,e2", "label": "CAUSE"}}]
 """
 
 # =============================================================================
