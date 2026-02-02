@@ -201,9 +201,15 @@ async def main():
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
+
+    # Dataset
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
-    
+
+    # Labels types
+    active_labels = ds_config.get("labels")
+    print(f"Active Labels for {ds_config['name']}: {active_labels}")
+
     # 2. Build Graph
     tools = get_enabled_tools(config["experiment"].get("tools", []))
     _, _, graph_ainvoke = build_chat_graph(
@@ -222,7 +228,8 @@ async def main():
         split=ds_config["split"],
         text_field=ds_config["text_field"],
         ann_field=ds_config["ann_field"],
-        max_examples=ds_config.get("max_examples", 0)
+        max_examples=ds_config.get("max_examples", 0),
+        valid_labels=set(active_labels),
     )
 
     # 4. Execute Concurrently
@@ -242,6 +249,7 @@ async def main():
         results=results,
         total_processed_count=len(tasks),
         config=config,
+        valid_labels=set(active_labels),
         # Optional: Override labels if needed, otherwise uses default ERE set
         # valid_labels=["CauseEffect", "EffectCause", "CAUSE", "PRECONDITION", "NoRel"]
     )
@@ -253,7 +261,7 @@ async def main():
         config=config,
         cli_args=sys.argv,
         results=final_report,
-        filename_prefix="run"
+        filename_prefix="run",
     )
     print(f"Results logged to: {outfile}")
     keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]

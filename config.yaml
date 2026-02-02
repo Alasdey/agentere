@@ -58,6 +58,10 @@ datasets:
     # prompt: "maven_ere_strict"
     rule_set: "maven-ere" 
     max_examples: 50
+    labels: 
+      - "CAUSE"
+      - "PRECONDITION"
+      - "NoRel"
 
   meci:
     name: "MECI-v0.1"
@@ -71,6 +75,11 @@ datasets:
     # prompt: "medi_autoprompt_deepseek"
     max_examples: 714
     # max_examples: 50
+    labels: 
+      - "CauseEffect"
+      - "EffectCause"
+      - "NoRel"
+
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -81,6 +90,11 @@ datasets:
     rule_set: "esl"
     prompt: "event_story_line_v2"
     max_examples: 50
+    labels: 
+      - "PRECONDITION"
+      - "FALLING_ACTION"
+      - "NoRel"
+
 
 
 # =============================================================================
