@@ -64,10 +64,10 @@ def load_hf_dataset_parsed(
     repo_id: str,
     split: str = "test",
     text_field: str = "text",
-    ann_field: str = "annotations",
+    ann_field: str = "annots",
     valid_labels: Optional[Set[str]] = None,
     streaming: bool = False,
-    max_examples: int = 0
+    max_examples: int = 0,
 ) -> Iterator[Dict[str, Any]]:
     """
     Loads a Hugging Face dataset and yields the raw text and parsed relation triples.

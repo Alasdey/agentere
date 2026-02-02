@@ -12,7 +12,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from utils.resample import aggregate_run_triples
-from utils.metrics import compute_ere_metrics
+from utils.old_metrics import compute_ere_metrics
 from langchain_core.messages import SystemMessage, HumanMessage
 from utils.logger import log_experiment
 from utils.reporting import generate_run_report
@@ -71,29 +71,41 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> List[Tuple[str, str, str]]:
-    """Executes a single pass through the LangGraph and parses JSON."""
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> Dict[str, Any]:
+    """Executes a single pass and returns parsed triples + raw content."""
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt)
     ]
     state = await graph_ainvoke(messages)
-    # The last message in state contains the final answer after tool loops
-    return parse_llm_json(state["messages"][-1])
+    
+    # The last message contains the final answer
+    raw_content = state["messages"][-1].content
+    
+    # helper for internal logic
+    parsed_triples = parse_llm_json(state["messages"][-1]) 
+    
+    return {
+        "triples": parsed_triples,
+        "raw_response": raw_content
+    }
 
 async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int):
-    """Retries the inference if parsing fails."""
+    """Retries inference if parsing fails, returns dict with raw+parsed data."""
+    last_error = None
     for attempt in range(max_retries + 1):
         try:
             return await run_single_inference(graph_ainvoke, system_prompt, user_prompt)
-        except ValueError:
+        except ValueError as e:
+            last_error = e
             await asyncio.sleep(1)
-    raise ValueError("Max retries reached")
+            
+    raise ValueError(f"Max retries reached. Last error: {last_error}")
 
 async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     """
     Runs inference (optionally resampled) for a single document.
-    Returns a dict containing inputs, outputs, stats, and basic metrics.
+    Returns inputs, outputs, stats, metrics, AND full context trace.
     """
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
@@ -102,7 +114,7 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     system_prompt = prompt_cfg["system"]
     
     # Generate pair_lines for MECI-style classification
-    if ds_config.get("rule_set") == "meci": 
+    if config.get("active_dataset") == "meci": 
         # We extract the pairs from gold_triples to tell the model which IDs to classify
         pair_lines = ""
         
@@ -122,11 +134,12 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     else:
         pair_lines = "Predict all the pairs, all pairs not predicted will be considered NoRel"
     
-    # Inject variables into the template
+    # Inject variables to form the final User Prompt
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
         pair_lines=pair_lines,
     )
+
     # 1. Run inference N times
     sampling_tasks = [
         run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)
@@ -134,27 +147,37 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     ]
     
     try:
-        # Run all samples for this document in parallel
-        runs_outputs = await asyncio.gather(*sampling_tasks)
+        # runs_results will be a list of dicts: [{'triples': [...], 'raw_response': "..."}]
+        runs_results = await asyncio.gather(*sampling_tasks)
         
-        # Aggregate using voting logic from utils/resample.py
+        # Extract just the triples for aggregation logic
+        triples_only_lists = [r["triples"] for r in runs_results]
+        
+        # Aggregate using voting logic
         pair_stats = {}
-        if len(runs_outputs) > 1:
+        if len(triples_only_lists) > 1:
             final_preds, pair_stats = aggregate_run_triples(
-                runs_outputs, 
+                triples_only_lists, 
                 tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
             )
         else:
-            final_preds = runs_outputs[0]
-            # Create dummy stats for single run so reporting logic stays consistent
+            final_preds = triples_only_lists[0]
+            # Dummy stats for single run
             pair_stats = {} 
             for src, lbl, tgt in final_preds:
                 pair_stats[f"{src},{tgt}"] = {"vote_counts": {lbl: 1}}
 
-        # 3. Quick metrics (for real-time filtering if needed, though mostly redundant now)
+        # 2. Metrics
         metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
         
-        # Return everything needed for the Reporting module
+        # 3. Build Context Object for Auditing
+        # We collect all raw responses from the N runs
+        context_trace = {
+            "system_prompt": system_prompt,
+            "user_prompt": user_prompt,
+            "raw_responses": [r["raw_response"] for r in runs_results]
+        }
+        
         return {
             "id": doc["id"],
             "doc_idx": doc["doc_idx"],
@@ -162,7 +185,8 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
             "gold_triples": doc["gold_triples"],
             "pred_triples": final_preds,
             "pair_stats": pair_stats, 
-            "metrics": metrics
+            "metrics": metrics,
+            "context": context_trace  # <--- NEW FIELD containing raw traces
         }
     except Exception as e:
         print(f"Document {doc['id']} failed after all retries: {e}")

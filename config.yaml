@@ -5,11 +5,12 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "deepseek/deepseek-r1-0528"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "mistralai/ministral-3b-2512"
-  # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
+  # default_model_id: "moonshotai/kimi-k2.5"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
 
@@ -20,13 +21,14 @@ experiment:
   tracing: "true"
   # tracing_name: "DeepseekV3.2-meci-714-test"
   # tracing_name: "gpt5mini-mavenere-100-resample3"
-  # tracing_name: "Mistral-tools-resample2-50"
-  tracing_name: "Toto"  
+  tracing_name: "Mistral-MECI-714"
+  # tracing_name: "Autoprompt-meci-deepseek"  
+  # tracing_name: "Toto"
   enable_tools: false
   tools: 
     - "coherence_check"
     # - "counterfactual_check"
-  concurrency: 100
+  concurrency: 200
   retries: 30          # How many times to retry a failed sample
   resampling:
     enabled: false
@@ -65,8 +67,10 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     prompt: "meci_orig"
-    # max_examples: 714
-    max_examples: 50
+    # prompt: "meci_autoprompt_mistral"
+    # prompt: "medi_autoprompt_deepseek"
+    max_examples: 714
+    # max_examples: 50
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -405,6 +409,47 @@ prompts:
       - Follow the provided JSON structure exactly.
       - Use only the approved label strings for causal relations.
           
+      # Context
+      MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
+
+      ## Label Set (Use these exact strings)
+      - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+      - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+      - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+      # Precision-First Rules (Apply Silently)
+      1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+          - a. Counterfactual asymmetry (but-for)
+          - b. A concrete **mechanism** in the text (not just world knowledge)
+          - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+          - d. Local lexical patterns of enablement/prevention
+        If fewer than two signals are present → **NoRel**.
+
+      2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+          - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
+          - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
+
+      3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
+
+      4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause.
+
+      5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself.
+
+      6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
+
+      7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **NoRel**.
+
+      # Decision Checklist (Apply Silently — Stricter than Before)
+      1. Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
+      2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+      3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+      4. Keep scope within the window; prefer the **nearest, most specific** cause.
+      5. If a more direct cause is present, label **NoRel** for the current pair.
+
+      # Output Format
+      - Follow the provided JSON structure exactly.
+      - Use only the approved label strings for causal relations.
+          
 #      # Tool Guidance
 #      After each tool call or code edit, validate result in 1-2 lines and proceed or self-correct if validation fails.
 #
@@ -439,6 +484,166 @@ prompts:
       {pair_lines}
     # Note: Tool Guidance was commented out in the original request as tools like thinker/critic are removed.
     # If you enable tools like coherence_check in the graph, the model may decide to use them based on general instructions.
+
+  medi_autoprompt_deepseek:
+    system: |
+      # Context
+      MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
+
+      ## Label Set (Use these exact strings)
+      - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+      - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+      - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+      # Precision-First Rules (Apply Silently)
+      1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+          - a. Counterfactual asymmetry (but-for)
+          - b. A concrete **mechanism** in the text (not just world knowledge)
+          - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+          - d. Local lexical patterns of enablement/prevention
+        If fewer than two signals are present → **NoRel**.
+
+      2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+          - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
+          - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
+
+      3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
+
+      4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause.
+
+      5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself.
+
+      6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
+
+      7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **NoRel**.
+
+      # Decision Checklist (Apply Silently — Stricter than Before)
+      1. Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
+      2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+      3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+      4. Keep scope within the window; prefer the **nearest, most specific** cause.
+      5. If a more direct cause is present, label **NoRel** for the current pair.
+
+      # Output Format
+      - Follow the provided JSON structure exactly.
+      - Use only the approved label strings for causal relations.
+          
+
+      **Contextual Scope & Event Identity:** Strictly interpret events within their described narrative scope. Causal links should not be inferred between events that are:
+      ** **Overt Connective Priority Rule.** If the text contains an explicit causal connective (e.g., "because", "so", "therefore", "as a result", "led to", "caused", "due to", "consequently", "forcing", "provoca", "bastırılmasıyla", "sonucunda") that grammatically and logically links the two event mentions **within the same sentence or adjacent clauses**, label the relation according to the direction indicated by the connective. Override the Two-Signal Rule in these cases. This applies even if the events are nominalizations or part of complex syntactic structures.
+      **Enablement/Prevention as Causality**: If the text describes one event as creating the conditions for another event (enablement) or removing obstacles to it (prevention), even without explicit causal connectives, consider it a causal link. This includes cases where the first event is an ongoing process or state that allows the second event to occur. Use counterfactual reasoning: if the first event had not occurred, would the second event likely not have occurred? If yes, label accordingly.
+      **Implicit Causal Link Criteria:** For pairs without an explicit causal connective, a causal link can be established if there is strong, textually-grounded evidence of enablement, prevention, or direct consequence. This evidence must satisfy at least one of the following:
+
+    user_template : |
+      Task: Extract causal relations from the text below.
+
+      Text:
+      {doc_text}
+
+      Pairs to classify (use EXACT pair ids; output order does NOT matter):
+      {pair_lines}
+
+      Output a JSON array of objects with "pair" and "label" at the end of your answer.
+      Example: [{{"pair": "e1,e2", "label": "CauseEffect"}}]
+
+  meci_autoprompt_mistral:
+    system: |
+      # Context
+      MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
+
+      ## Label Set (Use these exact strings)
+      - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+      - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+      - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+      # Precision-First Rules (Apply Silently)
+      1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+          - a. Counterfactual asymmetry (but-for)
+          - b. A concrete **mechanism** in the text (not just world knowledge)
+          - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+          - d. Local lexical patterns of enablement/prevention
+        If fewer than two signals are present → **NoRel**.
+
+      2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+          - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
+          - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
+
+      3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
+
+      4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause.
+
+      5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself. **Exception:** A claim (e.g., T1) can be a cause if it directly results in a reported event (e.g., T4) being acted upon, but only if there is explicit evidence of the claim triggering the action (e.g., "as a result of the claim, X happened").
+
+      6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
+
+      7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **NoRel**.
+        - **Temporal Priority Rule:** For pairs without explicit causal cues, the event that occurs first in the text (or first in the causal chain) should be the cause unless strong evidence suggests otherwise.
+        - **Mechanism Priority Rule:** If a clear mechanism is described, prioritize the event that initiates the mechanism as the cause.
+
+      8. **Lexical Overgeneralization Constraint:** Avoid labeling pairs as causal based solely on verbs like "omfattede" (encompassed) or other non-causal action verbs. Require explicit causal context or mechanisms.
+
+      # Decision Checklist (Apply Silently — Stricter than Before)
+      1. Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
+      2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+      3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+      4. Keep scope within the window; prefer the **nearest, most specific** cause.
+      5. If a more direct cause is present, label **NoRel** for the current pair.
+      6. **Bidirectional Check:** For each pair, verify if the reverse direction (Tj → Ti) is also plausible. If both are equally plausible, label **NoRel**.
+
+      # Additional Clarifications (Addressing Observed Failures)
+      1. **Temporal vs. Causal Ambiguity:** Events like birth/death (e.g., T0) are **not** automatically causal for subsequent actions (e.g., T2, T5) unless there is explicit evidence of a causal mechanism (e.g., "as a result of his birth, X happened"). Default to **NoRel** for such pairs.
+
+      2. **Implicit Causal Triggers:** For ambiguous phrasing (e.g., "antaget" implying causation from "samme"), require at least one of the following to justify a causal label:
+        - A clear mechanism or enabling condition.
+        - Strong discourse evidence (e.g., apposition, relative clause).
+        - Explicit causal connective (e.g., "because", "led to").
+
+      3. **Non-Causal Relations:** Explicitly exclude pairs where:
+        - The relationship is purely temporal (e.g., T4,T5).
+        - The relationship is attributive (e.g., "T8,T6" if "Kazanın" is just describing "T6" without causal effect).
+        - The relationship is contrastive or correlational (e.g., "although X, Y happened").
+
+      4. **Directional Labeling:** For pairs like "T1,T9", evaluate both directions (T1 → T9 and T9 → T1) and default to **NoRel** if both are plausible or if the evidence is insufficient. Temporal priority alone is not sufficient for causality.
+
+      5. **Indirect Causal Chains:** For events like T1 ("sömürme") and T5 ("harcayabiliyorlardı"), explicitly check if T1 creates conditions enabling T5 (e.g., "as a result of exploitation, they were able to spend"). If such a mechanism is implied, label accordingly. Otherwise, default to **NoRel**.
+
+      6. **Bidirectional Causal Relations:** For pairs like "T1,T0", evaluate both directions (T1 → T0 and T0 → T1) and label only if one direction is clearly supported by the text. If both are plausible, default to **NoRel**.
+
+      7. **Ambiguous Phrasing Resolution:** For phrases like "to insulate" (T11) following a bill (T10), determine directionality by checking:
+        - If the bill is the cause of insulation (T10 → T11), label as **CauseEffect**.
+        - If insulation is the goal or result of the bill (T11 → T10), label as **EffectCause**.
+        - If ambiguous, default to **NoRel**.
+
+      8. **Temporal/Conditional Phrases:** For phrases like "geldiği" (it happened), ensure they are not misinterpreted as causal unless explicitly linked to another event via a mechanism or counterfactual.
+
+      # Output Format
+      - Follow the provided JSON structure exactly.
+      - Use only the approved label strings for causal relations.
+
+      **Contextual Scope & Event Identity:** Strictly interpret events within their described narrative scope. Causal links should not be inferred between events that are:
+      ** **Overt Connective Priority Rule.** If the text contains an explicit causal connective (e.g., "because", "so", "therefore", "as a result", "led to", "caused", "due to", "consequently", "forcing", "provoca", "bastırılmasıyla", "sonucunda") that grammatically and logically links the two event mentions **within the same sentence or adjacent clauses**, label the relation according to the direction indicated by the connective. Override the Two-Signal Rule in these cases. This applies even if the events are nominalizations or part of complex syntactic structures.
+      **Enablement/Prevention as Causality**: If the text describes one event as creating the conditions for another event (enablement) or removing obstacles to it (prevention), even without explicit causal connectives, consider it a causal link. This includes cases where the first event is an ongoing process or state that allows the second event to occur. Use counterfactual reasoning: if the first event had not occurred, would the second event likely not have occurred? If yes, label accordingly.
+      **Implicit Causal Link Criteria:** For pairs without an explicit causal connective, a causal link can be established if there is strong, textually-grounded evidence of enablement, prevention, or direct consequence. This evidence must satisfy at least one of the following:
+        - A clear mechanism is described in the text.
+        - The events are part of a logical sequence where the first event enables or prevents the second.
+        - There is strong discourse evidence (e.g., apposition, relative clause) explicitly linking the events causally.
+
+      **Verb-Noun Structure Attention:** Pay special attention to verb-noun structures in languages like Urdu, where actions (e.g., "جھولنے") may directly lead to outcomes (e.g., "لگائے"). Ensure that such structures are evaluated for causal mechanisms and not just semantic proximity.
+
+      **Temporal and Logical Flow:** For event sequences, carefully track the temporal and logical flow of events. If an event (e.g., "væltede") is a consequence of a prior event (e.g., "afsporet"), do not misattribute causality to a preceding but unrelated event (e.g., "køre"). Use counterfactual reasoning to validate the direction of causality.
+
+      **Directional Labeling for All Pairs:** Explicitly evaluate all possible cause-effect pairs, including those involving events like T8 ("Kazanın"), to ensure no causal relations are missed due to ambiguous phrasing or lack of explicit directional cues. For ambiguous cases, default to **NoRel** unless strong evidence supports a causal link.
+    user_template : |
+      Task: Extract causal relations from the text below.
+
+      Text:
+      {doc_text}
+
+      Pairs to classify (use EXACT pair ids; output order does NOT matter):
+      {pair_lines}
+
+      Output a JSON array of objects with "pair" and "label" at the end of your answer.
+      Example: [{{"pair": "e1,e2", "label": "CauseEffect"}}]
 
   event_story_line_v1:
     system: |
