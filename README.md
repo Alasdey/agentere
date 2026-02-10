@@ -1,1 +1,6 @@
 # agentere
+
+read -s OPENROUTER_API_KEY
+export OPENROUTER_API_KEY
+read -s LANGSMIH_API_KEY
+export LANGSMIH_API_KEY

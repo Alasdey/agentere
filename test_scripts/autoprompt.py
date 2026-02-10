@@ -26,6 +26,8 @@ OPTIM_CONFIG = {
     "critic_batch_size": 6, 
     "threshold": 1.0,
     "max_samples": 714,
+    "meta_llm": "deepseek/deepseek-v3.2",
+    "meta_temp": 0.6,
 }
 
 # Revised template to match main.py structure
@@ -40,6 +42,7 @@ Pairs to classify (use EXACT pair ids; output order does NOT matter):
 
 Output a JSON array of objects with "pair" and "label" at the end of your answer.
 Example: [{{"pair": "e1,e2", "label": "CAUSE"}}]
+If there are no mentions in the text and no pairs to classify return the example.
 """
 
 # =============================================================================
@@ -223,7 +226,7 @@ class EvolutionaryOptimizer:
         GUIDELINES:
         1. **Fix the specific logic** mentioned in the critiques (e.g., clarify definitions, adjust constraints).
         2. **Remove inconsistencies** Remove sections that are inconsistent, half written or redundant. 
-        3. **Preserve** all other parts of the prompt that are not related to these errors. Do not rewrite sections that are working.
+        3. **Preserve** all other parts of the prompt that are not related to these errors. Do not rewrite sections that are independant from the critiques.
         4. Ensure the new prompt remains coherent and maintains the original output format instructions.
         5. Output ONLY the new system prompt. No markdown, no conversational fillers.
         """
@@ -249,8 +252,8 @@ class EvolutionaryOptimizer:
         3. Rewrite: LLM fixes prompt based on batch.
         """
         _, _, meta_llm = build_chat_graph(
-            model_id=self.config["model"]["default_model_id"],
-            temperature=0.6,
+            model_id=OPTIM_CONFIG["meta_llm"],
+            temperature=OPTIM_CONFIG["meta_temp"],
             base_url=self.config["model"]["base_url"]
         )
 
