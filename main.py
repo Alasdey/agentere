@@ -138,6 +138,7 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
         pair_lines=pair_lines,
+        doc_id=doc["id"],           
     )
 
     # 1. Run inference N times

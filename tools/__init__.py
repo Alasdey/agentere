@@ -2,11 +2,13 @@
 from .coherence import coherence_check
 from .counterfactual import counterfactual_check
 from .placeholder import placeholder
+from .encoder_predictions import encoder_predictions
 
 TOOL_REGISTRY = {
     "coherence_check": coherence_check,
     "placeholder": placeholder,
     "counterfactual_check": counterfactual_check,
+    "encoder_predictions": encoder_predictions,
 }
 
 def get_enabled_tools(tool_names: list):
