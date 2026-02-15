@@ -49,7 +49,7 @@ def get_active_rules() -> List[Dict[str, Any]]:
         else:
             raise ValueError(f"Rule set '{rule_set_name}' defined for dataset '{active_key}' not found in config.")
 
-    print(f"[Coherence Tool] Loaded '{rule_set_name}' rules for active dataset '{active_key}'.")
+    # print(f"[Coherence Tool] Loaded '{rule_set_name}' rules for active dataset '{active_key}'.")
     return rules
 
 # =============================================================================

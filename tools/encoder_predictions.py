@@ -1,26 +1,32 @@
 # tools/encoder_predictions.py
 """
 Tool that exposes encoder-baseline predictions to the LLM agent.
-
-The predictions JSON is loaded once and cached. The LLM calls this tool
-with only a document ID; everything else is resolved internally.
+The current document ID is read from a contextvars.ContextVar,
+set by the orchestrator before each graph invocation.
+The LLM calls this tool with no arguments.
 """
 
 from __future__ import annotations
 
 import json
 import os
+from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 
 import yaml
 from langchain_core.tools import tool
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MODULE-LEVEL CACHE  (loaded once, reused across all tool calls)
+# CONTEXT VARIABLE — set by main.py, read by the tool
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CURRENT_DOC_ID: ContextVar[str] = ContextVar("current_doc_id", default="")
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MODULE-LEVEL CACHE  (loaded once, reused across all calls)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _CACHE: Optional[Dict[str, Any]] = None
-_CACHE_PATH: Optional[str] = None
 
 
 def _get_config() -> Dict[str, Any]:
@@ -30,15 +36,7 @@ def _get_config() -> Dict[str, Any]:
 
 
 def _load_predictions() -> Dict[str, Any]:
-    """
-    Loads the encoder predictions JSON once and caches it.
-    Expects config.yaml to contain:
-
-        encoder_predictions:
-          path: "encoder_baseline/logs/<run>/predictions.json"
-    """
-    global _CACHE, _CACHE_PATH
-
+    global _CACHE
     if _CACHE is not None:
         return _CACHE
 
@@ -53,18 +51,13 @@ def _load_predictions() -> Dict[str, Any]:
 
     with open(pred_path, "r", encoding="utf-8") as f:
         _CACHE = json.load(f)
-    _CACHE_PATH = pred_path
 
-    n_samples = len(_CACHE.get("samples", {}))
-    print(
-        f"[encoder_predictions] Loaded {n_samples} documents "
-        f"from {pred_path}"
-    )
+    n = len(_CACHE.get("samples", {}))
+    print(f"[encoder_predictions] Loaded {n} documents from {pred_path}")
     return _CACHE
 
 
-def _format_predictions(doc_id: str, doc_data: List[Dict]) -> str:
-    """Formats a single document's predictions into a readable string."""
+def _format_predictions(doc_id: str, doc_data: List[Dict], label_list: list) -> str:
     lines = [f"Encoder classifier predictions for document \"{doc_id}\":\n"]
 
     for pair in doc_data:
@@ -72,46 +65,52 @@ def _format_predictions(doc_id: str, doc_data: List[Dict]) -> str:
         src_text = pair.get("src_text", "")
         tgt = pair.get("tgt", "?")
         tgt_text = pair.get("tgt_text", "")
-
         pred_label = pair.get("pred_label", "NoRel")
         pred_probs = pair.get("pred_prob", [])
-        gold_label = pair.get("gold_label", None)
 
-        # Find the confidence of the predicted label
-        confidence = max(pred_probs) if pred_probs else 0.0
+        # Per-label confidences
+        if pred_probs and label_list and len(pred_probs) == len(label_list):
+            details = ", ".join(
+                f"{lab}: {p:.2f}" for lab, p in zip(label_list, pred_probs)
+            )
+            conf_str = f"[{details}]"
+        else:
+            conf_str = f"(confidence: {max(pred_probs) if pred_probs else 0:.2f})"
 
-        line = (
+        lines.append(
             f'  {src} ("{src_text}") → {tgt} ("{tgt_text}"): '
-            f"{pred_label} (confidence: {confidence:.2f})"
+            f"{pred_label} {conf_str}"
         )
-        lines.append(line)
 
-    if len(doc_data) == 0:
+    if not doc_data:
         lines.append("  (no pairs)")
 
     return "\n".join(lines)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TOOL
+# TOOL  (no arguments — doc_id comes from context)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @tool
-def encoder_predictions(doc_id: str) -> str:
+def encoder_predictions() -> str:
     """
-    Retrieves the encoder-based classifier's relation predictions for a document.
-
-    Use this tool to get a second opinion from a trained neural classifier
-    before making your final relation predictions. Call it with the document ID
-    shown in the prompt.
-
-    Args:
-        doc_id: The document identifier (e.g. "causal-en_15_WSJ_4.ann").
+    Retrieves the encoder-based classifier's relation predictions
+    for the current document. Call this tool with no arguments to get
+    a second opinion from a trained neural model before making your
+    final predictions.
 
     Returns:
-        A summary of predicted relations with confidence scores,
-        or an error message if the document is not found.
+        A summary listing each mention pair with the encoder's predicted
+        label and per-class confidence scores.
     """
+
+    doc_id = CURRENT_DOC_ID.get()
+
+    if not doc_id:
+        print(f"encoder_predictions: no {doc_id}")
+        return "Error: No document context available."
+
     try:
         data = _load_predictions()
     except FileNotFoundError as e:
@@ -121,12 +120,12 @@ def encoder_predictions(doc_id: str) -> str:
     label_list = data.get("label_list", [])
     threshold = data.get("threshold", 0.5)
 
+    # Exact match first, then fuzzy
     if doc_id not in samples:
-        # Try partial match (some IDs may have extensions stripped)
         candidates = [k for k in samples if doc_id in k or k in doc_id]
         if len(candidates) == 1:
             doc_id = candidates[0]
-        elif len(candidates) > 1:
+        elif candidates:
             return (
                 f"Ambiguous doc_id '{doc_id}'. "
                 f"Candidates: {candidates[:5]}"
@@ -137,13 +136,10 @@ def encoder_predictions(doc_id: str) -> str:
                 f"Available: {list(samples.keys())[:10]}..."
             )
 
-    doc_pairs = samples[doc_id]
-    summary = _format_predictions(doc_id, doc_pairs)
+    summary = _format_predictions(doc_id, samples[doc_id], label_list)
 
     meta = (
         f"\n\n[Model: {data.get('config', {}).get('model', '?')}, "
-        f"threshold: {threshold:.3f}, "
-        f"labels: {label_list}]"
+        f"threshold: {threshold:.3f}, labels: {label_list}]"
     )
-
     return summary + meta

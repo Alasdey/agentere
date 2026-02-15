@@ -39,16 +39,19 @@ class Config:
     # 'Maven-ERE-span', 'MECI-v0.1-public-span', 'Hievents-span', 
     # 'EventStoryLine-1.5-span', 'MAVEN-ERE-Causal-Events',
     # 'EventStoryLine-1.5-Causal'
-    DATASET_NAME = 'EventStoryLine-1.5-Causal'
+    DATASET_NAME = 'MAVEN-ERE-Causal-Events'
     DATASET = f'Nofing/{DATASET_NAME}'
     DATASET_TRAIN_SPLIT = "train"
     DATASET_TEST_SPLIT = "test"
     # If non-empty, only these relation types are used (rest filtered out).
     # Empty list = use all relation types found in the dataset.
-    KEEP_RELATIONS: list = []
+    # KEEP_RELATIONS: list = ['CauseEffect', 'EffectCause']
+    KEEP_RELATIONS: list = ['PRECONDITION', 'CAUSE']
     # If True, only pairs that appear in annotations are used (MECI style).
     # If False, all (m_i, m_j) pairs with i≠j are enumerated.
     ANNOTATED_PAIRS_ONLY = False
+    # Labels to exclude from loss masking and macro metrics.
+    EXCLUDED_RELS = ["NoRel"]
 
     # Tokenizer / Encoder
     MODEL_NAME = "allenai/longformer-base-4096"
@@ -58,7 +61,7 @@ class Config:
 
     # Training
     BATCH_SIZE = 12
-    NUM_EPOCHS = 100
+    NUM_EPOCHS = 20
     LEARNING_RATE = 2e-5
     BATCH_SHUFFLE = True
 
@@ -725,11 +728,11 @@ def main():
         help="Only keep these relation labels (empty = all).",
     )
     parser.add_argument(
-        "--annotated_pairs_only", action="store_true",
+        "--annotated_pairs_only", default=Config.ANNOTATED_PAIRS_ONLY,
         help="If set, only annotated pairs are used (MECI mode).",
     )
     parser.add_argument(
-        "--excluded_rels", nargs="*", default=["NoRel"],
+        "--excluded_rels", nargs="*", default=Config.EXCLUDED_RELS,
         help="Labels to exclude from loss masking and macro metrics.",
     )
     args = parser.parse_args()
@@ -743,6 +746,7 @@ def main():
     config.LEARNING_RATE = args.lr
     config.KEEP_RELATIONS = args.keep_relations
     config.ANNOTATED_PAIRS_ONLY = args.annotated_pairs_only
+    config.EXCLUDED_RELS = args.excluded_rels
 
     os.makedirs(config.LOG_DIR, exist_ok=True)
     set_seed(config.RANDOM_SEED)
@@ -757,7 +761,7 @@ def main():
     config.NUM_LABELS = len(config.LABEL_LIST)
 
     # Build mask: 0 for excluded labels, 1 otherwise
-    excluded = {e.lower() for e in args.excluded_rels}
+    excluded = {e.lower() for e in config.EXCLUDED_RELS}
     config.REL_TYPE_MASK = [
         0.0 if lab.lower() in excluded else 1.0 for lab in config.LABEL_LIST
     ]
@@ -766,6 +770,7 @@ def main():
     ]
 
     print(f"Labels: {config.LABEL_LIST}")
+    print(f"Excluded: {config.EXCLUDED_RELS}")
     print(f"Eval indices: {config.REL_TYPE_IDX}")
 
     # ── 2. Prepare train data ────────────────────────────────────────────

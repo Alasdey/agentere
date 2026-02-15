@@ -43,6 +43,8 @@ from tools import get_enabled_tools
 from utils.metrics import compute_ere_metrics
 from utils.resample import aggregate_run_triples
 
+from tools.encoder_predictions import CURRENT_DOC_ID
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -141,6 +143,9 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
         doc_id=doc["id"],           
     )
 
+    # ── Set document context before invoking the graph ──
+    ctx_token = CURRENT_DOC_ID.set(doc["id"])
+
     # 1. Run inference N times
     sampling_tasks = [
         run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)
@@ -192,6 +197,8 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     except Exception as e:
         print(f"Document {doc['id']} failed after all retries: {e}")
         return None
+    finally:
+        CURRENT_DOC_ID.reset(ctx_token) 
 
 # =============================================================================
 # MAIN ENTRYPOINT

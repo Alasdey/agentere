@@ -6,12 +6,13 @@
 # =============================================================================
 model:
   # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "z-ai/glm-5"
   # default_model_id: "deepseek/deepseek-r1-0528"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "mistralai/ministral-3b-2512"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
   # default_model_id: "moonshotai/kimi-k2.5"
-  default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
+  # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "arcee-ai/trinity-large-preview:free"
   # default_model_id: "openai/chatgpt-4o-latest"
   base_url: "https://openrouter.ai/api/v1"
@@ -28,11 +29,11 @@ experiment:
   # tracing_name: "Mistral-MECI-714-6"
   # tracing_name: "Autoprompt-meci-deepseek"
   tracing_name: "Toto"
-  enable_tools: false
+  enable_tools: true
   tools: 
-    # - "coherence_check"
+    - "coherence_check"
     # - "counterfactual_check"
-    - encoder_predictions
+    - "encoder_predictions"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
   resampling:
@@ -44,8 +45,9 @@ experiment:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-active_dataset: "meci"
-# active_dataset: "maven_ere"
+active_dataset: "maven_ere"
+# active_dataset: "event_story_line"
+# active_dataset: "meci"
 
 # =============================================================================
 # DATASETS
@@ -55,7 +57,7 @@ datasets:
   maven_ere:
     name: "MAVEN-ERE-Causal"
     repo_id: "Nofing/MAVEN-ERE-Causal-Events"
-    split: "train"
+    split: "test"
     text_field: "text"
     ann_field: "annots"
     prompt: "maven_ere_1"
@@ -105,7 +107,8 @@ datasets:
 
 # ── Encoder baseline predictions (used by the encoder_predictions tool) ──
 encoder_predictions:
-  path: "encoder_baseline/logs/2025_01_15_10_30_00/predictions.json"
+  # path: "encoder_baseline/logs/EventStoryLine-1.5-Causal_test_2026_02_13_09_32_58/predictions.json"
+  path: "encoder_baseline/logs/MAVEN-ERE-Causal-Events_test_2026_02_12_14_51_27/predictions.json"
 
 
 # =============================================================================
@@ -134,6 +137,7 @@ prompts:
          - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
 
       # Instructions
+      First call the encoder_predictions then analyse the results from that using coherence_check.
       Follow the instruction by reasoning on the text and the relations, explore and rationalize.
       Then output the results in json format
       1. **Scope**: Examine **all** possible pairs of event mentions in the document.
@@ -157,9 +161,6 @@ prompts:
       - Pair format must be "ei,ej" (e.g., "e0,e1").
       - Do not include "NoRel" pairs.
       - Ensure consistency with transitivity rules.
-
-      Text:
-      {doc_text}
 
       Output format example:
       [

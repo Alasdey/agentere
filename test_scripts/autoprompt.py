@@ -17,7 +17,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 OPTIM_CONFIG = {
     "max_prompts": 8,
     "n_selected": 2,
-    "initial_samples": 20,
+    "initial_samples": 6,
     "sample_increment": 2,
     "max_cycles": 100,
     # Number of error cases to analyze per parent candidate
