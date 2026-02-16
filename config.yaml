@@ -23,18 +23,18 @@ model:
 # =============================================================================
 experiment:
   tracing: "true"
-  # tracing_name: "DeepseekV3.2-meci-714-test-coherence"
+  tracing_name: "DeepseekV3.2-meci-714-test-notools"
   # tracing_name: "gpt5mini-mavenere-100-resample3"
   # tracing_name: "gpt5mini-MECI-714"
   # tracing_name: "Mistral-MECI-714-6"
   # tracing_name: "Autoprompt-meci-deepseek"
-  tracing_name: "someandbare_tools_test"
-  enable_tools: true
+  # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
+  enable_tools: false
   tools: 
     - "coherence_check"
     # - "counterfactual_check"
     - "encoder_predictions"
-    - "bare_causes"
+    # - "bare_causes"
     # - "eci"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
@@ -62,13 +62,13 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
-    # prompt: "maven_ere_1"
-    prompt: "maven_ere_all_tools"
+    prompt: "maven_ere_1"
+    # prompt: "maven_ere_all_tools"
     # prompt: "maven_ere_dr_eci_full"
     # prompt: "maven_ere_strict"
     rule_set: "maven-ere" 
-    max_examples: 5
-    # max_examples: 714
+    # max_examples: 5
+    max_examples: 714
     labels: 
       - "CAUSE"
       - "PRECONDITION"
@@ -114,8 +114,8 @@ encoder_predictions:
   # path: "encoder_baseline/logs/EventStoryLine-1.5-Causal_test_2026_02_13_09_32_58/predictions.json"
   path: "encoder_baseline/logs/MAVEN-ERE-Causal-Events_test_2026_02_12_14_51_27/predictions.json"
   filter_norel:
-    enabled: false
-    delta: 0.20   # keep NoRel pairs only when max relation prob ≥ threshold − delta
+    enabled: true
+    delta: 0.10   # keep NoRel pairs only when max relation prob ≥ threshold − delta
 
 # =============================================================================
 # Promtps
@@ -227,6 +227,8 @@ prompts:
         - If A PRECONDITION B and B PRECONDITION C, then A PRECONDITION C.
         - However, do NOT use transitivity to introduce links whose individual premises you are not confident about. A weak A→B and a weak B→C should NOT produce A→C.
 
+      No matter what in doubt prefer 'NoRel' as precision is always prefered to recall
+
       # ═══════════════════════════════════════════════════════════════
       #  MANDATORY WORKFLOW — Execute ALL phases in strict order
       # ═══════════════════════════════════════════════════════════════
@@ -255,59 +257,34 @@ prompts:
 
       DO NOT output final JSON yet. Proceed to Phase 2.
 
-      ## PHASE 2 — Gather Independent Evidence (MANDATORY tool calls)
-      You MUST call BOTH of the following tools. No exceptions.
+      ## PHASE 2 — Gather Independent Evidence (MANDATORY tool call)
+      You MUST call the following tool. No exceptions.
 
-        **Tool 1: encoder_predictions**
-        Call this to retrieve the predictions of a trained neural classifier
+        Call **encoder_predictions** with the document ID shown in the prompt.
+        This returns the predictions of a trained neural classifier
         with confidence scores for every candidate pair.
+        Record every pair the encoder predicts as CAUSE or PRECONDITION,
+        along with its confidence score.
 
         EXACT TOOL CALL — write this (replacing the doc ID with the real one):
 
           encoder_predictions(doc_id="causal-en_15_WSJ_4.ann")
 
-        Record every pair the encoder predicts as CAUSE or PRECONDITION,
-        along with its confidence score.
-
-        **Tool 2: bare_causes**
-        Call this to obtain a distilled causal skeleton of the document:
-        the minimal set of core events and causal links, stripped of all
-        narrative detail. This provides a high-level sanity check on which
-        parts of the document carry genuine causal content.
-
-        EXACT TOOL CALL — write this (replacing the doc ID with the real one):
-
-          bare_causes(doc_id="causal-en_15_WSJ_4.ann")
-
-        Record which abstract events and causal links the skeleton contains.
-        Map them back to the concrete mention IDs where possible.
-
-      After BOTH tools return, compare their results against your
-      Phase 1 predictions. Apply these rules strictly:
-
-        - **Three-way agreement** (you + encoder + bare_causes all see a link):
-          High confidence — keep the pair.
-        - **Two-way agreement** (any two sources agree):
-          Moderate confidence — keep the pair, but flag it for extra scrutiny
-          in Phase 3.
-        - **Encoder-only positives**: The encoder predicts causal but you and
-          bare_causes did not. Re-examine the text. Only add if you find
-          clear textual evidence you initially missed. If the evidence is
-          weak or absent, do NOT add.
-        - **Bare-causes-only positives**: The skeleton includes a causal link
-          that neither you nor the encoder found. Re-examine the text.
-          The skeleton is intentionally abstract, so it may surface links you
-          overlooked — but only add if concrete textual evidence exists for
-          specific mention IDs. Do NOT add vague or unmappable links.
-        - **Your-only positives**: You predicted causal but neither the encoder
-          nor bare_causes agrees. Treat this as a strong warning signal.
-          Keep ONLY if your textual evidence is unambiguous and directly
-          quotes the document. Otherwise, DROP.
+      After the tool returns, compare the encoder's predictions against your
+      Phase 1 predictions:
+        - **Agreement**: Pairs where both you and the encoder agree on a
+          positive label gain higher confidence — keep them.
+        - **Encoder-only positives**: Pairs the encoder predicts as causal
+          but you did not. Re-examine the text. Only add them to your list
+          if you find clear textual evidence you initially missed.
+          If the evidence is weak or absent, do NOT add them.
+        - **Your-only positives**: Pairs you predicted as causal but the
+          encoder did not. Re-examine critically. If the encoder (a trained
+          classifier) sees no causal link, treat this as a warning signal.
+          Keep only if your textual evidence is unambiguous.
 
       Write out your revised list as "PHASE 2 REVISED PREDICTIONS".
-      For each pair, note one of:
-        [3-WAY AGREED] | [2-WAY AGREED] | [ADDED FROM ENCODER] |
-        [ADDED FROM SKELETON] | [KEPT DESPITE DISAGREEMENT]
+      For each pair, note: [AGREED], [ADDED], or [KEPT DESPITE ENCODER].
 
       DO NOT output final JSON yet. Proceed to Phase 3.
 
@@ -336,7 +313,7 @@ prompts:
             - If NO → you have converged. Proceed to Phase 4.
 
       You MUST run at least ONE call to coherence_check.
-      Continue calling until no violations remain.
+      Call the coherence tool up to three time
 
       ## PHASE 4 — Final Output
       Only after completing ALL previous phases, produce your final answer.

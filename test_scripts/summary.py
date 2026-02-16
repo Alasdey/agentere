@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-Summarize MECI run_*.json logs into an Excel sheet.
+Summarize run_*.json logs into an Excel sheet.
 
-Extracted columns:
-- timestamp_utc
-- max_examples
-- split
-- model
-- langsmith_project
-- tools_enabled
-- micro_precision, micro_recall, micro_f1
-- per-label metrics (e.g., CauseEffect_precision/recall/f1/support, etc.)
-- skipped_docs
+Handles the nested config structure with active_dataset, experiment block,
+encoder_predictions, etc.
+
+Extracted columns (all optional / robust to missing keys):
+  - run_id, status, timestamp_utc, file
+  - model_id, temperature
+  - active_dataset, dataset_name, split, max_examples
+  - langsmith_project (tracing_name)
+  - tools_enabled, tools
+  - encoder_filter_norel_enabled, encoder_filter_norel_delta
+  - micro_precision, micro_recall, micro_f1, macro_f1, total_pairs
+  - binary_precision, binary_recall, binary_f1, binary_support_pos
+  - per-label metrics (e.g. CAUSE_precision, CAUSE_recall, …)
+  - skipped_docs
 
 Usage:
   python summarize_runs.py --logs ./logs --out runs_summary.xlsx
@@ -21,12 +25,17 @@ import argparse
 import glob
 import json
 import os
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 import pandas as pd
 
 
-def safe_get(d: Dict[str, Any], path: List[str], default=None):
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
+
+def safe_get(d: Any, path: List[str], default=None):
+    """Walk *path* into nested dicts; return *default* on any miss."""
     cur = d
     for p in path:
         if not isinstance(cur, dict) or p not in cur:
@@ -36,77 +45,105 @@ def safe_get(d: Dict[str, Any], path: List[str], default=None):
 
 
 def flatten_per_label(results: Dict[str, Any]) -> Dict[str, Any]:
-    out = {}
-    per_label = results.get("per_label", {}) or {}
+    """Expand results.per_label into flat columns."""
+    out: Dict[str, Any] = {}
+    per_label = results.get("per_label") or {}
     for label, metrics in per_label.items():
         if not isinstance(metrics, dict):
             continue
-        out[f"{label}_precision"] = metrics.get("precision")
-        out[f"{label}_recall"] = metrics.get("recall")
-        out[f"{label}_f1"] = metrics.get("f1")
-        out[f"{label}_support"] = metrics.get("support")
+        for metric in ("precision", "recall", "f1", "support"):
+            out[f"{label}_{metric}"] = metrics.get(metric)
     return out
 
 
-# NEW: Flatten per-language metrics (micro only, as requested)
-def flatten_per_lang(results: Dict[str, Any]) -> Dict[str, Any]:
-    out = {}
-    per_lang_metrics = results.get("per_lang_metrics", {}) or {}
-    known_langs = ["causal-en", "causal-da", "causal-es", "causal-tr", "causal-ur"]  # Based on dataset
-    for lang in known_langs:
-        mc = safe_get(per_lang_metrics, [lang, "multiclass"], {})
-        out[f"{lang}_micro_precision"] = mc.get("micro_precision")
-        out[f"{lang}_micro_recall"] = mc.get("micro_recall")
-        out[f"{lang}_micro_f1"] = mc.get("micro_f1")
-        # Optional: Add more (e.g., macro_f1, total_pairs) if needed
-        # out[f"{lang}_macro_f1"] = mc.get("macro_f1")
-        # out[f"{lang}_total_pairs"] = per_lang_metrics.get(lang, {}).get("total_pairs")
+def flatten_binary(results: Dict[str, Any]) -> Dict[str, Any]:
+    """Expand results.binary into flat columns."""
+    out: Dict[str, Any] = {}
+    binary = results.get("binary") or {}
+    if isinstance(binary, dict):
+        for metric in ("precision", "recall", "f1", "support_pos"):
+            out[f"binary_{metric}"] = binary.get(metric)
     return out
 
+
+def get_active_dataset_cfg(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the config dict for the active dataset (or {})."""
+    active = safe_get(data, ["config", "active_dataset"])
+    if not active:
+        return {}
+    return safe_get(data, ["config", "datasets", active]) or {}
+
+
+# ---------------------------------------------------------------------------
+# row extraction
+# ---------------------------------------------------------------------------
 
 def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
-    row = {
-        # helpful identifiers
-        "file": os.path.basename(fname),
-        "run_id": data.get("run_id"),
-        "status": data.get("status"),
+    ds_cfg = get_active_dataset_cfg(data)
+    experiment = safe_get(data, ["config", "experiment"]) or {}
+    results = data.get("results") or {}
 
-        # requested top-level fields
-        "timestamp_utc": data.get("timestamp_utc"),
+    # Tools: only list them when enable_tools is truthy
+    tools_enabled = experiment.get("enable_tools", False)
+    tools_list = experiment.get("tools") or []
+    tools_str = ", ".join(tools_list) if tools_enabled else ""
 
-        # cli_args
-        "max_examples": safe_get(data, ["cli_args", "max_examples"]),
-        "split": safe_get(data, ["cli_args", "split"]),
+    row: Dict[str, Any] = {
+        # identifiers
+        "file":               os.path.basename(fname),
+        "run_id":             data.get("run_id"),
+        "status":             data.get("status"),
+        "timestamp_utc":      data.get("timestamp_utc"),
 
-        # config
-        "model": safe_get(data, ["config", "model"]),
-        "langsmith_project": safe_get(data, ["config", "langsmith_project"]),
-        "tools_enabled": ", ".join(safe_get(data, ["config", "tools", "enabled"], []) or []),
+        # model
+        "model_id":           safe_get(data, ["config", "model", "default_model_id"]),
+        "temperature":        safe_get(data, ["config", "model", "temperature"]),
 
-        # micro metrics
-        "micro_precision": safe_get(data, ["results", "micro_precision"]),
-        "micro_recall": safe_get(data, ["results", "micro_recall"]),
-        "micro_f1": safe_get(data, ["results", "micro_f1"]),
+        # active dataset
+        "active_dataset":     safe_get(data, ["config", "active_dataset"]),
+        "dataset_name":       ds_cfg.get("name"),
+        "split":              ds_cfg.get("split"),
+        "max_examples":       ds_cfg.get("max_examples"),
 
-        # skipped docs (handle variant keys defensively)
-        "skipped_docs": safe_get(data, ["results", "skipped_docs"]) or safe_get(data, ["results", "skipped"]) or 0,
+        # experiment / tracing
+        "langsmith_project":  experiment.get("tracing_name"),
+        "tools_enabled":      tools_enabled,
+        "tools":              tools_str,
+
+        # encoder predictions – filter_norel
+        "encoder_filter_norel_enabled": safe_get(data, ["config", "encoder_predictions", "filter_norel", "enabled"]),
+        "encoder_filter_norel_delta":   safe_get(data, ["config", "encoder_predictions", "filter_norel", "delta"]),
+
+        # aggregate metrics
+        "micro_precision":    results.get("micro_precision"),
+        "micro_recall":       results.get("micro_recall"),
+        "micro_f1":           results.get("micro_f1"),
+        "macro_f1":           results.get("macro_f1"),
+        "total_pairs":        results.get("total_pairs"),
+
+        # skipped docs (check two possible keys)
+        "skipped_docs":       results.get("skipped_docs") or results.get("skipped") or 0,
     }
 
-    # per-label metric columns
-    per_label_cols = flatten_per_label(safe_get(data, ["results"]) or {})
-    row.update(per_label_cols)
+    # binary metrics
+    row.update(flatten_binary(results))
 
-    # NEW: per-language metric columns
-    per_lang_cols = flatten_per_lang(safe_get(data, ["results"]) or {})
-    row.update(per_lang_cols)
+    # per-label metrics
+    row.update(flatten_per_label(results))
 
     return row
 
 
+# ---------------------------------------------------------------------------
+# main
+# ---------------------------------------------------------------------------
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--logs", default="logs", help="Folder containing run_*.json files")
-    ap.add_argument("--out", default="runs_summary.xlsx", help="Path to output Excel file")
+    ap.add_argument("--logs", default="logs",
+                    help="Folder containing run_*.json files")
+    ap.add_argument("--out", default="runs_summary.xlsx",
+                    help="Path to output Excel file")
     args = ap.parse_args()
 
     pattern = os.path.join(args.logs, "run_*.json")
@@ -121,7 +158,6 @@ def main():
                 data = json.load(f)
             rows.append(extract_row(data, fp))
         except Exception as e:
-            # Keep going; record error for visibility
             rows.append({
                 "file": os.path.basename(fp),
                 "parse_error": str(e),
@@ -129,28 +165,27 @@ def main():
 
     df = pd.DataFrame(rows)
 
-    # Nice-ish column ordering: put the requested keys up front if present
+    # ---- column ordering: important cols first, then per-label cols ----
     preferred = [
-        "file", "run_id", "status",
-        "timestamp_utc", "max_examples", "split", "model", "langsmith_project", "tools_enabled",
+        "file", "run_id", "status", "timestamp_utc",
+        "model_id", "temperature",
+        "active_dataset", "dataset_name", "split", "max_examples",
+        "langsmith_project", "tools_enabled", "tools",
+        "encoder_filter_norel_enabled", "encoder_filter_norel_delta",
         "micro_precision", "micro_recall", "micro_f1",
+        "macro_f1", "total_pairs",
+        "binary_precision", "binary_recall", "binary_f1", "binary_support_pos",
         "skipped_docs",
     ]
-    # NEW: Add per-language columns to preferred
-    for lang in ["causal-en", "causal-da", "causal-es", "causal-tr", "causal-ur"]:
-        preferred.extend([f"{lang}_micro_precision", f"{lang}_micro_recall", f"{lang}_micro_f1"])
 
-    # Move preferred to front, keep the rest (including per-label columns) afterward
     cols_front = [c for c in preferred if c in df.columns]
-    cols_rest = [c for c in df.columns if c not in cols_front]
+    cols_rest  = [c for c in df.columns if c not in cols_front]
     df = df[cols_front + cols_rest]
 
-    # Write to Excel
-    # (openpyxl is the default writer; ensure it's installed for .xlsx)
     with pd.ExcelWriter(args.out, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="runs")
 
-    print(f"Wrote {len(df)} rows to {args.out}")
+    print(f"Wrote {len(df)} rows → {args.out}")
 
 
 if __name__ == "__main__":
