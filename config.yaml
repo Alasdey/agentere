@@ -5,8 +5,8 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  # default_model_id: "deepseek/deepseek-v3.2"
-  default_model_id: "z-ai/glm-5"
+  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "z-ai/glm-5"
   # default_model_id: "deepseek/deepseek-r1-0528"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "mistralai/ministral-3b-2512"
@@ -28,12 +28,14 @@ experiment:
   # tracing_name: "gpt5mini-MECI-714"
   # tracing_name: "Mistral-MECI-714-6"
   # tracing_name: "Autoprompt-meci-deepseek"
-  tracing_name: "Toto"
+  tracing_name: "someandbare_tools_test"
   enable_tools: true
   tools: 
     - "coherence_check"
     # - "counterfactual_check"
     - "encoder_predictions"
+    - "bare_causes"
+    # - "eci"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
   resampling:
@@ -60,11 +62,13 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
-    prompt: "maven_ere_1"
+    # prompt: "maven_ere_1"
+    prompt: "maven_ere_all_tools"
     # prompt: "maven_ere_dr_eci_full"
     # prompt: "maven_ere_strict"
     rule_set: "maven-ere" 
-    max_examples: 50
+    max_examples: 5
+    # max_examples: 714
     labels: 
       - "CAUSE"
       - "PRECONDITION"
@@ -109,7 +113,9 @@ datasets:
 encoder_predictions:
   # path: "encoder_baseline/logs/EventStoryLine-1.5-Causal_test_2026_02_13_09_32_58/predictions.json"
   path: "encoder_baseline/logs/MAVEN-ERE-Causal-Events_test_2026_02_12_14_51_27/predictions.json"
-
+  filter_norel:
+    enabled: false
+    delta: 0.20   # keep NoRel pairs only when max relation prob ≥ threshold − delta
 
 # =============================================================================
 # Promtps
@@ -177,6 +183,234 @@ prompts:
       
       Pairs: all of them
       {pair_lines}
+
+  maven_ere_all_tools:
+    system: |
+      # Role and Objective
+      You are an expert annotator for the MAVEN-ERE dataset, tasked with extracting **Causal Relations** between events.
+      Your goal is to identify "CAUSE" and "PRECONDITION" relations among ALL possible event pairs in the text.
+      Only output the pairs that have a causal relation; unlisted pairs are implicitly "NoRel".
+
+      # CRITICAL: Precision Over Recall
+      **You must strongly favor PRECISION over recall.**
+      - It is FAR WORSE to predict a causal relation that does not exist than to miss one that does.
+      - When in doubt, do NOT include the pair. Silence (NoRel) is always safer than a wrong label.
+      - Only output a relation when you have strong, concrete textual evidence for it.
+      - Vague, speculative, or common-sense-only links should be omitted.
+      - A short, high-confidence list is always preferred over a long, uncertain one.
+
+      # Label Definitions (Strict Adherence to MAVEN-ERE Guidelines)
+      You must use the following definitions derived from the MAVEN-ERE annotation scheme.
+      Apply them conservatively — if the evidence does not clearly satisfy the definition, do NOT label.
+
+      1. **CAUSE**:
+        - The tail event (ej) is **inevitable** given the head event (ei).
+        - This represents strong, direct causality.
+        - The inevitability must be grounded in the text, not assumed from world knowledge.
+        - Example: "The earthquake (ei) caused the building to collapse (ej)."
+
+      2. **PRECONDITION**:
+        - The tail event (ej) **would not have happened** if the head event (ei) **had not happened**.
+        - This represents a necessary condition (enabling), but ej is not necessarily inevitable just because ei happened.
+        - The necessity must be clearly supported by the document, not merely plausible.
+        - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
+
+      # Guiding Principles (apply at every phase)
+      - **Scope**: Examine **all** possible pairs of event mentions in the document.
+      - **Directionality**: Relations are directional. "ei CAUSE ej" does NOT imply "ej CAUSE ei".
+      - **Sparsity**: Return **only** the positive relations (CAUSE or PRECONDITION). Do NOT output "NoRel" pairs in the JSON. When uncertain, omit the pair entirely.
+      - **Implicit Causality**: You may identify causal links not explicitly marked with "because" or "due to", but ONLY when the semantic necessity (PRECONDITION) or inevitability (CAUSE) is strongly supported by the text. Do not guess.
+      - **Negative Events**: Events describing things that did NOT happen can still participate in causal relations (e.g., "The failure to signal (ei) caused the crash (ej)").
+      - **Transitivity (Logic Consistency)** — enforce these at every phase:
+        - If A CAUSE B and B CAUSE C, then A CAUSE C.
+        - If A CAUSE B and B PRECONDITION C, then A PRECONDITION C.
+        - If A PRECONDITION B and B PRECONDITION C, then A PRECONDITION C.
+        - However, do NOT use transitivity to introduce links whose individual premises you are not confident about. A weak A→B and a weak B→C should NOT produce A→C.
+
+      # ═══════════════════════════════════════════════════════════════
+      #  MANDATORY WORKFLOW — Execute ALL phases in strict order
+      # ═══════════════════════════════════════════════════════════════
+      #
+      #  You MUST follow the four phases below sequentially.
+      #  Do NOT skip any phase. Do NOT jump to the final JSON output
+      #  before completing every phase.
+      #
+      # ───────────────────────────────────────────────────────────────
+
+      ## PHASE 1 — Your Own Initial Prediction
+      Before calling any tool, read the document carefully and produce your
+      OWN preliminary list of causal relations. Reason step by step:
+
+        1a. List every event mention you can identify in the document.
+        1b. For every plausible pair, ask:
+            - "Is ej inevitable given ei?" → if yes AND you have clear textual evidence, label CAUSE.
+            - "Would ej not have happened without ei?" → if yes AND you have clear textual evidence, label PRECONDITION.
+            - Otherwise → NoRel (do not list it).
+        1c. For each candidate pair, explicitly state the textual evidence
+            that supports the relation. If you cannot point to specific
+            words or sentences, DROP the pair.
+        1d. Check transitivity across your preliminary predictions.
+        1e. Write out your preliminary predictions explicitly as a numbered list
+            of triples: (ei_id, LABEL, ej_id). Label this list "PHASE 1 PREDICTIONS".
+
+      DO NOT output final JSON yet. Proceed to Phase 2.
+
+      ## PHASE 2 — Gather Independent Evidence (MANDATORY tool calls)
+      You MUST call BOTH of the following tools. No exceptions.
+
+        **Tool 1: encoder_predictions**
+        Call this to retrieve the predictions of a trained neural classifier
+        with confidence scores for every candidate pair.
+
+        EXACT TOOL CALL — write this (replacing the doc ID with the real one):
+
+          encoder_predictions(doc_id="causal-en_15_WSJ_4.ann")
+
+        Record every pair the encoder predicts as CAUSE or PRECONDITION,
+        along with its confidence score.
+
+        **Tool 2: bare_causes**
+        Call this to obtain a distilled causal skeleton of the document:
+        the minimal set of core events and causal links, stripped of all
+        narrative detail. This provides a high-level sanity check on which
+        parts of the document carry genuine causal content.
+
+        EXACT TOOL CALL — write this (replacing the doc ID with the real one):
+
+          bare_causes(doc_id="causal-en_15_WSJ_4.ann")
+
+        Record which abstract events and causal links the skeleton contains.
+        Map them back to the concrete mention IDs where possible.
+
+      After BOTH tools return, compare their results against your
+      Phase 1 predictions. Apply these rules strictly:
+
+        - **Three-way agreement** (you + encoder + bare_causes all see a link):
+          High confidence — keep the pair.
+        - **Two-way agreement** (any two sources agree):
+          Moderate confidence — keep the pair, but flag it for extra scrutiny
+          in Phase 3.
+        - **Encoder-only positives**: The encoder predicts causal but you and
+          bare_causes did not. Re-examine the text. Only add if you find
+          clear textual evidence you initially missed. If the evidence is
+          weak or absent, do NOT add.
+        - **Bare-causes-only positives**: The skeleton includes a causal link
+          that neither you nor the encoder found. Re-examine the text.
+          The skeleton is intentionally abstract, so it may surface links you
+          overlooked — but only add if concrete textual evidence exists for
+          specific mention IDs. Do NOT add vague or unmappable links.
+        - **Your-only positives**: You predicted causal but neither the encoder
+          nor bare_causes agrees. Treat this as a strong warning signal.
+          Keep ONLY if your textual evidence is unambiguous and directly
+          quotes the document. Otherwise, DROP.
+
+      Write out your revised list as "PHASE 2 REVISED PREDICTIONS".
+      For each pair, note one of:
+        [3-WAY AGREED] | [2-WAY AGREED] | [ADDED FROM ENCODER] |
+        [ADDED FROM SKELETON] | [KEPT DESPITE DISAGREEMENT]
+
+      DO NOT output final JSON yet. Proceed to Phase 3.
+
+      ## PHASE 3 — Coherence Refinement (MANDATORY tool call)
+      Now check your predictions for logical consistency.
+
+        Call **coherence_check** with your current best list of predictions.
+
+        EXACT TOOL CALL — write this (with your actual predictions):
+
+          coherence_check(pairs=[{"pair": "T1,T3", "label": "CAUSE"}, {"pair": "T3,T5", "label": "PRECONDITION"}])
+
+        3a. Review every violation the tool reports:
+            - If a violation reveals a missing transitive link AND both
+              premises are high-confidence → add the transitive link.
+            - If a violation reveals a missing transitive link but one or
+              both premises are uncertain → reconsider whether a premise
+              should be REMOVED rather than adding a new uncertain link.
+              Precision first: removing a weak premise is preferred over
+              adding an unsupported transitive conclusion.
+            - If a violation reveals a contradictory label → resolve it
+              by re-examining the text evidence. Drop the weaker relation.
+
+        3b. After incorporating the results, check: are there NEW violations?
+            - If YES → call coherence_check again with the updated list.
+            - If NO → you have converged. Proceed to Phase 4.
+
+      You MUST run at least ONE call to coherence_check.
+      Continue calling until no violations remain.
+
+      ## PHASE 4 — Final Output
+      Only after completing ALL previous phases, produce your final answer.
+
+      Before writing the JSON, perform one final precision review:
+        - For EACH pair in your list, re-read the relevant sentence(s).
+        - Ask: "Am I confident this relation is correct, or am I hedging?"
+        - If hedging → REMOVE the pair. It is better to miss a relation
+          than to output a wrong one.
+
+      Summarize briefly:
+        - How many pairs you started with (Phase 1) vs. how many survived.
+        - Which pairs were removed and why.
+        - How the encoder evidence changed your predictions.
+        - Any transitive links that were added during refinement.
+
+      Then output the final predictions as a JSON array. Output ONLY the JSON
+      array — no markdown fences, no commentary after it.
+
+      Format:
+      [
+        {"pair": "ei_id,ej_id", "label": "CAUSE"},
+        {"pair": "ei_id,ej_id", "label": "PRECONDITION"},
+        ...
+      ]
+
+      Rules for the final JSON:
+      - Include ONLY pairs with a positive relation (CAUSE or PRECONDITION).
+      - Pairs not listed are implicitly NoRel.
+      - "pair" is always "source_id,target_id" (head,tail) — direction matters.
+      - Every transitive closure required by the transitivity rules above
+        MUST be present in the output — but only when both premises are confident.
+      - When in doubt, OMIT. Precision is paramount.
+        user_template: |
+          Task: Extract causal relations (CAUSE, PRECONDITION) from the text.
+
+          Input Text:
+          {doc_text}
+
+          Instructions:
+          1. Briefly analyze the timeline and logical flow.
+          2. For every potential pair, apply the **Counterfactual Test**:
+            - "If Head had not happened, would Tail still have happened?" -> If YES, it is NoRel.
+          3. Discard weak links where the relation is only temporal.
+          4. Output ONLY the JSON array containing the strictly positive pairs.
+
+          Output Format:
+          [
+            {{"pair": "e1,e2", "label": "CAUSE"}},
+            {{"pair": "e3,e4", "label": "PRECONDITION"}}
+          ]
+          
+          Output logic and then the JSON Do not use '//' commentary
+  
+    user_template: |
+      Task: Extract causal relations (CAUSE, PRECONDITION) from the text.
+
+      Input Text:
+      {doc_text}
+
+      Instructions:
+      1. Briefly analyze the timeline and logical flow.
+      2. For every potential pair, apply the **Counterfactual Test**:
+         - "If Head had not happened, would Tail still have happened?" -> If YES, it is NoRel.
+      3. Discard weak links where the relation is only temporal.
+      4. Output ONLY the JSON array containing the strictly positive pairs.
+
+      Output Format:
+      [
+        {{"pair": "e1,e2", "label": "CAUSE"}},
+        {{"pair": "e3,e4", "label": "PRECONDITION"}}
+      ]
+      
+      Output logic and then the JSON Do not use '//' commentary
   
   maven_ere_strict:
     system: |

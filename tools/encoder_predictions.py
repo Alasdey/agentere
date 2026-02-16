@@ -53,11 +53,82 @@ def _load_predictions() -> Dict[str, Any]:
         _CACHE = json.load(f)
 
     n = len(_CACHE.get("samples", {}))
-    print(f"[encoder_predictions] Loaded {n} documents from {pred_path}")
+    # print(f"[encoder_predictions] Loaded {n} documents from {pred_path}")
     return _CACHE
 
 
-def _format_predictions(doc_id: str, doc_data: List[Dict], label_list: list) -> str:
+# ═══════════════════════════════════════════════════════════════════════════════
+# NoRel FILTERING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _filter_norel(
+    doc_data: List[Dict],
+    label_list: List[str],
+    threshold: float,
+    filter_cfg: Dict[str, Any],
+) -> List[Dict]:
+    """
+    Removes NoRel predictions whose highest relation probability is more
+    than *delta* below the decision threshold.
+
+    For a pair classified as NoRel, let
+        max_rel_prob = max(pred_prob)          # best relation score
+    The pair is **kept** when  max_rel_prob ≥ threshold − delta  (uncertain)
+    and **dropped** otherwise (encoder is very confident there is no relation).
+
+    Non-NoRel predictions are always kept.
+
+    Args:
+        doc_data:    List of pair dicts for one document.
+        label_list:  Ordered label names matching pred_prob indices.
+        threshold:   Decision threshold from the encoder config.
+        filter_cfg:  The ``encoder_predictions.filter_norel`` sub-dict.
+
+    Returns:
+        Filtered list of pair dicts.
+    """
+    if not filter_cfg.get("enabled", False):
+        return doc_data
+
+    delta = float(filter_cfg.get("delta", 0.1))
+    cutoff = threshold - delta          # pairs below this are discarded
+
+    kept: List[Dict] = []
+    for pair in doc_data:
+        pred_label = pair.get("pred_label", "NoRel")
+
+        # Always keep pairs that have an actual relation prediction
+        if pred_label != "NoRel":
+            kept.append(pair)
+            continue
+
+        # For NoRel: check whether encoder was *uncertain*
+        pred_probs = pair.get("pred_prob", [])
+        if not pred_probs:
+            # No probability info → keep to be safe
+            kept.append(pair)
+            continue
+
+        max_rel_prob = max(pred_probs)
+
+        if max_rel_prob >= cutoff:
+            # Close to the boundary → the LLM should see this pair
+            kept.append(pair)
+        # else: far below threshold → drop silently
+
+    return kept
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FORMATTING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _format_predictions(
+    doc_id: str,
+    doc_data: List[Dict],
+    label_list: list,
+    total_before_filter: int,
+) -> str:
     lines = [f"Encoder classifier predictions for document \"{doc_id}\":\n"]
 
     for pair in doc_data:
@@ -84,6 +155,14 @@ def _format_predictions(doc_id: str, doc_data: List[Dict], label_list: list) -> 
 
     if not doc_data:
         lines.append("  (no pairs)")
+
+    # Inform the LLM how many low-confidence NoRel pairs were omitted
+    n_dropped = total_before_filter - len(doc_data)
+    if n_dropped > 0:
+        lines.append(
+            f"\n  [{n_dropped} highly-confident NoRel pairs omitted "
+            f"(far below threshold)]"
+        )
 
     return "\n".join(lines)
 
@@ -121,10 +200,11 @@ def encoder_predictions() -> str:
     threshold = data.get("threshold", 0.5)
 
     # Exact match first, then fuzzy
+    resolved_id = doc_id
     if doc_id not in samples:
         candidates = [k for k in samples if doc_id in k or k in doc_id]
         if len(candidates) == 1:
-            doc_id = candidates[0]
+            resolved_id = candidates[0]
         elif candidates:
             return (
                 f"Ambiguous doc_id '{doc_id}'. "
@@ -136,10 +216,21 @@ def encoder_predictions() -> str:
                 f"Available: {list(samples.keys())[:10]}..."
             )
 
-    summary = _format_predictions(doc_id, samples[doc_id], label_list)
+    doc_data = samples[resolved_id]
+    total_before_filter = len(doc_data)
+
+    # ── Apply NoRel filter ──────────────────────────────────────────────
+    config = _get_config()
+    filter_cfg = config.get("encoder_predictions", {}).get("filter_norel", {})
+    doc_data = _filter_norel(doc_data, label_list, threshold, filter_cfg)
+
+    summary = _format_predictions(
+        doc_id, doc_data, label_list, total_before_filter
+    )
 
     meta = (
         f"\n\n[Model: {data.get('config', {}).get('model', '?')}, "
-        f"threshold: {threshold:.3f}, labels: {label_list}]"
+        f"threshold: {threshold:.3f}, labels: {label_list}, "
+        f"pairs shown: {len(doc_data)}/{total_before_filter}]"
     )
     return summary + meta
