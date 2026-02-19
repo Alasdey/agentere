@@ -25,7 +25,7 @@ def _make_llm() -> ChatOpenAI:
     cfg = _get_config()
     model_cfg = cfg.get("model", {})
     return ChatOpenAI(
-        model=model_cfg.get("default_model_id", "openai/gpt-4o-mini"),
+        model=model_cfg.get("default_model_id"),
         temperature=0.0,
         api_key=os.environ.get("OPENROUTER_API_KEY"),
         base_url=model_cfg.get("base_url", "https://openrouter.ai/api/v1"),

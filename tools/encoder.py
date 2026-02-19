@@ -1,4 +1,4 @@
-# tools/encoder_predictions.py
+# tools/encoder.py
 """
 Tool that exposes encoder-baseline predictions to the LLM agent.
 The current document ID is read from a contextvars.ContextVar,
@@ -41,19 +41,19 @@ def _load_predictions() -> Dict[str, Any]:
         return _CACHE
 
     config = _get_config()
-    pred_path = config.get("encoder_predictions", {}).get("path", "")
+    pred_path = config.get("encoder", {}).get("path", "")
 
     if not pred_path or not os.path.isfile(pred_path):
         raise FileNotFoundError(
             f"Encoder predictions file not found at '{pred_path}'. "
-            f"Set 'encoder_predictions.path' in config.yaml."
+            f"Set 'encoder.path' in config.yaml."
         )
 
     with open(pred_path, "r", encoding="utf-8") as f:
         _CACHE = json.load(f)
 
     n = len(_CACHE.get("samples", {}))
-    # print(f"[encoder_predictions] Loaded {n} documents from {pred_path}")
+    # print(f"[encoder] Loaded {n} documents from {pred_path}")
     return _CACHE
 
 
@@ -82,7 +82,7 @@ def _filter_norel(
         doc_data:    List of pair dicts for one document.
         label_list:  Ordered label names matching pred_prob indices.
         threshold:   Decision threshold from the encoder config.
-        filter_cfg:  The ``encoder_predictions.filter_norel`` sub-dict.
+        filter_cfg:  The ``encoder.filter_norel`` sub-dict.
 
     Returns:
         Filtered list of pair dicts.
@@ -172,7 +172,7 @@ def _format_predictions(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @tool
-def encoder_predictions() -> str:
+def encoder() -> str:
     """
     Retrieves the encoder-based classifier's relation predictions
     for the current document. Call this tool with no arguments to get
@@ -187,7 +187,7 @@ def encoder_predictions() -> str:
     doc_id = CURRENT_DOC_ID.get()
 
     if not doc_id:
-        print(f"encoder_predictions: no {doc_id}")
+        print(f"encoder: no {doc_id}")
         return "Error: No document context available."
 
     try:
@@ -221,7 +221,7 @@ def encoder_predictions() -> str:
 
     # ── Apply NoRel filter ──────────────────────────────────────────────
     config = _get_config()
-    filter_cfg = config.get("encoder_predictions", {}).get("filter_norel", {})
+    filter_cfg = config.get("encoder", {}).get("filter_norel", {})
     doc_data = _filter_norel(doc_data, label_list, threshold, filter_cfg)
 
     summary = _format_predictions(

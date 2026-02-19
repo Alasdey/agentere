@@ -42,8 +42,9 @@ from model.model import build_chat_graph
 from tools import get_enabled_tools
 from utils.metrics import compute_ere_metrics
 from utils.resample import aggregate_run_triples
+from utils.trace_dump import trace_dump
 
-from tools.encoder_predictions import CURRENT_DOC_ID
+from tools.encoder import CURRENT_DOC_ID
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -81,6 +82,9 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> Dic
     ]
     state = await graph_ainvoke(messages)
     
+    # Optional trace dumping
+    # trace_dump(state)
+
     # The last message contains the final answer
     raw_content = state["messages"][-1].content
     
@@ -99,6 +103,7 @@ async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, ma
         try:
             return await run_single_inference(graph_ainvoke, system_prompt, user_prompt)
         except ValueError as e:
+            print(f'Failed inference {attempt}: {e}')
             last_error = e
             await asyncio.sleep(1)
             
@@ -200,6 +205,7 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     finally:
         CURRENT_DOC_ID.reset(ctx_token) 
 
+
 # =============================================================================
 # MAIN ENTRYPOINT
 # =============================================================================
@@ -228,7 +234,7 @@ async def main():
         enable_tools=config["experiment"]["enable_tools"]
     )
 
-    print(f"Engine started. Dataset: {ds_config['name']} | Retries: {config['experiment'].get('retries', 0)}")
+    print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment'].get('retries', 0)}")
 
     # 3. Load Data
     dataset_iter = load_hf_dataset_parsed(
@@ -249,7 +255,7 @@ async def main():
 
     tasks = [sem_task(doc) for doc in dataset_iter]
     results = await asyncio.gather(*tasks)
-    
+
     # 5. Generate Report (Using new module)
     print("Aggregating results and computing metrics...")
     

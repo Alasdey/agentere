@@ -8,7 +8,7 @@ encoder_predictions, etc.
 Extracted columns (all optional / robust to missing keys):
   - run_id, status, timestamp_utc, file
   - model_id, temperature
-  - active_dataset, dataset_name, split, max_examples
+  - active_dataset, dataset_name, split, max_examples, prompt
   - langsmith_project (tracing_name)
   - tools_enabled, tools
   - encoder_filter_norel_enabled, encoder_filter_norel_delta
@@ -104,6 +104,7 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
         "dataset_name":       ds_cfg.get("name"),
         "split":              ds_cfg.get("split"),
         "max_examples":       ds_cfg.get("max_examples"),
+        "prompt":             ds_cfg.get("prompt"),
 
         # experiment / tracing
         "langsmith_project":  experiment.get("tracing_name"),
@@ -169,7 +170,7 @@ def main():
     preferred = [
         "file", "run_id", "status", "timestamp_utc",
         "model_id", "temperature",
-        "active_dataset", "dataset_name", "split", "max_examples",
+        "active_dataset", "dataset_name", "split", "max_examples", "prompt",
         "langsmith_project", "tools_enabled", "tools",
         "encoder_filter_norel_enabled", "encoder_filter_norel_delta",
         "micro_precision", "micro_recall", "micro_f1",

@@ -57,7 +57,7 @@ def get_active_rules() -> List[Dict[str, Any]]:
 # =============================================================================
 
 @tool
-def coherence_check(
+def coherence(
     pairs: List[Dict[str, str]],
 ) -> str:
     """
