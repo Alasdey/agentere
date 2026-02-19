@@ -23,7 +23,7 @@ from sklearn.metrics import f1_score, precision_recall_fscore_support
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from transformers import LongformerModel, LongformerTokenizerFast, get_linear_schedule_with_warmup
+from transformers import LongformerModel, LongformerTokenizerFast
 from tqdm import tqdm
 from datasets import load_dataset
 
@@ -49,7 +49,8 @@ class Config:
 
     # Experiment: Learning Curve
     # Default percentages if not provided via CLI
-    TRAIN_PERCENTAGES = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
+    # TRAIN_PERCENTAGES = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0]
+    TRAIN_PERCENTAGES = [0.01, 0.025, 0.05, 0.1] #, 0.25, 0.5, 1.0]
 
     # Tokenizer / Encoder
     MODEL_NAME = "allenai/longformer-base-4096"
@@ -59,11 +60,8 @@ class Config:
 
     # Training
     BATCH_SIZE = 12
-    GRADIENT_ACCUMULATION_STEPS = 2
-    NUM_EPOCHS = 50
+    NUM_EPOCHS = 200
     LEARNING_RATE = 2e-5
-    WEIGHT_DECAY = 0.01
-    WARMUP_RATIO = 0.1  # 10% of steps used for warmup
     BATCH_SHUFFLE = True
     
     # Validation / Patience
@@ -375,49 +373,25 @@ def find_best_threshold(preds_np, golds_np, eval_indices, floor=3, steps=100):
         if score >= best_score: best_score, best_thresh = score, t
     return best_score, best_thresh
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# UPDATE: TRAIN EPOCH WITH GRADIENT ACCUMULATION
-# ═══════════════════════════════════════════════════════════════════════════════
-
-def train_epoch(model, dataloader, tok_set_annot, optimizer, scheduler, loss_fn, config):
+def train_epoch(model, dataloader, tok_set_annot, optimizer, loss_fn, config):
     model.train()
     total_loss = 0.0
-    optimizer.zero_grad()
-    
-    for step, batch in enumerate(dataloader):
+    for batch in dataloader:
         input_ids = batch["input_ids"].to(config.DEVICE)
         attn = batch["attention_mask"].to(config.DEVICE)
         gam = batch["global_attention_mask"].to(config.DEVICE) if batch["global_attention_mask"] is not None else None
         
+        optimizer.zero_grad()
         logits, indices, tlabels = model(input_ids, attn, gam, batch["pair_indices"], batch["doc_indices"], batch["pair_labels"])
-        
-        if logits is None: 
-            # If batch is empty/skipped, we still need to manage steps? 
-            # Ideally avoid empty batches, but here just continue.
-            continue
+        if logits is None: continue
 
         agg_logits, golds, _ = aggregate_rel(tok_set_annot, indices, logits.cpu(), tlabels.cpu(), config)
         if agg_logits is None: continue
 
         loss = loss_fn(agg_logits.to(config.DEVICE), golds.float().to(config.DEVICE)).mean()
-        
-        # Divide loss by gradient accumulation steps
-        loss = loss / config.GRADIENT_ACCUMULATION_STEPS
         loss.backward()
-        
-        total_loss += loss.item() * config.GRADIENT_ACCUMULATION_STEPS
-
-        if (step + 1) % config.GRADIENT_ACCUMULATION_STEPS == 0:
-            optimizer.step()
-            scheduler.step()
-            optimizer.zero_grad()
-
-    # Handle remaining gradients if last batch wasn't divisible
-    if (len(dataloader) % config.GRADIENT_ACCUMULATION_STEPS) != 0:
         optimizer.step()
-        scheduler.step()
-        optimizer.zero_grad()
-
+        total_loss += loss.item()
     return total_loss / max(len(dataloader), 1)
 
 @torch.no_grad()
@@ -468,30 +442,14 @@ def run_experiment_fraction(percentage, config, dev_loader, test_loader, dev_tsa
         print("   > Skipping: 0 samples.")
         return None
 
-    # 3. Optimizer & Scheduler (New: Weight Decay + Linear Warmup)
-    total_steps = math.ceil(len(sub_loader) / config.GRADIENT_ACCUMULATION_STEPS) * config.NUM_EPOCHS
-    warmup_steps = int(total_steps * config.WARMUP_RATIO)
-    
-    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), 
-                                  lr=config.LEARNING_RATE, 
-                                  weight_decay=config.WEIGHT_DECAY)
-    
-    scheduler = get_linear_schedule_with_warmup(optimizer, 
-                                                num_warmup_steps=warmup_steps, 
-                                                num_training_steps=total_steps)
-
-    loss_fn = AsymmetricLoss(gamma_neg=config.GAMMA_NEG, gamma_pos=config.GAMMA_POS, clip=config.CLIP)
-
-    # 4. Training Loop
+    # 3. Training Loop with Patience
     best_dev_f1 = 0.0
     best_thresh = 0.5
     best_state = None
     patience_counter = 0
 
-    print(f"   > Total Steps: {total_steps}, Warmup: {warmup_steps}")
-
     for epoch in range(config.NUM_EPOCHS):
-        train_loss = train_epoch(model, sub_loader, sub_tsa, optimizer, scheduler, loss_fn, config)
+        train_loss = train_epoch(model, sub_loader, sub_tsa, optimizer, loss_fn, config)
         
         # Validation
         dev_prob, dev_gold, _ = evaluate(model, dev_loader, dev_tsa, config)
