@@ -5,13 +5,22 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  # default_model_id: "minimax/minimax-m2.5"
+  # default_model_id: "minimax/minimax-m2.7"
   # default_model_id: "z-ai/glm-5"
   # default_model_id: "moonshotai/kimi-k2.5"
   # default_model_id: "openai/chatgpt-4o-latest"
   # default_model_id: "openai/gpt-5-mini"
   # default_model_id: "deepseek/deepseek-r1-0528"
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "allenai/olmo-3.1-32b-think" # No tools 
+  # default_model_id: "allenai/olmo-3.1-32b-instruct" # No tools 
+  # default_model_id: "x-ai/grok-4.1-fast"
+  # default_model_id: "inception/mercury-2" # Rate limits
+  # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
+  # default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
+  # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
+  # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
+  # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
   # default_model_id: "mistralai/ministral-3b-2512"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
@@ -23,8 +32,8 @@ model:
 # GENERAL EXPERIMENT SETTINGS
 # =============================================================================
 experiment:
-  tracing: "true"
-  # tracing_name: "DeepseekV32_meci_714_test_coh_count_2"
+  tracing: "false"
+  # tracing_name: "DeepseekV32_meci_714_test_coh_count_resamp"
   tracing_name: "Toto_2"
   # tracing_name: "Meven-ERE-Eci"
   # tracing_name: "gpt5mini-MECI-714"
@@ -41,7 +50,7 @@ experiment:
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
   resampling:
-    enabled: false
+    enabled: true
     n_runs: 3          # Votes per document
     tie_breaking: "norel"
 
@@ -59,8 +68,8 @@ encoder:
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
-active_dataset: "event_story_line"
-# active_dataset: "meci"
+# active_dataset: "event_story_line"
+active_dataset: "meci"
 
 # =============================================================================
 # DATASETS
@@ -79,7 +88,7 @@ datasets:
     prompt: "maven_ere_eci"
     rule_set: "maven-ere" 
     # max_examples: 714
-    max_examples: 50
+    max_examples: 50                                              
     labels: 
       - "CAUSE"
       - "PRECONDITION"
@@ -92,14 +101,13 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    # prompt: "meci_orig"
+    prompt: "meci_orig"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
-    prompt: "meci_autoprompt_deepseek_30"
-    # prompt: "meci_autoprompt_deepseek_tools"
-    max_examples: 714
+    # prompt: "meci_autoprompt_deepseek_30"
+    # max_examples: 714
     # max_examples: 50
-    # max_examples: 5
+    max_examples: 5
     labels: 
       - "CauseEffect"
       - "EffectCause"
@@ -615,47 +623,6 @@ prompts:
       - Follow the provided JSON structure exactly.
       - Use only the approved label strings for causal relations.
           
-      # Context
-      MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
-
-      ## Label Set (Use these exact strings)
-      - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
-      - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
-      - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
-
-      # Precision-First Rules (Apply Silently)
-      1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
-          - a. Counterfactual asymmetry (but-for)
-          - b. A concrete **mechanism** in the text (not just world knowledge)
-          - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
-          - d. Local lexical patterns of enablement/prevention
-        If fewer than two signals are present → **NoRel**.
-
-      2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
-          - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
-          - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
-
-      3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
-
-      4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause.
-
-      5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself.
-
-      6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
-
-      7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **NoRel**.
-
-      # Decision Checklist (Apply Silently — Stricter than Before)
-      1. Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
-      2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
-      3. Reject temporal-only, correlation-only, reporting, and contrastive links.
-      4. Keep scope within the window; prefer the **nearest, most specific** cause.
-      5. If a more direct cause is present, label **NoRel** for the current pair.
-
-      # Output Format
-      - Follow the provided JSON structure exactly.
-      - Use only the approved label strings for causal relations.
-          
       If there are no mentions in the text and no pairs to classify return the example.
 #      # Tool Guidance
 #      After each tool call or code edit, validate result in 1-2 lines and proceed or self-correct if validation fails.
@@ -765,15 +732,15 @@ prompts:
 
       If there are no mentions in the text and no pairs to classify return the example.
 
-      # Tool Guidance
-      After each tool call, validate result in 1-2 lines and proceed or self-correct if validation fails.
-
-      - Before any significant tool call, state one line: purpose and minimal inputs.
-      - Use `coherence` after drafting to correct directional asymmetries.
-      - **Mandatory:** Call `coherence` after any complete prediction of all the pairs
-      - **Mandatory:** Call `counterfactual_pairs` for:
-        - At most a 5 pairs that cannot be otherwised classified
-      - If `counterfactual_pairs` returns unclear for either direction → Prefer **NoRel**.
+#      # Tool Guidance
+#      After each tool call, validate result in 1-2 lines and proceed or self-correct if validation fails.
+#
+#      - Before any significant tool call, state one line: purpose and minimal inputs.
+#      - Use `coherence` after drafting to correct directional asymmetries.
+#      - **Mandatory:** Call `coherence` after any complete prediction of all the pairs
+#      - **Mandatory:** Call `counterfactual_pairs` for:
+#        - At most a 5 pairs that cannot be otherwised classified
+#      - If `counterfactual_pairs` returns unclear for either direction → Prefer **NoRel**.
 
     user_template : |
       Task: Extract causal relations from the text below.
