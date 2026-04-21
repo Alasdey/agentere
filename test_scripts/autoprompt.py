@@ -299,7 +299,7 @@ class EvolutionaryOptimizer:
             if new_val and new_val != parent.system_prompt:
                 generated_candidates.append(PromptCandidate(new_val, cycle))
 
-            return generated_candidates
+        return generated_candidates
 
     async def run(self):
         samples = OPTIM_CONFIG["initial_samples"]

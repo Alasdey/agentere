@@ -111,8 +111,8 @@ def load_hf_dataset_parsed(
         
         mentions_map = {}
         if tokens and spans and mentions and len(spans) == len(mentions):
-            for i, mention_id in enumerate(mentions):
-                token_indices = spans[i]
+            for j, mention_id in enumerate(mentions):
+                token_indices = spans[j]
                 # Ensure indices are valid and gather the text parts
                 text_parts = []
                 for idx in token_indices:

@@ -5,6 +5,7 @@ import os
 import json
 import re
 import yaml
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from langchain_core.tools import tool
@@ -15,15 +16,18 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # UTILS & CONFIG
 # =============================================================================
 
-def _get_config() -> Dict[str, Any]:
-    # Paths relative to the tool file in the /tools/ directory
-    config_path = os.path.join(os.path.dirname(__file__), "../config.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
+with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
+    _CFG = yaml.safe_load(_f)
 
+
+def _get_config() -> Dict[str, Any]:
+    return _CFG
+
+
+@lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
-    cfg = _get_config()
-    model_cfg = cfg.get("model", {})
+    model_cfg = _CFG.get("model", {})
     return ChatOpenAI(
         model=model_cfg.get("default_model_id"),
         temperature=0.0,
@@ -36,7 +40,7 @@ def _make_llm() -> ChatOpenAI:
 # =============================================================================
 
 @tool
-def counterfactual_check(
+async def counterfactual_check(
     pair: str,
     context_text: str,
     event_i_text: Optional[str] = None,
@@ -89,7 +93,7 @@ Output ONLY a JSON object:
 """
 
     try:
-        response = llm.invoke([SystemMessage(content=sys_prompt), HumanMessage(content=user_prompt)])
+        response = await llm.ainvoke([SystemMessage(content=sys_prompt), HumanMessage(content=user_prompt)])
         raw_content = response.content
         
         # Clean potential markdown JSON fences

@@ -1,50 +1,36 @@
 # main.py
 import asyncio
 import json
-import yaml
-import uuid
+import os
+import re
 import sys
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
-import os
+
+import yaml
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
-from utils.resample import aggregate_run_triples
-from utils.old_metrics import compute_ere_metrics
-from langchain_core.messages import SystemMessage, HumanMessage
+from tools.encoder import CURRENT_DOC_ID
 from utils.logger import log_experiment
+from utils.metrics import compute_ere_metrics
 from utils.reporting import generate_run_report
+from utils.resample import aggregate_run_triples
 
 # --- Load Config ---
 with open("config.yaml", "r") as f:
     CONFIG = yaml.safe_load(f)
 
-os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"] 
+os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"]
 os.environ["LANGCHAIN_PROJECT"] = CONFIG["experiment"]["tracing_name"]
 
 active_ds_key = CONFIG["active_dataset"]
 ds_cfg = CONFIG["datasets"][active_ds_key]
 prompt_cfg = CONFIG["prompts"][ds_cfg["prompt"]]
 exp_cfg = CONFIG.get("experiment", {})
-
-import asyncio
-import yaml
-import json
-import re
-import os
-from typing import List, Dict, Any, Tuple
-
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
-from dataprep.dataprep import load_hf_dataset_parsed
-from model.model import build_chat_graph
-from tools import get_enabled_tools
-from utils.metrics import compute_ere_metrics
-from utils.resample import aggregate_run_triples
-from utils.trace_dump import trace_dump
-
-from tools.encoder import CURRENT_DOC_ID
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -272,6 +258,7 @@ async def main():
 
     # 6. Log to Disk
     outfile = log_experiment(
+        logdir="logs/allatonce",
         config=config,
         cli_args=sys.argv,
         results=final_report,

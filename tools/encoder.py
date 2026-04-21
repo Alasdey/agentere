@@ -29,10 +29,13 @@ CURRENT_DOC_ID: ContextVar[str] = ContextVar("current_doc_id", default="")
 _CACHE: Optional[Dict[str, Any]] = None
 
 
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
+with open(_CONFIG_PATH, "r") as _f:
+    _CFG = yaml.safe_load(_f)
+
+
 def _get_config() -> Dict[str, Any]:
-    config_path = os.path.join(os.path.dirname(__file__), "../config.yaml")
-    with open(config_path, "r") as f:
-        return yaml.safe_load(f)
+    return _CFG
 
 
 def _load_predictions() -> Dict[str, Any]:
@@ -172,7 +175,7 @@ def _format_predictions(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @tool
-def encoder() -> str:
+def encoder(comment: str="") -> str:
     """
     Retrieves the encoder-based classifier's relation predictions
     for the current document. Call this tool with no arguments to get
@@ -183,6 +186,7 @@ def encoder() -> str:
         A summary listing each mention pair with the encoder's predicted
         label and per-class confidence scores.
     """
+    # comment parm satisfies the schema
 
     doc_id = CURRENT_DOC_ID.get()
 

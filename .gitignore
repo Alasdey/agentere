@@ -9,6 +9,8 @@ logs/*
 encoder_baseline/logs/
 encoder_baseline/logs/*
 runs_summary.xlsx
+derelict/*
+derelict/
 
 # C extensions
 *.so

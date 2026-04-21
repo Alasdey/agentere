@@ -21,6 +21,7 @@ import json
 import os
 import re
 import yaml
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import tool
@@ -32,15 +33,18 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # UTILS
 # =============================================================================
 
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
+with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
+    _CFG = yaml.safe_load(_f)
+
+
 def _get_config() -> Dict[str, Any]:
-    config_path = os.path.join(os.path.dirname(__file__), "../config.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    return _CFG
 
 
+@lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
-    cfg = _get_config()
-    model_cfg = cfg.get("model", {})
+    model_cfg = _CFG.get("model", {})
     return ChatOpenAI(
         model=model_cfg.get("default_model_id", "openai/gpt-4o-mini"),
         temperature=0.0,
@@ -54,7 +58,7 @@ def _make_llm() -> ChatOpenAI:
 # =============================================================================
 
 @tool
-def eci(
+async def eci(
     target_mention: str,
     target_text: str,
     all_mentions: List[Dict[str, str]],
@@ -166,7 +170,7 @@ TARGET (in either direction). Output JSON:
 }}"""
 
     try:
-        response = llm.invoke([
+        response = await llm.ainvoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt),
         ])

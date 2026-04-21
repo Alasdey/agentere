@@ -236,6 +236,7 @@ async def main():
     
     # 5. Log
     outfile = log_experiment(
+        logdir="logs/perpair",
         config=CONFIG,
         cli_args=sys.argv,
         results=final_report,
