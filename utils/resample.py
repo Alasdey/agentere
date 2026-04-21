@@ -16,28 +16,16 @@ def aggregate_run_triples(
         2. A dictionary containing detailed stats per pair (for logging).
     """
     pair_votes = defaultdict(list)
-    # Collect all unique pairs mentioned across all runs
-    all_pairs = set()
-
     num_runs = len(runs_outputs)
-    
-    # 1. Collect all explicit predictions
+
     for run in runs_outputs:
         for src, lab, tgt in run:
             pair_votes[(src, tgt)].append(lab)
-            all_pairs.add((src, tgt))
-    
-    # We must also account for the 'implicit NoRel' 
-    # (If a pair was found in run A but not run B, run B voted 'NoRel')
-    num_runs = len(runs_outputs)
-    
+
     final_triples = []
-    
-    # Stats container: Key = "src,tgt" string (to match log format)
     per_pair_stats = {}
 
-    # 2. Iterate over all seen pairs to determine winners
-    for (src, tgt) in all_pairs:
+    for (src, tgt) in pair_votes:
         votes = pair_votes[(src, tgt)]
         
         # Fill implicit "NoRel" for runs that didn't output this pair

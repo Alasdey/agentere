@@ -5,9 +5,6 @@ from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
 from utils.metrics import compute_multiclass_metrics, compute_binary_metrics
 
-# Standard labels usually found in ERE/MECI tasks
-DEFAULT_VALID_LABELS = ["CauseEffect", "EffectCause", "CAUSE", "PRECONDITION", "NoRel"]
-
 def reconstruct_pairwise_predictions(
     doc_id: str,
     doc_idx: int,
@@ -71,7 +68,7 @@ def generate_run_report(
     Formulates the final structure for the logger.
     """
     if valid_labels is None:
-        valid_labels = DEFAULT_VALID_LABELS
+        raise ValueError("valid_labels must be provided — pass ds_config['labels'] from config")
 
     # Containers
     labels_all_true = []

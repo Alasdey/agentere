@@ -8,6 +8,7 @@ The LLM calls this tool with no arguments.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from contextvars import ContextVar
@@ -34,16 +35,12 @@ with open(_CONFIG_PATH, "r") as _f:
     _CFG = yaml.safe_load(_f)
 
 
-def _get_config() -> Dict[str, Any]:
-    return _CFG
-
-
 def _load_predictions() -> Dict[str, Any]:
     global _CACHE
     if _CACHE is not None:
         return _CACHE
 
-    config = _get_config()
+    config = _CFG
     pred_path = config.get("encoder", {}).get("path", "")
 
     if not pred_path or not os.path.isfile(pred_path):
@@ -175,7 +172,7 @@ def _format_predictions(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @tool
-def encoder(comment: str="") -> str:
+async def encoder(comment: str="") -> str:
     """
     Retrieves the encoder-based classifier's relation predictions
     for the current document. Call this tool with no arguments to get
@@ -195,7 +192,10 @@ def encoder(comment: str="") -> str:
         return "Error: No document context available."
 
     try:
-        data = _load_predictions()
+        if _CACHE is None:
+            data = await asyncio.to_thread(_load_predictions)
+        else:
+            data = _CACHE
     except FileNotFoundError as e:
         return f"Error: {e}"
 
@@ -224,7 +224,7 @@ def encoder(comment: str="") -> str:
     total_before_filter = len(doc_data)
 
     # ── Apply NoRel filter ──────────────────────────────────────────────
-    config = _get_config()
+    config = _CFG
     filter_cfg = config.get("encoder", {}).get("filter_norel", {})
     doc_data = _filter_norel(doc_data, label_list, threshold, filter_cfg)
 

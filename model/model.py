@@ -102,16 +102,11 @@ def build_chat_graph(
 
     graph = builder.compile(checkpointer=checkpointer)
 
-    # --- Convenience wrappers ---
-
-    def invoke(messages: Sequence[AnyMessage], *, config: Optional[Dict[str, Any]] = None) -> MessagesState:
-        cfg = dict(config or {})
-        cfg.setdefault("recursion_limit", recursion_limit)
-        return graph.invoke({"messages": list(messages)}, config=cfg)
+    # --- Convenience wrapper ---
 
     async def ainvoke(messages: Sequence[AnyMessage], *, config: Optional[Dict[str, Any]] = None) -> MessagesState:
         cfg = dict(config or {})
         cfg.setdefault("recursion_limit", recursion_limit)
         return await graph.ainvoke({"messages": list(messages)}, config=cfg)
 
-    return graph, invoke, ainvoke
+    return graph, ainvoke

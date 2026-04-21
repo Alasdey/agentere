@@ -38,10 +38,6 @@ with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
     _CFG = yaml.safe_load(_f)
 
 
-def _get_config() -> Dict[str, Any]:
-    return _CFG
-
-
 @lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
     model_cfg = _CFG.get("model", {})

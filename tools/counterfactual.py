@@ -6,7 +6,7 @@ import json
 import re
 import yaml
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
@@ -19,10 +19,6 @@ from langchain_core.messages import SystemMessage, HumanMessage
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
 with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
     _CFG = yaml.safe_load(_f)
-
-
-def _get_config() -> Dict[str, Any]:
-    return _CFG
 
 
 @lru_cache(maxsize=1)

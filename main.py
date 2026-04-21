@@ -8,29 +8,18 @@ import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
-import yaml
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
+from utils.config import load_config
 from utils.logger import log_experiment
 from utils.metrics import compute_ere_metrics
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
 
-# --- Load Config ---
-with open("config.yaml", "r") as f:
-    CONFIG = yaml.safe_load(f)
-
-os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"]
-os.environ["LANGCHAIN_PROJECT"] = CONFIG["experiment"]["tracing_name"]
-
-active_ds_key = CONFIG["active_dataset"]
-ds_cfg = CONFIG["datasets"][active_ds_key]
-prompt_cfg = CONFIG["prompts"][ds_cfg["prompt"]]
-exp_cfg = CONFIG.get("experiment", {})
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -95,7 +84,7 @@ async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, ma
             
     raise ValueError(f"Max retries reached. Last error: {last_error}")
 
-async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
+async def process_document_resampled(doc, config, graph_ainvoke):
     """
     Runs inference (optionally resampled) for a single document.
     Returns inputs, outputs, stats, metrics, AND full context trace.
@@ -103,7 +92,7 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
     
-    prompt_cfg = config["prompts"][ds_config["prompt"]]
+    prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
     
     # Generate pair_lines for MECI-style classification
@@ -198,9 +187,10 @@ async def process_document_resampled(doc, config, ds_config, graph_ainvoke):
 
 async def main():
     # 1. Load Config
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config()
 
+    os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
+    os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
     # Dataset
     active_ds_key = config["active_dataset"]
@@ -212,7 +202,7 @@ async def main():
 
     # 2. Build Graph
     tools = get_enabled_tools(config["experiment"].get("tools", []))
-    _, _, graph_ainvoke = build_chat_graph(
+    _, graph_ainvoke = build_chat_graph(
         model_id=config["model"]["default_model_id"],
         temperature=config["model"]["temperature"],
         base_url=config["model"]["base_url"],
@@ -237,7 +227,7 @@ async def main():
     
     async def sem_task(doc):
         async with semaphore:
-            return await process_document_resampled(doc, config, ds_config, graph_ainvoke)
+            return await process_document_resampled(doc, config, graph_ainvoke)
 
     tasks = [sem_task(doc) for doc in dataset_iter]
     results = await asyncio.gather(*tasks)

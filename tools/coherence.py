@@ -18,7 +18,7 @@ with open(_CONFIG_PATH, "r") as _f:
 
 
 @lru_cache(maxsize=1)
-def get_active_rules() -> List[Dict[str, Any]]:
+def get_active_rules() -> tuple:
     """
     Loads the rules specifically for the active dataset defined in config.yaml.
     This enforces hard-set configuration per dataset without exposing choices to the LLM.
@@ -52,8 +52,7 @@ def get_active_rules() -> List[Dict[str, Any]]:
         else:
             raise ValueError(f"Rule set '{rule_set_name}' defined for dataset '{active_key}' not found in config.")
 
-    # print(f"[Coherence Tool] Loaded '{rule_set_name}' rules for active dataset '{active_key}'.")
-    return rules
+    return tuple(rules)
 
 # =============================================================================
 # TOOL

@@ -1,0 +1,93 @@
+system: |
+  # Context
+  MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
+
+  ## Label Set (Use these exact strings)
+  - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti). This is the inverse of "CauseEffect". For any causal relationship, you must consider both possible directions and label accordingly.
+  - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  # Core Causal Definition & Critical Linguistic Cues
+  A causal relation requires a direct, necessary, or enabling relationship where one event materially changes the likelihood or state of another. This includes instrumental relations (e.g., "with X, Y happened", "for the purpose of X, Y was done") and logical dependencies established by narrative structure. Reject simple correlation, temporal sequence, reporting, attribution, or commemorative actions.
+
+  **Pay special attention to language-specific syntactic cues:**
+  - **Turkish:** Grammatical case markers (e.g., dative "-a/-e" for direction/purpose as in "amacıyla" - "for the purpose of") and nominalization suffixes (e.g., "-dır/-dir") can signal causal roles. Explicit connectives like "nedeniyle" ("due to") signal a direct cause-effect relationship.
+  - **Danish/Swedish/Norwegian:** Passive constructions, specific subordinating conjunctions, and instrumental phrases (e.g., "med X blev Y") may indicate cause.
+  - **Spanish/English:** Explicit connectives ("porque/because", "así que/so", "debido a/due to") and verb semantics.
+  - **Urdu:** Case postpositions and compound verbs. Pay attention to implicit causal structures within complex sentences, such as "انفیکشن ... منتقل ہوتا ہے" (infection is transferred), which may indicate a causal mechanism without an explicit connective.
+  These cues can contribute to the required evidence but are not sufficient alone.
+
+  **Crucial Distinction:**
+  - **Direct Causality:** The event itself is the agent of change (e.g., "the movie was a success" → the movie's qualities caused the success).
+  - **Indirect/Reported Causality:** An event that merely reports, motivates, or investigates another event is not a direct cause unless the speech/administrative act itself directly enables or prevents the outcome (e.g., an order causing an action). However, a report or statement can *present* or *cite* a causal factor. In such cases, the *content* of the report (e.g., "the report cited X as the reason for Y") establishes a causal link between the cited factor (X) and the outcome (Y). The reporting event itself is not the cause; the causal link exists between the events mentioned within its content.
+  - **Coreferential/Synonymous Events:** If two event mentions refer to the same real-world occurrence or are synonyms (e.g., "loss" and "tab"), they are not in a causal relationship. Label such pairs as **"NoRel"**.
+  - **Means-End & Procedural Links:** Events in a means-end relationship (e.g., "enacting sanctions" as the means to achieve "the sanctions") or a procedural relationship (e.g., "filing a lawsuit" leading to "a sentencing") are not automatically causal. They must be evaluated against the strict causal definition. A procedural event (like a lawsuit) is only causal if it directly and materially changes the state of the outcome event (like a sentencing) as described in the narrative, not merely because it precedes it in a legal process.
+  - **Descriptive, Categorical, or Thematic Co-occurrence:** Events that are listed together, share a categorical label, or are thematically related but lack a direct, material change relationship are not causal. Do not infer causality from metadata, lists, or thematic grouping in the narrative.
+  - **Experiential Events and Subsequent Actions:** An event describing a personal experience (e.g., "oplevede" - experienced) can be a cause of a subsequent mental state, action, or statement (e.g., "skrev" - wrote) if the experience directly motivates or enables that subsequent event as described in the text. Apply the Two-Signal Rule to such pairs.
+
+  # Precision-First Rules (Apply Silently)
+  1.  **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to/for the purpose of"): require at least **two independent signals** among:
+      - a. Counterfactual asymmetry (but-for test: "If not Ti, then not Tj").
+      - b. A concrete **mechanism** described in the text (not just world knowledge).
+      - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality, narrative structure establishing logical dependency, reported reason/cause).
+      - d. Local lexical patterns of enablement/prevention (e.g., "proved by", "facing difficulties due to").
+    If fewer than two signals are present → **NoRel**.
+
+  2.  **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+      - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
+      - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between events).
+
+  3.  **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
+
+  4.  **Confounder & Chain Check:** Identify the most specific, nearest cause in the text. If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause. However, a single cause can have multiple distinct effects, and an overarching event (e.g., a war, an uprising) can be the direct cause for multiple subsequent events described as its consequences. Administrative, declarative, or investigative events (e.g., "opened an investigation", "enacted a law", "announced") are not direct causes of the events they concern unless the speech/administrative act itself directly enables or prevents the outcome (e.g., an order causing an action). An event describing the implementation or enactment of a specific outcome is typically coreferential with or a means of that outcome, not a separate cause. An event that merely motivates, reports on, or investigates another event is not a direct cause. **Crucially, purpose clauses (e.g., "to determine the causes", "para determinar las causas") describe the goal of an action, not a causal effect of that action. The investigation aims to find the cause; it does not cause the accident.**
+
+  5.  **Reporting/Attribution is Not Causal (But Content Can Be):** Events like "said", "reported", "claimed", "confirmed" are not causes of the content unless the **speech act itself** enables or prevents the content event (e.g., an order causing an action). However, if the reported content *explicitly states a reason or cause* (e.g., "cited X as the reason for Y"), that stated reason within the reported speech can be evaluated for causality with the reported event. The causal link is between the events *within* the reported statement.
+
+  6.  **Negation/Contrast, Temporal/Descriptive Framing, and Narrative Sequence Are Not Causality:** Connectives such as "although", "however", "despite", or "but" do not justify causal labels unless the rules above are explicitly satisfied. Similarly, adverbial phrases, circumstantial clauses (e.g., "while feeling that...", "in the context of"), and descriptive nouns that frame the temporal or mental context of an action are not causal unless they pass the Two-Signal Rule. Mere temporal sequence ("after X, Y") or procedural co-occurrence does not imply causality. **Crucially, negated circumstantial phrases (e.g., "without incident", "sin incidentes") describe the manner or context of an event, not a causal effect of that event.** Do not infer causality from thematic narrative flow or rhetorical connections in quoted speech alone.
+
+  7.  **Direction Test & Mandatory Bidirectional Labeling:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem equally plausible, → **"NoRel"**. For every event pair (Ti, Tj) you label as **"CauseEffect"**, you **must** check if the inverse pair (Tj, Ti) is present in the provided list. If it is, you **must** label (Tj, Ti) as **"EffectCause"**. This is not optional; it is required for all validated causal relations. A **"CauseEffect"** label for (Ti, Tj) and an **"EffectCause"** label for (Tj, Ti) represent the *same* causal relationship from opposite perspectives. **This applies even in contexts describing rules or logical dependencies (e.g., chess rules where one event 'causes' another by definition).**
+
+  # Decision Checklist (Apply Silently — Stricter than Before)
+  1.  Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
+  2.  Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+  3.  Reject temporal-only, correlation-only, reporting, attribution, administrative/declarative, contrastive, and circumstantial framing links (including negated circumstantial phrases). Reject purpose clauses as evidence of causality. Reject causality inferred from lists, categories, or thematic grouping.
+  4.  Keep scope within the window; prefer the **nearest, most specific** cause, but recognize valid overarching causes. Do not infer indirect causation from mere temporal proximity without textual support for the causal mechanism.
+  5.  If the events are coreferential, synonymous, or in a symmetrical/means relationship, label **"NoRel"**. If a more direct cause is present, label the current pair as **"NoRel"**. Evaluate procedural and means-end links strictly.
+  6.  **Have you checked for and labeled the inverse pair?** For every "CauseEffect" (Ti,Tj), you must check if (Tj,Ti) is in the list and label it "EffectCause". This includes symmetrical pairs where a causal link exists (e.g., recording an event and the event being recorded).
+
+  # Explicit Classification Instructions
+  1.  **Classify All Provided Pairs:** You will be given a specific list of event pairs (e.g., [["T1","T2"], ["T3","T4"]]). You must classify **all** these pairs. Do not generate or hallucinate classifications for any event pair not explicitly listed. Your output must contain classifications *only* for the event pairs specified in the input list.
+  2.  **Causal Direction Definitions:**
+      - **"CauseEffect" (Ti → Tj):** Ti is the cause, enabling factor, or preventive agent. Tj is the resulting effect or the prevented outcome.
+      - **"EffectCause" (Tj → Ti):** This is the *inverse* of a "CauseEffect" relation. If you label (Ti, Tj) as "CauseEffect", you must also check if the pair (Tj, Ti) is in the provided list. If it is, you must label (Tj, Ti) as "EffectCause", as it represents the same causal relationship viewed from the opposite direction.
+  3.  **Symmetrical/Correferential/Means/Synonymous Events:** If two events are coreferential, describe the same action, are synonyms, or are in a symmetrical or means-end relationship (e.g., one is a nominalization of the other, "enacting sanctions" and "the sanctions"), there is no causal direction. For such pairs, regardless of order, the correct label is **"NoRel"**. This also applies to events where one is an attribute or manner (e.g., an adverb like "precisely") of the other. Events that are co-participating in a compound action or describe a state and its enabling precondition (e.g., "buried" enabling "unearthed") must be evaluated strictly against the Two-Signal Rule and often lack a direct, directional causal link. However, note that events like "registrere" (record) and the event being recorded can form a valid causal pair (CauseEffect and its inverse EffectCause) if the act of recording is enabled by or is a direct consequence of the event's occurrence, as per the textual evidence.
+  4.  **Purpose vs. Result:** A connective signaling result (e.g., "thus", "böylece") indicates that the preceding events collectively led to an outcome. It does not automatically create a direct causal link between every preceding event and the result. Evaluate each specific event pair (Ti, Tj) independently against the core causal definition and rules. Do not assume causality from narrative flow alone. **A purpose clause (e.g., "to shield", "plan to picket") indicates intent, not a completed causal effect.**
+
+  # Output Format
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings for causal relations.
+  - Your output must contain classifications *only* for the event pairs specified in the input list.
+
+  If there are no mentions in the text and no pairs to classify return the example.
+
+#      # Tool Guidance
+#      After each tool call, validate result in 1-2 lines and proceed or self-correct if validation fails.
+#
+#      - Before any significant tool call, state one line: purpose and minimal inputs.
+#      - Use `coherence` after drafting to correct directional asymmetries.
+#      - **Mandatory:** Call `coherence` after any complete prediction of all the pairs
+#      - **Mandatory:** Call `counterfactual_pairs` for:
+#        - At most a 5 pairs that cannot be otherwised classified
+#      - If `counterfactual_pairs` returns unclear for either direction → Prefer **NoRel**.
+
+user_template : |
+  Task: Extract causal relations from the text below.
+
+  Text:
+  {doc_text}
+
+  Pairs to classify (use EXACT pair ids; output order does NOT matter):
+  {pair_lines}
+
+  Output a JSON array of objects with "pair" and "label" at the end of your answer.
+  Example: [{{"pair": "e1,e2", "label": "CauseEffect"}}]

@@ -1,7 +1,6 @@
 # main_pairwise.py
 import asyncio
 import json
-import yaml
 import sys
 import os
 from pathlib import Path
@@ -12,21 +11,21 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
+from utils.config import load_config
 from utils.metrics import compute_ere_metrics
 from utils.logger import log_experiment
 from utils.reporting import generate_run_report
 from tools.encoder import CURRENT_DOC_ID
 
 # --- Load Config ---
-with open("config.yaml", "r") as f:
-    CONFIG = yaml.safe_load(f)
+CONFIG = load_config()
 
-os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"] 
+os.environ["LANGCHAIN_TRACING_V2"] = CONFIG["experiment"]["tracing"]
 os.environ["LANGCHAIN_PROJECT"] = CONFIG["experiment"]["tracing_name"]
 
 active_ds_key = CONFIG["active_dataset"]
 ds_cfg = CONFIG["datasets"][active_ds_key]
-prompt_cfg = CONFIG["prompts"][ds_cfg["prompt"]]
+prompt_cfg = CONFIG["prompt"]
 
 # =============================================================================
 # CORE PAIRWISE LOGIC
@@ -99,7 +98,7 @@ async def process_document_pairwise(doc, config, ds_config, graph_ainvoke):
     """
     Generates all candidate pairs for a document and classifies them one by one.
     """
-    prompt_cfg = config["prompts"][ds_config["prompt"]]
+    prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
     user_template = prompt_cfg["user_template"]
     
@@ -187,7 +186,7 @@ async def process_document_pairwise(doc, config, ds_config, graph_ainvoke):
 async def main():
     # 1. Setup
     tools = get_enabled_tools(CONFIG["experiment"].get("tools", []))
-    _, _, graph_ainvoke = build_chat_graph(
+    _, graph_ainvoke = build_chat_graph(
         model_id=CONFIG["model"]["default_model_id"],
         temperature=CONFIG["model"]["temperature"],
         base_url=CONFIG["model"]["base_url"],

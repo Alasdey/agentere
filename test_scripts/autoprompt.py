@@ -1,6 +1,5 @@
 
 import asyncio
-import yaml
 import copy
 import random
 import re
@@ -10,6 +9,7 @@ from typing import List, Dict, Any, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage
 from main import process_document_resampled, build_chat_graph
 from dataprep.dataprep import load_hf_dataset_parsed
+from utils.config import load_config
 
 # =============================================================================
 # OPTIMIZATION PARAMETERS
@@ -82,7 +82,7 @@ class EvolutionaryOptimizer:
         ))
 
         # Load initial prompt from config
-        initial_sys = config["prompts"][self.ds_cfg["prompt"]]["system"]
+        initial_sys = config["prompt"]["system"]
         self.population = [PromptCandidate(initial_sys) for _ in range(OPTIM_CONFIG["max_prompts"])]
 
     async def evaluate_candidate(self, candidate: PromptCandidate, dataset: List[Dict], engine_ainvoke):
@@ -91,14 +91,12 @@ class EvolutionaryOptimizer:
         
         # Setup local config for this candidate
         eval_config = copy.deepcopy(self.config)
-        eval_config["prompts"]["evolved"] = {
+        eval_config["prompt"] = {
             "system": candidate.system_prompt,
             "user_template": CONSTANT_USER_TEMPLATE
         }
-        
-        # Force the framework to run this candidate
+
         ds_copy = copy.deepcopy(self.ds_cfg)
-        ds_copy["prompt"] = "evolved"
 
         # Prepare docs: generate the 'pair_lines' locally exactly as in main.py
         processed_docs = []
@@ -128,7 +126,7 @@ class EvolutionaryOptimizer:
             
             processed_docs.append(d)
 
-        tasks = [process_document_resampled(d, eval_config, ds_copy, engine_ainvoke) for d in processed_docs]
+        tasks = [process_document_resampled(d, eval_config, engine_ainvoke) for d in processed_docs]
         raw_results = await asyncio.gather(*tasks)
         ############################
         # print("\nraw_results[0]", raw_results[0])
@@ -251,7 +249,7 @@ class EvolutionaryOptimizer:
         2. Batch: Group critiques.
         3. Rewrite: LLM fixes prompt based on batch.
         """
-        _, _, meta_llm = build_chat_graph(
+        _, meta_llm = build_chat_graph(
             model_id=OPTIM_CONFIG["meta_llm"],
             temperature=OPTIM_CONFIG["meta_temp"],
             base_url=self.config["model"]["base_url"]
@@ -322,7 +320,7 @@ class EvolutionaryOptimizer:
             ########################
             # print(dataset[0])
 
-            _, _, engine = build_chat_graph(
+            _, engine = build_chat_graph(
                 model_id=self.config["model"]["default_model_id"],
                 temperature=0.0,
                 base_url=self.config["model"]["base_url"]
@@ -368,6 +366,5 @@ class EvolutionaryOptimizer:
             print(f"\n\nFINAL PROMPT:\n{self.population[0].system_prompt}")
 
 if __name__ == "__main__":
-    with open("config.yaml", "r") as f:
-        cfg = yaml.safe_load(f)
+    cfg = load_config()
     asyncio.run(EvolutionaryOptimizer(cfg).run())

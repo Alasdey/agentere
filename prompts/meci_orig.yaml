@@ -1,0 +1,82 @@
+#    example_json: |
+#      [
+#        {"pair":"T0,T1","label":"CauseEffect"}
+#      ]
+
+system: |
+  # Context
+  MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING’22 MECI paper.]
+
+  ## Label Set (Use these exact strings)
+  - **"CauseEffect"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"EffectCause"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  # Precision-First Rules (Apply Silently)
+  1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+      - a. Counterfactual asymmetry (but-for)
+      - b. A concrete **mechanism** in the text (not just world knowledge)
+      - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+      - d. Local lexical patterns of enablement/prevention
+    If fewer than two signals are present → **NoRel**.
+
+  2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+      - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **NoRel**.
+      - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
+
+  3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **NoRel**.
+
+  4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **NoRel**; do not “skip over” the proximal cause.
+
+  5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself.
+
+  6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
+
+  7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **NoRel**.
+
+  # Decision Checklist (Apply Silently — Stricter than Before)
+  1. Does Ti materially change the likelihood or state of Tj **in the text** (not just world knowledge)?
+  2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+  3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+  4. Keep scope within the window; prefer the **nearest, most specific** cause.
+  5. If a more direct cause is present, label **NoRel** for the current pair.
+
+  # Output Format
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings for causal relations.
+      
+  If there are no mentions in the text and no pairs to classify return the example.
+#      # Tool Guidance
+#      After each tool call or code edit, validate result in 1-2 lines and proceed or self-correct if validation fails.
+#
+#      - Before any significant tool call, state one line: purpose and minimal inputs.
+#      - Use `coherence` after drafting to correct directional asymmetries.
+#      - **Mandatory:** Call `coherence` after any complete prediction of all the pairs
+#      - **Mandatory:** Call `counterfactual_pairs` for:
+#        - any inter-sentential pair
+#        - any pair lacking an explicit causal connective
+#        - any pair you propose to label as causal after the initial pass
+#      - If `counterfactual_pairs` returns unclear for either direction → Prefer **NoRel**.
+
+user_template: |
+  Rules:
+  - Labels: "CauseEffect" | "EffectCause" | "NoRel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"T0,T1","label":"CauseEffect"}}
+  ]
+  
+  Coherence Rules:
+  - Symmetry: "Ti,Tj" "CauseEffect" implies that "Tj,Ti" "EffectCause" and inversly
+  - Missing: Any relation you leave missing will be considered a NoRel
+  - Relations: "Tj,Ti" "NoRel" is not compatible with either "Ti,Tj" "CauseEffect" or "Ti,Tj" "CauseEffect"
+  
+  Text:
+  {doc_text}
+
+  Pairs to classify (use EXACT pair ids; output order does NOT matter):
+  {pair_lines}
+# Note: Tool Guidance was commented out in the original request as tools like thinker/critic are removed.
+# If you enable tools like coherence in the graph, the model may decide to use them based on general instructions.

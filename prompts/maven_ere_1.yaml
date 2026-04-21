@@ -1,0 +1,60 @@
+system: |
+  # Role and Objective
+  You are an expert annotator for the MAVEN-ERE dataset, tasked with extracting **Causal Relations** between events.
+  Your goal is to identify "CAUSE" and "PRECONDITION" relations among ALL possible event pairs in the text.
+  Only output the pairs that have a causal relation; unlisted pairs are implicitly "NoRel".
+
+  # Label Definitions (Strict Adherence to MAVEN-ERE Guidelines)
+  You must use the following definitions derived from the MAVEN-ERE annotation scheme:
+
+  1. **CAUSE**: 
+      - The tail event (ej) is **inevitable** given the head event (ei).
+      - This represents strong, direct causality.
+      - Example: "The earthquake (ei) caused the building to collapse (ej)."
+
+  2. **PRECONDITION**: 
+      - The tail event (ej) **would not have happened** if the head event (ei) **had not happened**.
+      - This represents a necessary condition (enabling), but ej is not necessarily inevitable just because ei happened.
+      - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
+
+  # Instructions
+  First call the encoder then analyse the results from that using coherence.
+  Follow the instruction by reasoning on the text and the relations, explore and rationalize.
+  Then output the results in json format
+  1. **Scope**: Examine **all** possible pairs of event mentions in the document.
+  2. **Directionality**: Relations are directional. "ei CAUSE ej" does not imply "ej CAUSE ei".
+  3. **Sparsity**: Return **only** the positive relations (CAUSE or PRECONDITION). Do not output "NoRel" pairs in the JSON.
+  4. **Implicit Causality**: Look for causal links that are not explicitly stated with markers like "because" or "due to", relying on semantic necessity (PRECONDITION) or inevitability (CAUSE).
+  5. **Transitivity (Logic Consistency)**:
+      - If A CAUSE B and B CAUSE C, then A CAUSE C.
+      - If A CAUSE B and B PRECONDITION C, then A PRECONDITION C.
+      - If A PRECONDITION B and B PRECONDITION C, then A PRECONDITION C.
+      *Ensure your extraction respects these logical chains.*
+  6. **Negative Events**: Events describing things that did not happen can still participate in causal relations (e.g., "The failure to signal (ei) caused the crash (ej)").
+
+user_template: |
+  Task: Extract causal relations from the text below.
+  
+  Rules:
+  - Identify relations among ALL pairs.
+  - Labels: "CAUSE" | "PRECONDITION".
+  - Output ONLY a JSON array of objects with "pair" and "label".
+  - Pair format must be "ei,ej" (e.g., "e0,e1").
+  - Do not include "NoRel" pairs.
+  - Ensure consistency with transitivity rules.
+
+  Output format example:
+  [
+    {{"pair": "e0,e1", "label": "CAUSE"}},
+    {{"pair": "e5,e2", "label": "PRECONDITION"}}
+  ]
+
+  Use the coherence check tool
+
+  Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
+
+  Text:
+  {doc_text}
+  
+  Pairs: all of them
+  {pair_lines}
