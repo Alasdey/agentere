@@ -1,5 +1,6 @@
 # agentere
 
+### bash prep
 read -s OPENROUTER_API_KEY
 export OPENROUTER_API_KEY
 read -s LANGCHAIN_API_KEY

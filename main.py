@@ -14,6 +14,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
+from tools.few_shot import CURRENT_DOC_TEXT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment
@@ -111,15 +112,16 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         doc_id=doc["id"],
     )
 
+    # ── Set document context (needed by tools and similarity-based few-shot) ──
+    ctx_token = CURRENT_DOC_ID.set(doc["id"])
+    ctx_token_text = CURRENT_DOC_TEXT.set(doc["doc_text"])
+
     # ── Few-shot systematic injection ────────────────────────────────────────
     fs_cfg = config.get("few_shot", {})
     few_shot_str = ""
     if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
         from tools.few_shot import few_shot_examples
         few_shot_str = await few_shot_examples.ainvoke({})
-
-    # ── Set document context before invoking the graph ──
-    ctx_token = CURRENT_DOC_ID.set(doc["id"])
 
     # 1. Run inference N times
     sampling_tasks = [
@@ -173,7 +175,8 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         print(f"Document {doc['id']} failed after all retries: {e}")
         return None
     finally:
-        CURRENT_DOC_ID.reset(ctx_token) 
+        CURRENT_DOC_ID.reset(ctx_token)
+        CURRENT_DOC_TEXT.reset(ctx_token_text) 
 
 
 # =============================================================================
@@ -219,12 +222,19 @@ async def main():
 
     # 4. Execute Concurrently
     semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
-    
-    async def sem_task(doc):
-        async with semaphore:
-            return await process_document_resampled(doc, config, graph_ainvoke)
+    completed = 0
 
-    tasks = [sem_task(doc) for doc in dataset_iter]
+    async def sem_task(doc, total):
+        nonlocal completed
+        async with semaphore:
+            result = await process_document_resampled(doc, config, graph_ainvoke)
+        completed += 1
+        print(f"[{completed}/{total}] Processed doc {doc['id']}", flush=True)
+        return result
+
+    docs = list(dataset_iter)
+    total = len(docs)
+    tasks = [sem_task(doc, total) for doc in docs]
     results = await asyncio.gather(*tasks)
 
     # 5. Generate Report (Using new module)
@@ -232,7 +242,7 @@ async def main():
     
     final_report = generate_run_report(
         results=results,
-        total_processed_count=len(tasks),
+        total_processed_count=total,
         config=config,
         valid_labels=set(active_labels),
         # Optional: Override labels if needed, otherwise uses default ERE set

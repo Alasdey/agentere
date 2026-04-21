@@ -62,6 +62,8 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
+  selection: "random"   # "random"     — resample every call for variance
+                        # "similarity" — TF-IDF cosine against the current doc (sklearn required)
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
 
 # ── Encoder baseline predictions (used by the encoder tool) ──

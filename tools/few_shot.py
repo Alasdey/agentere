@@ -1,6 +1,7 @@
 """
-Tool that retrieves random labelled examples from the training split.
-Examples are re-sampled on every invocation for variance across documents.
+Tool that retrieves labelled examples from the training split.
+Selection is either random (default) or similarity-based (TF-IDF cosine),
+controlled by few_shot.selection in config.yaml.
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -9,6 +10,7 @@ import asyncio
 import os
 import random
 import yaml
+from contextvars import ContextVar
 from typing import Optional
 
 from langchain_core.tools import tool
@@ -16,18 +18,26 @@ from langchain_core.tools import tool
 from dataprep.dataprep import load_hf_dataset_parsed
 from utils.formatting import format_pair_lines, format_gold_output
 
-# ── Module-level config (loaded at import, like other tools) ─────────────────
+# ── Context variable — set by main.py, read by the tool ──────────────────────
+
+CURRENT_DOC_TEXT: ContextVar[str] = ContextVar("current_doc_text", default="")
+
+# ── Module-level config ───────────────────────────────────────────────────────
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
 with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
     _CFG = yaml.safe_load(_f)
 
-# ── Lazy cache for the training split ────────────────────────────────────────
+# ── Lazy caches ───────────────────────────────────────────────────────────────
 
 _TRAIN_CACHE: Optional[list] = None
+_TFIDF_VECTORIZER = None
+_TFIDF_MATRIX = None
 
 
 def _load_train_split() -> list:
+    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX
+
     fs_cfg = _CFG.get("few_shot", {})
     active_ds = _CFG["active_dataset"]
     ds_cfg = _CFG["datasets"][active_ds]
@@ -35,13 +45,22 @@ def _load_train_split() -> list:
     split = fs_cfg.get("split", "train")
     repo_id = fs_cfg.get("repo_id") or ds_cfg["repo_id"]
 
-    return list(load_hf_dataset_parsed(
+    docs = list(load_hf_dataset_parsed(
         repo_id=repo_id,
         split=split,
         text_field=ds_cfg["text_field"],
         ann_field=ds_cfg["ann_field"],
         streaming=True,
     ))
+    _TRAIN_CACHE = docs
+
+    if fs_cfg.get("selection") == "similarity":
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        texts = [d["doc_text"] for d in docs]
+        _TFIDF_VECTORIZER = TfidfVectorizer()
+        _TFIDF_MATRIX = _TFIDF_VECTORIZER.fit_transform(texts)
+
+    return docs
 
 
 def _format_examples(docs: list) -> str:
@@ -59,18 +78,36 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
+def _select_examples(docs: list, n: int) -> list:
+    fs_cfg = _CFG.get("few_shot", {})
+    if fs_cfg.get("selection") == "similarity" and _TFIDF_VECTORIZER is not None:
+        import numpy as np
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        query = CURRENT_DOC_TEXT.get()
+        if query:
+            scores = cosine_similarity(
+                _TFIDF_VECTORIZER.transform([query]),
+                _TFIDF_MATRIX
+            )[0]
+            top_indices = np.argsort(scores)[::-1][:n]
+            return [docs[i] for i in top_indices]
+
+    return random.sample(docs, min(n, len(docs)))
+
+
 # ── Tool ─────────────────────────────────────────────────────────────────────
 
 @tool
 async def few_shot_examples(comment: str = "") -> str:
     """
     Retrieves labelled examples from the training set to ground your predictions.
-    Examples are randomly selected — call this before analysing the document.
+    Call this before analysing the document.
     """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
         _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
 
     n = _CFG.get("few_shot", {}).get("n_examples", 3)
-    sample = random.sample(_TRAIN_CACHE, min(n, len(_TRAIN_CACHE)))
+    sample = _select_examples(_TRAIN_CACHE, n)
     return _format_examples(sample)
