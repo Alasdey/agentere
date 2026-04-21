@@ -56,6 +56,14 @@ experiment:
     tie_breaking: "norel"
 
 
+# ── Few-shot examples (used by the few_shot_examples tool) ──
+few_shot:
+  enabled: true
+  split: "train"        # split to sample from (must exist in the active dataset's repo)
+  n_examples: 3
+  systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
+  # repo_id: ~          # optional override; defaults to the active dataset's repo_id
+
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
   # path: "encoder_baseline/logs/EventStoryLine-1.5-Causal_test_2026_02_13_09_32_58/predictions.json"
@@ -107,8 +115,8 @@ datasets:
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 714
-    # max_examples: 50
-    max_examples: 5
+    max_examples: 50
+    # max_examples: 5
     labels: 
       - "CauseEffect"
       - "EffectCause"

@@ -8,13 +8,14 @@ import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
-from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
 from utils.config import load_config
+from utils.formatting import format_pair_lines
 from utils.logger import log_experiment
 from utils.metrics import compute_ere_metrics
 from utils.reporting import generate_run_report
@@ -49,12 +50,18 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> Dict[str, Any]:
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "") -> Dict[str, Any]:
     """Executes a single pass and returns parsed triples + raw content."""
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt)
+        HumanMessage(content=user_prompt),
     ]
+    if few_shot_str:
+        call_id = uuid.uuid4().hex[:8]
+        messages.extend([
+            AIMessage(content="", tool_calls=[{"id": call_id, "name": "few_shot_examples", "args": {}}]),
+            ToolMessage(content=few_shot_str, tool_call_id=call_id),
+        ])
     state = await graph_ainvoke(messages)
     
     # Optional trace dumping
@@ -71,12 +78,12 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt) -> Dic
         "raw_response": raw_content
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = ""):
     """Retries inference if parsing fails, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            return await run_single_inference(graph_ainvoke, system_prompt, user_prompt)
+            return await run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str)
         except ValueError as e:
             print(f'Failed inference {attempt}: {e}')
             last_error = e
@@ -94,41 +101,29 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
-    
-    # Generate pair_lines for MECI-style classification
-    if config.get("active_dataset") == "meci": 
-        # We extract the pairs from gold_triples to tell the model which IDs to classify
-        pair_lines = ""
-        
-        # Retrieve the mentions_map we added in dataprep.py
-        mentions_map = doc.get("mentions_map", {})
+    active_ds = config["active_dataset"]
 
-        # Logic to format: "ID (Quote), ID (Quote)"
-        formatted_pairs = []
-        for src, lbl, tgt in doc["gold_triples"]:
-            src_quote = mentions_map.get(src, "")
-            tgt_quote = mentions_map.get(tgt, "")
-            
-            # Format example: "T0 (shooting), T1 (trial)"
-            formatted_pairs.append(f"{src} (\"{src_quote}\"), {tgt} (\"{tgt_quote}\")")
-        
-        pair_lines = "\n".join(formatted_pairs)
-    else:
-        pair_lines = "Predict all the pairs, all pairs not predicted will be considered NoRel"
-    
-    # Inject variables to form the final User Prompt
+    pair_lines = format_pair_lines(doc, active_ds)
+
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
         pair_lines=pair_lines,
-        doc_id=doc["id"],           
+        doc_id=doc["id"],
     )
+
+    # ── Few-shot systematic injection ────────────────────────────────────────
+    fs_cfg = config.get("few_shot", {})
+    few_shot_str = ""
+    if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
+        from tools.few_shot import few_shot_examples
+        few_shot_str = await few_shot_examples.ainvoke({})
 
     # ── Set document context before invoking the graph ──
     ctx_token = CURRENT_DOC_ID.set(doc["id"])
 
     # 1. Run inference N times
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries)
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str)
         for _ in range(n_runs)
     ]
     
