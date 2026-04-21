@@ -11,6 +11,7 @@ encoder_baseline/logs/*
 runs_summary.xlsx
 derelict/*
 derelict/
+.claude/
 
 # C extensions
 *.so
