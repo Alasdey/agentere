@@ -92,6 +92,34 @@ async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, ma
             
     raise ValueError(f"Max retries reached. Last error: {last_error}")
 
+async def run_resampled(
+    graph_ainvoke,
+    system_prompt: str,
+    user_prompt: str,
+    few_shot_str: str,
+    n_runs: int,
+    retries: int,
+    tie_breaking: str,
+) -> Tuple[List, Dict, List]:
+    """Runs N inference passes and aggregates them. Returns (final_preds, pair_stats, raw_responses)."""
+    tasks = [
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str)
+        for _ in range(n_runs)
+    ]
+    runs = await asyncio.gather(*tasks)
+
+    triples_lists = [r["triples"] for r in runs]
+    raw_responses = [r["raw_response"] for r in runs]
+
+    if len(triples_lists) > 1:
+        final_preds, pair_stats = aggregate_run_triples(triples_lists, tie_breaking=tie_breaking)
+    else:
+        final_preds = triples_lists[0]
+        pair_stats = {f"{src},{tgt}": {"vote_counts": {lbl: 1}} for src, lbl, tgt in final_preds}
+
+    return final_preds, pair_stats, raw_responses
+
+
 async def process_document_resampled(doc, config, graph_ainvoke):
     """
     Runs inference (optionally resampled) for a single document.
@@ -99,13 +127,13 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     """
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
-    
+    tie_breaking = config["experiment"]["resampling"].get("tie_breaking", "norel")
+
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
     active_ds = config["active_dataset"]
 
     pair_lines = format_pair_lines(doc, active_ds)
-
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
         pair_lines=pair_lines,
@@ -123,60 +151,34 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         from tools.few_shot import few_shot_examples
         few_shot_str = await few_shot_examples.ainvoke({})
 
-    # 1. Run inference N times
-    sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str)
-        for _ in range(n_runs)
-    ]
-    
     try:
-        # runs_results will be a list of dicts: [{'triples': [...], 'raw_response': "..."}]
-        runs_results = await asyncio.gather(*sampling_tasks)
-        
-        # Extract just the triples for aggregation logic
-        triples_only_lists = [r["triples"] for r in runs_results]
-        
-        # Aggregate using voting logic
-        pair_stats = {}
-        if len(triples_only_lists) > 1:
-            final_preds, pair_stats = aggregate_run_triples(
-                triples_only_lists, 
-                tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
-            )
-        else:
-            final_preds = triples_only_lists[0]
-            # Dummy stats for single run
-            pair_stats = {} 
-            for src, lbl, tgt in final_preds:
-                pair_stats[f"{src},{tgt}"] = {"vote_counts": {lbl: 1}}
+        final_preds, pair_stats, raw_responses = await run_resampled(
+            graph_ainvoke, system_prompt, user_prompt, few_shot_str,
+            n_runs, retries, tie_breaking,
+        )
 
-        # 2. Metrics
         metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
-        
-        # 3. Build Context Object for Auditing
-        # We collect all raw responses from the N runs
-        context_trace = {
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-            "raw_responses": [r["raw_response"] for r in runs_results]
-        }
-        
+
         return {
             "id": doc["id"],
             "doc_idx": doc["doc_idx"],
             "lang": doc.get("lang", "unknown"),
             "gold_triples": doc["gold_triples"],
             "pred_triples": final_preds,
-            "pair_stats": pair_stats, 
+            "pair_stats": pair_stats,
             "metrics": metrics,
-            "context": context_trace  # <--- NEW FIELD containing raw traces
+            "context": {
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "raw_responses": raw_responses,
+            },
         }
     except Exception as e:
         print(f"Document {doc['id']} failed after all retries: {e}")
         return None
     finally:
         CURRENT_DOC_ID.reset(ctx_token)
-        CURRENT_DOC_TEXT.reset(ctx_token_text) 
+        CURRENT_DOC_TEXT.reset(ctx_token_text)
 
 
 # =============================================================================

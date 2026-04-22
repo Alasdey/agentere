@@ -12,6 +12,8 @@ runs_summary.xlsx
 derelict/*
 derelict/
 .claude/
+graph.png
+graph.html
 
 # C extensions
 *.so
