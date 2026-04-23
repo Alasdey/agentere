@@ -66,22 +66,41 @@ def capture_git_state(repo_dir: Path) -> Dict[str, Any]:
     state["diff"] = diff if rc == 0 else None
     return state
 
+def make_run_stem(logdir: str, filename_prefix: str = "run") -> tuple[Path, str, str]:
+    """Pre-generate the log stem so callers can set sibling file paths before the run starts.
+
+    Returns (logs_path, stem, run_id).
+    """
+    logs_path = Path.cwd() / logdir
+    logs_path.mkdir(parents=True, exist_ok=True)
+    ts_safe = _sanitize_ts(_now_iso())
+    run_id = uuid.uuid4().hex[:8]
+    stem = f"{filename_prefix}_{ts_safe}_{run_id}"
+    return logs_path, stem, run_id
+
+
 def log_experiment(
     *,
     logdir: str = "logs",
     config: Dict[str, Any],
     cli_args: Dict[str, Any] = None,
     results: Any,
-    filename_prefix: str = "run"
+    filename_prefix: str = "run",
+    _stem: Optional[str] = None,
 ) -> str:
     root_path = Path.cwd()
     logs_path = root_path / logdir
     logs_path.mkdir(parents=True, exist_ok=True)
 
-    ts_raw = _now_iso()
-    ts_safe = _sanitize_ts(ts_raw)
-    run_id = uuid.uuid4().hex[:8]
-    stem = f"{filename_prefix}_{ts_safe}_{run_id}"
+    if _stem:
+        stem = _stem
+        run_id = stem.rsplit("_", 1)[-1]
+        ts_raw = _now_iso()
+    else:
+        ts_raw = _now_iso()
+        ts_safe = _sanitize_ts(ts_raw)
+        run_id = uuid.uuid4().hex[:8]
+        stem = f"{filename_prefix}_{ts_safe}_{run_id}"
 
     # Capture environment state
     git_state = capture_git_state(root_path)
