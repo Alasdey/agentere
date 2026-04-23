@@ -14,6 +14,8 @@ derelict/
 .claude/
 graph.png
 graph.html
+*logs/
+*old_prompts.yaml
 
 # C extensions
 *.so
