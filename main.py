@@ -2,7 +2,6 @@
 import asyncio
 import json
 import os
-import re
 import sys
 import uuid
 from pathlib import Path
@@ -29,17 +28,29 @@ import utils.trace_dump as trace_dump
 # =============================================================================
 
 def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
-    """Parses the LLM response message into a list of (src, label, tgt) triples."""
+    """Parses the LLM response message into a list of (src, label, tgt) triples.
+
+    Scans for all JSON arrays in the content and uses the last one, so that
+    chain-of-thought or intermediate arrays are ignored in favour of the final answer.
+    """
     content = message.content
     try:
-        # Regex to find JSON array in case of conversational filler
-        match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
-        if not match:
+        decoder = json.JSONDecoder()
+        last_array = None
+        for i, ch in enumerate(content):
+            if ch == "[":
+                try:
+                    val, _ = decoder.raw_decode(content, i)
+                    if isinstance(val, list) and val:
+                        last_array = val
+                except json.JSONDecodeError:
+                    pass
+
+        if last_array is None:
             raise ValueError("No JSON array found in output")
-        
-        data = json.loads(match.group(0))
+
         triples = []
-        for item in data:
+        for item in last_array:
             pair = item.get("pair", "")
             if "," in pair:
                 src, tgt = [part.strip() for part in pair.split(",", 1)]
