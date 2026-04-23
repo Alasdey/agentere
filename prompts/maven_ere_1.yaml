@@ -18,7 +18,6 @@ system: |
       - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
 
   # Instructions
-  First call the encoder then analyse the results from that using coherence.
   Follow the instruction by reasoning on the text and the relations, explore and rationalize.
   Then output the results in json format
   1. **Scope**: Examine **all** possible pairs of event mentions in the document.
