@@ -16,7 +16,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
-from utils.formatting import format_pair_lines, format_gold_output
+from utils.formatting import format_gold_output
 
 # ── Context variable — set by main.py, read by the tool ──────────────────────
 
@@ -67,12 +67,10 @@ def _format_examples(docs: list) -> str:
     active_ds = _CFG["active_dataset"]
     parts = []
     for i, doc in enumerate(docs, 1):
-        pair_lines = format_pair_lines(doc, active_ds)
         gold_out = format_gold_output(doc["gold_triples"], active_ds)
         parts.append(
             f"--- Example {i} ---\n"
             f"Text:\n{doc['doc_text']}\n\n"
-            f"Pairs:\n{pair_lines}\n\n"
             f"Output:\n{gold_out}"
         )
     return "\n\n".join(parts)
