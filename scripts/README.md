@@ -57,6 +57,23 @@ uv run scripts/analysis/binary_eval.py logs/allatonce/run_XYZ.json --mode and
 
 ---
 
+### `show_traces.py` — pretty-print sampled LLM traces
+
+Reads `.traces.sample.jsonl` files produced during runs and renders each message in a trace (system, human, AI, tool calls/results) with colour-coded headers and token usage info. Useful for inspecting what was actually sent to and received from the model.
+
+```bash
+uv run scripts/analysis/show_traces.py                              # latest sample file in logs/
+uv run scripts/analysis/show_traces.py path/to/run.traces.sample.jsonl
+uv run scripts/analysis/show_traces.py --all                        # every sample file found
+uv run scripts/analysis/show_traces.py --trace 2                    # only trace #2 (1-indexed)
+uv run scripts/analysis/show_traces.py --width 120                  # wrap width
+uv run scripts/analysis/show_traces.py --full                       # don't truncate content
+uv run scripts/analysis/show_traces.py --no-color
+uv run scripts/analysis/show_traces.py --logs logs/allatonce        # custom logs root
+```
+
+---
+
 ### `posteval.py` — quick per-file undirected binary report
 
 Prints a concise per-language and overall binary summary for one or more log files. Lighter than `binary_eval.py`, good for a quick sanity check.
