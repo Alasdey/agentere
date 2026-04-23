@@ -14,7 +14,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT
+from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS
 from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment, make_run_stem
@@ -140,18 +140,18 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         doc_id=doc["id"],
     )
 
-    # ── Set document context (needed by tools and similarity-based few-shot) ──
     ctx_token = CURRENT_DOC_ID.set(doc["id"])
     ctx_token_text = CURRENT_DOC_TEXT.set(doc["doc_text"])
-
-    # ── Few-shot systematic injection ────────────────────────────────────────
-    fs_cfg = config.get("few_shot", {})
-    few_shot_str = ""
-    if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
-        from tools.few_shot import few_shot_examples
-        few_shot_str = await few_shot_examples.ainvoke({})
+    ctx_token_mentions = CURRENT_DOC_MENTIONS.set(frozenset(doc.get("mentions_map", {}).values()))
 
     try:
+        # ── Few-shot systematic injection ─────────────────────────────────────
+        fs_cfg = config.get("few_shot", {})
+        few_shot_str = ""
+        if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
+            from tools.few_shot import few_shot_examples
+            few_shot_str = await few_shot_examples.ainvoke({})
+
         final_preds, pair_stats, raw_responses = await run_resampled(
             graph_ainvoke, system_prompt, user_prompt, few_shot_str,
             n_runs, retries, tie_breaking,
@@ -179,6 +179,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     finally:
         CURRENT_DOC_ID.reset(ctx_token)
         CURRENT_DOC_TEXT.reset(ctx_token_text)
+        CURRENT_DOC_MENTIONS.reset(ctx_token_mentions)
 
 
 # =============================================================================
