@@ -1,7 +1,9 @@
 """
 Tool that retrieves labelled examples from the training split.
-Selection is either random (default) or similarity-based (TF-IDF cosine),
-controlled by few_shot.selection in config.yaml.
+Selection modes, controlled by few_shot.selection in config.yaml:
+  "random"     — resample every call (default)
+  "similarity" — TF-IDF cosine on document text (sklearn required)
+  "mentions"   — Jaccard similarity on the sets of event mention texts
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -11,16 +13,17 @@ import os
 import random
 import yaml
 from contextvars import ContextVar
-from typing import Optional
+from typing import FrozenSet, Optional
 
 from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from utils.formatting import format_gold_output
 
-# ── Context variable — set by main.py, read by the tool ──────────────────────
+# ── Context variables — set by main.py, read by the tool ─────────────────────
 
 CURRENT_DOC_TEXT: ContextVar[str] = ContextVar("current_doc_text", default="")
+CURRENT_DOC_MENTIONS: ContextVar[FrozenSet[str]] = ContextVar("current_doc_mentions", default=frozenset())
 
 # ── Module-level config ───────────────────────────────────────────────────────
 
@@ -33,10 +36,11 @@ with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
 _TRAIN_CACHE: Optional[list] = None
 _TFIDF_VECTORIZER = None
 _TFIDF_MATRIX = None
+_MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
 
 
 def _load_train_split() -> list:
-    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX
+    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
 
     fs_cfg = _CFG.get("few_shot", {})
     active_ds = _CFG["active_dataset"]
@@ -54,11 +58,19 @@ def _load_train_split() -> list:
     ))
     _TRAIN_CACHE = docs
 
-    if fs_cfg.get("selection") == "similarity":
+    selection = fs_cfg.get("selection")
+
+    if selection == "similarity":
         from sklearn.feature_extraction.text import TfidfVectorizer
         texts = [d["doc_text"] for d in docs]
         _TFIDF_VECTORIZER = TfidfVectorizer()
         _TFIDF_MATRIX = _TFIDF_VECTORIZER.fit_transform(texts)
+
+    elif selection == "mentions":
+        _MENTION_SETS = [
+            frozenset(d.get("mentions_map", {}).values())
+            for d in docs
+        ]
 
     return docs
 
@@ -76,9 +88,16 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
+def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
 def _select_examples(docs: list, n: int) -> list:
     fs_cfg = _CFG.get("few_shot", {})
-    if fs_cfg.get("selection") == "similarity" and _TFIDF_VECTORIZER is not None:
+    selection = fs_cfg.get("selection")
+
+    if selection == "similarity" and _TFIDF_VECTORIZER is not None:
         import numpy as np
         from sklearn.metrics.pairwise import cosine_similarity
 
@@ -89,6 +108,13 @@ def _select_examples(docs: list, n: int) -> list:
                 _TFIDF_MATRIX
             )[0]
             top_indices = np.argsort(scores)[::-1][:n]
+            return [docs[i] for i in top_indices]
+
+    elif selection == "mentions" and _MENTION_SETS is not None:
+        query_mentions = CURRENT_DOC_MENTIONS.get()
+        if query_mentions:
+            scores = [_jaccard(query_mentions, ms) for ms in _MENTION_SETS]
+            top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
             return [docs[i] for i in top_indices]
 
     return random.sample(docs, min(n, len(docs)))
