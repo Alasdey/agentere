@@ -16,10 +16,9 @@ def _now_iso() -> str:
 
 def _sanitize_ts(ts: str) -> str:
     return (
-        ts.replace(":", "-")
-        .replace("+00:00", "Z")
+        ts.replace("+00:00", "Z")
+        .replace(":", "-")
         .replace("+", "p")
-        .replace("-", "-")
         .replace("/", "_")
     )
 
