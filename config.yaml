@@ -116,8 +116,8 @@ datasets:
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
-    # max_examples: 714
-    max_examples: 50
+    max_examples: 714
+    # max_examples: 50
     # max_examples: 5
     labels: 
       - "CauseEffect"
