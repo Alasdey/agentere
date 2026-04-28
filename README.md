@@ -14,9 +14,6 @@ uv sync
 
 # Set credentials (required)
 read -s OPENROUTER_API_KEY && export OPENROUTER_API_KEY
-
-# Optional: LangSmith tracing
-read -s LANGCHAIN_API_KEY && export LANGCHAIN_API_KEY
 ```
 
 ---
