@@ -17,7 +17,7 @@ from tools.encoder import CURRENT_DOC_ID
 from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS
 from utils.config import load_config
 from utils.formatting import format_pair_lines
-from utils.logger import log_experiment
+from utils.logger import log_experiment, make_run_stem
 from utils.metrics import compute_ere_metrics
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
@@ -192,6 +192,11 @@ async def main():
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
+    # Pre-generate log stem so traces land in the same file family
+    _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
+    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
+    trace_dump._sample_written = 0
+
     # Dataset
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
@@ -260,6 +265,7 @@ async def main():
         cli_args=sys.argv,
         results=final_report,
         filename_prefix="run",
+        _stem=_stem,
     )
     print(f"Results logged to: {outfile}")
     keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]
