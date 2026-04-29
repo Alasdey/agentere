@@ -79,18 +79,21 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
         "raw_response": raw_content
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = ""):
-    """Retries inference if parsing fails, returns dict with raw+parsed data."""
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", doc_id: str = "?", timeout: int = 3600):
+    """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            return await run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str)
-        except ValueError as e:
-            print(f'Failed inference {attempt}: {e}')
+            return await asyncio.wait_for(
+                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str),
+                timeout=timeout,
+            )
+        except (ValueError, asyncio.TimeoutError) as e:
+            print(f'[{doc_id}] Failed inference attempt {attempt}: {e}')
             last_error = e
             await asyncio.sleep(1)
-            
-    raise ValueError(f"Max retries reached. Last error: {last_error}")
+
+    raise ValueError(f"[{doc_id}] Max retries reached. Last error: {last_error}")
 
 async def process_document_resampled(doc, config, graph_ainvoke):
     """
@@ -99,6 +102,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     """
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
+    timeout = config["experiment"].get("timeout", 3600)
     
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
@@ -126,7 +130,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     # 1. Run inference N times
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str)
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, doc_id=doc["id"], timeout=timeout)
         for _ in range(n_runs)
     ]
     

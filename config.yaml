@@ -50,9 +50,10 @@ experiment:
     # - "eci"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
+  timeout: 3600       # Seconds before a single inference attempt is cancelled and retried
   resampling:
-    enabled: true
-    n_runs: 3          # Votes per document
+    enabled: false
+    n_runs: 1         # Votes per document
     tie_breaking: "norel"
 
 
@@ -62,7 +63,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "random"   # "random"     — resample every call for variance
+  selection: "mentions"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
@@ -117,8 +118,8 @@ datasets:
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
-    # max_examples: 714
-    max_examples: 50
+    max_examples: 714
+    # max_examples: 50
     # max_examples: 5
     labels: 
       - "CauseEffect"
