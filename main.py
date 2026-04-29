@@ -21,6 +21,7 @@ from utils.logger import log_experiment
 from utils.metrics import compute_ere_metrics
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
+import utils.trace_dump as trace_dump
 
 
 # =============================================================================
@@ -65,8 +66,7 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
         ])
     state = await graph_ainvoke(messages)
     
-    # Optional trace dumping
-    # trace_dump(state)
+    trace_dump.trace_dump(state)
 
     # The last message contains the final answer
     raw_content = state["messages"][-1].content
