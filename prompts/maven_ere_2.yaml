@@ -7,12 +7,12 @@ system: |
   # Label Definitions (Strict Adherence to MAVEN-ERE Guidelines)
   You must use the following definitions derived from the MAVEN-ERE annotation scheme:
 
-  1. **CAUSE**: 
+  1. **CAUSE**:
       - The tail event (ej) is **inevitable** given the head event (ei).
       - This represents strong, direct causality.
       - Example: "The earthquake (ei) caused the building to collapse (ej)."
 
-  2. **PRECONDITION**: 
+  2. **PRECONDITION**:
       - The tail event (ej) **would not have happened** if the head event (ei) **had not happened**.
       - This represents a necessary condition (enabling), but ej is not necessarily inevitable just because ei happened.
       - Example: "Buying a ticket (ei) was a precondition for entering the theater (ej)."
@@ -31,9 +31,14 @@ system: |
       *Ensure your extraction respects these logical chains.*
   6. **Negative Events**: Events describing things that did not happen can still participate in causal relations (e.g., "The failure to signal (ei) caused the crash (ej)").
 
+  # Important Note on Few-Shot Examples
+  The conversation will include annotated few-shot examples to illustrate the task format and reasoning style.
+  **Do NOT produce predictions for those examples.** They are provided solely as demonstrations.
+  Your annotation task applies **only** to the text explicitly given to you in the current prompt — not to any example texts shown earlier.
+
 user_template: |
   Task: Extract causal relations from the text below.
-  
+
   Rules:
   - Identify relations among ALL pairs.
   - Labels: "CAUSE" | "PRECONDITION".
@@ -52,8 +57,10 @@ user_template: |
 
   Constraint: Return your reasoning and then ONLY the JSON array. Do not use '//' commentary
 
+  Note: The few-shot examples shown above are for illustration only. Annotate ONLY the following text.
+
   Text:
   {doc_text}
-  
+
   Pairs: all of them
   {pair_lines}

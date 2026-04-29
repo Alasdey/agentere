@@ -139,16 +139,20 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
 # main
 # ---------------------------------------------------------------------------
 
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.join(_SCRIPT_DIR, "..", "..")
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--logs", default="logs",
-                    help="Folder containing run_*.json files")
+    ap.add_argument("--logs", default=os.path.join(_PROJECT_ROOT, "logs"),
+                    help="Root logs folder (searched recursively for run_*.json)")
     ap.add_argument("--out", default="runs_summary.xlsx",
                     help="Path to output Excel file")
     args = ap.parse_args()
 
-    pattern = os.path.join(args.logs, "run_*.json")
-    files = sorted(glob.glob(pattern))
+    pattern = os.path.join(args.logs, "**", "run_*.json")
+    files = sorted(glob.glob(pattern, recursive=True))
     if not files:
         raise SystemExit(f"No files matched {pattern}")
 
