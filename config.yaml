@@ -32,6 +32,11 @@ model:
 # =============================================================================
 # GENERAL EXPERIMENT SETTINGS
 # =============================================================================
+mlflow:
+  enabled: true
+  tracking_uri: "mlruns"
+  experiment_name: "agentere"
+
 experiment:
   tracing: "false"
   # tracing_name: "DeepseekV32_meci_714_test_coh_count_resamp"

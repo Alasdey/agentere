@@ -19,6 +19,7 @@ from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment, make_run_stem
 from utils.metrics import compute_ere_metrics
+from utils.mlflow_tracker import log_run as mlflow_log_run
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
 import utils.trace_dump as trace_dump
@@ -275,6 +276,17 @@ async def main():
     keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]
     for key in keys:
         print(key, ":", final_report[key])
+
+    # 7. Log to MLflow
+    if config.get("mlflow", {}).get("enabled", False):
+        mlflow_run_id = mlflow_log_run(
+            config=config,
+            final_report=final_report,
+            outfile=outfile,
+            trace_path=trace_dump.TRACE_PATH,
+            run_name=_stem,
+        )
+        print(f"MLflow run: {mlflow_run_id}")
 
 if __name__ == "__main__":
     asyncio.run(main())
