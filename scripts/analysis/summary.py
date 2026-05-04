@@ -111,9 +111,19 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
         "tools_enabled":      tools_enabled,
         "tools":              tools_str,
 
+        # few-shot
+        "few_shot_enabled":   safe_get(data, ["config", "few_shot", "enabled"]),
+        "few_shot_n":         safe_get(data, ["config", "few_shot", "n_examples"]),
+        "few_shot_selection": safe_get(data, ["config", "few_shot", "selection"]),
+
+        # resampling
+        "resampling_enabled":     safe_get(data, ["config", "experiment", "resampling", "enabled"]),
+        "resampling_n_runs":      safe_get(data, ["config", "experiment", "resampling", "n_runs"]),
+        "resampling_tie_breaking": safe_get(data, ["config", "experiment", "resampling", "tie_breaking"]),
+
         # encoder predictions – filter_norel
-        "encoder_filter_norel_enabled": safe_get(data, ["config", "encoder_predictions", "filter_norel", "enabled"]),
-        "encoder_filter_norel_delta":   safe_get(data, ["config", "encoder_predictions", "filter_norel", "delta"]),
+        "encoder_filter_norel_enabled": safe_get(data, ["config", "encoder", "filter_norel", "enabled"]),
+        "encoder_filter_norel_delta":   safe_get(data, ["config", "encoder", "filter_norel", "delta"]),
 
         # aggregate metrics
         "micro_precision":    results.get("micro_precision"),
@@ -151,24 +161,39 @@ def main():
                     help="Path to output Excel file")
     args = ap.parse_args()
 
-    pattern = os.path.join(args.logs, "**", "run_*.json")
-    files = sorted(glob.glob(pattern, recursive=True))
-    if not files:
-        raise SystemExit(f"No files matched {pattern}")
+    # ---- load existing summary (if any) ----
+    existing_df = None
+    known_files: set = set()
+    if os.path.exists(args.out):
+        existing_df = pd.read_excel(args.out, sheet_name="runs")
+        if "file" in existing_df.columns:
+            known_files = set(existing_df["file"].dropna())
+        print(f"Loaded existing summary: {len(existing_df)} rows, {len(known_files)} known files")
 
-    rows: List[Dict[str, Any]] = []
-    for fp in files:
+    # ---- find new log files only ----
+    pattern = os.path.join(args.logs, "**", "run_*.json")
+    all_files = sorted(glob.glob(pattern, recursive=True))
+    new_files = [fp for fp in all_files if os.path.basename(fp) not in known_files]
+
+    if not new_files:
+        print("No new log files found — summary is already up to date.")
+        return
+
+    # ---- parse new files ----
+    new_rows: List[Dict[str, Any]] = []
+    for fp in new_files:
         try:
             with open(fp, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            rows.append(extract_row(data, fp))
+            new_rows.append(extract_row(data, fp))
         except Exception as e:
-            rows.append({
+            new_rows.append({
                 "file": os.path.basename(fp),
                 "parse_error": str(e),
             })
 
-    df = pd.DataFrame(rows)
+    new_df = pd.DataFrame(new_rows)
+    df = pd.concat([existing_df, new_df], ignore_index=True) if existing_df is not None else new_df
 
     # ---- column ordering: important cols first, then per-label cols ----
     preferred = [
@@ -176,6 +201,8 @@ def main():
         "model_id", "temperature",
         "active_dataset", "dataset_name", "split", "max_examples", "prompt",
         "langsmith_project", "tools_enabled", "tools",
+        "few_shot_enabled", "few_shot_n", "few_shot_selection",
+        "resampling_enabled", "resampling_n_runs", "resampling_tie_breaking",
         "encoder_filter_norel_enabled", "encoder_filter_norel_delta",
         "micro_precision", "micro_recall", "micro_f1",
         "macro_f1", "total_pairs",
@@ -190,7 +217,7 @@ def main():
     with pd.ExcelWriter(args.out, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="runs")
 
-    print(f"Wrote {len(df)} rows → {args.out}")
+    print(f"Appended {len(new_rows)} new rows → {args.out} ({len(df)} total)")
 
 
 if __name__ == "__main__":
