@@ -71,6 +71,8 @@ few_shot:
   selection: "similarity"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
+                        # "bert"       — cosine similarity on sentence-transformer embeddings
+  bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
 
 # ── Encoder baseline predictions (used by the encoder tool) ──

@@ -82,6 +82,7 @@ def log_run(
             "few_shot_enabled":    fs_cfg.get("enabled", False),
             "few_shot_n":          fs_cfg.get("n_examples", 0),
             "few_shot_selection":  fs_cfg.get("selection", "random"),
+            "few_shot_bert_model": fs_cfg.get("bert_model", ""),
             "resampling_enabled":  exp_cfg["resampling"]["enabled"],
             "resampling_n_runs":   exp_cfg["resampling"]["n_runs"],
             "enable_tools":        exp_cfg.get("enable_tools", False),

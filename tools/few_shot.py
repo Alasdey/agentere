@@ -4,6 +4,7 @@ Selection modes, controlled by few_shot.selection in config.yaml:
   "random"     — resample every call (default)
   "similarity" — TF-IDF cosine on document text (sklearn required)
   "mentions"   — Jaccard similarity on the sets of event mention texts
+  "bert"       — cosine similarity on sentence-transformer embeddings (sentence-transformers required)
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -37,6 +38,8 @@ _TRAIN_CACHE: Optional[list] = None
 _TFIDF_VECTORIZER = None
 _TFIDF_MATRIX = None
 _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
+_BERT_MODEL = None
+_BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
 
 
 def preload() -> None:
@@ -47,7 +50,7 @@ def preload() -> None:
 
 
 def _load_train_split() -> list:
-    global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
+    global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS
 
     fs_cfg = _CFG.get("few_shot", {})
     active_ds = _CFG["active_dataset"]
@@ -77,6 +80,17 @@ def _load_train_split() -> list:
             frozenset(d.get("mentions_map", {}).values())
             for d in docs
         ]
+
+    elif selection == "bert":
+        import numpy as np
+        from sentence_transformers import SentenceTransformer
+
+        model_name = fs_cfg.get("bert_model", "all-MiniLM-L6-v2")
+        _BERT_MODEL = SentenceTransformer(model_name)
+        texts = [d["doc_text"] for d in docs]
+        _BERT_EMBEDDINGS = _BERT_MODEL.encode(texts, convert_to_numpy=True, show_progress_bar=True)
+        norms = np.linalg.norm(_BERT_EMBEDDINGS, axis=1, keepdims=True)
+        _BERT_EMBEDDINGS = _BERT_EMBEDDINGS / np.where(norms == 0, 1, norms)
 
     return docs
 
@@ -123,6 +137,17 @@ def _select_examples(docs: list, n: int) -> list:
         if query_mentions:
             scores = [_jaccard(query_mentions, ms) for ms in _MENTION_SETS]
             top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
+            return [docs[i] for i in top_indices]
+
+    elif selection == "bert" and _BERT_MODEL is not None and _BERT_EMBEDDINGS is not None:
+        import numpy as np
+
+        query = CURRENT_DOC_TEXT.get()
+        if query:
+            q_emb = _BERT_MODEL.encode([query], convert_to_numpy=True)
+            q_emb = q_emb / np.linalg.norm(q_emb, keepdims=True).clip(min=1e-12)
+            scores = (_BERT_EMBEDDINGS @ q_emb.T).ravel()
+            top_indices = np.argsort(scores)[::-1][:n]
             return [docs[i] for i in top_indices]
 
     return random.sample(docs, min(n, len(docs)))
