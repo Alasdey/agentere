@@ -14,7 +14,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS
+from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload
 from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment, make_run_stem
@@ -221,6 +221,11 @@ async def main():
     )
 
     print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment'].get('retries', 0)}")
+
+    # 2b. Pre-load few-shot cache (fits TF-IDF / mention sets before concurrency starts)
+    if config.get("few_shot", {}).get("enabled"):
+        print("Pre-loading few-shot training split...")
+        await asyncio.to_thread(few_shot_preload)
 
     # 3. Load Data
     dataset_iter = load_hf_dataset_parsed(
