@@ -39,8 +39,15 @@ _TFIDF_MATRIX = None
 _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
 
 
+def preload() -> None:
+    """Eagerly load and fit the training cache. Call once before concurrent inference."""
+    global _TRAIN_CACHE
+    if _TRAIN_CACHE is None:
+        _TRAIN_CACHE = _load_train_split()
+
+
 def _load_train_split() -> list:
-    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
+    global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
 
     fs_cfg = _CFG.get("few_shot", {})
     active_ds = _CFG["active_dataset"]
@@ -56,7 +63,6 @@ def _load_train_split() -> list:
         ann_field=ds_cfg["ann_field"],
         streaming=True,
     ))
-    _TRAIN_CACHE = docs
 
     selection = fs_cfg.get("selection")
 
