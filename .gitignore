@@ -16,8 +16,8 @@ graph.png
 graph.html
 *logs/
 *old_prompts.yaml
-mlrun/*
-mlrun
+mlruns/*
+mlruns
 
 # C extensions
 *.so
