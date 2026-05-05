@@ -16,10 +16,11 @@ model:
   # default_model_id: "x-ai/grok-4.1-fast"
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
-  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
-  default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
+  # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
   # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
@@ -47,12 +48,13 @@ experiment:
   # tracing_name: "Autoprompt-meci-deepseek"
   # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
   enable_tools: false
-  tools: 
+  tools:
     - "coherence"
     - "counterfactual_check"
     # - "encoder"
     # - "bare_causes"
     # - "eci"
+    # - "reprompt"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
   timeout: 3600       # Seconds before a single inference attempt is cancelled and retried
@@ -68,12 +70,17 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "similarity"   # "random"     — resample every call for variance
+  selection: "bert"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
                         # "bert"       — cosine similarity on sentence-transformer embeddings
-  bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
+  # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
+  bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
+
+# ── Reprompt tool ──
+reprompt:
+  systematic: true     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
 
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
@@ -88,8 +95,8 @@ encoder:
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
-# active_dataset: "event_story_line"
-active_dataset: "meci"
+active_dataset: "event_story_line"
+# active_dataset: "meci"
 
 # =============================================================================
 # DATASETS
@@ -141,10 +148,11 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    prompt: "event_story_line_v2"
+    prompt: "event_story_line_eci"
+    # prompt: "event_story_line_v2"
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
-    max_examples: 10
+    max_examples: 24
     labels: 
       - "PRECONDITION"
       - "FALLING_ACTION"
