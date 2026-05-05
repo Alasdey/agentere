@@ -55,6 +55,7 @@ experiment:
     # - "bare_causes"
     # - "eci"
     # - "reprompt"
+    # - "few_shot_cot"
   concurrency: 100
   retries: 5          # How many times to retry a failed sample
   timeout: 3600       # Seconds before a single inference attempt is cancelled and retried
@@ -70,6 +71,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
+  use_cot: false        # true: load CoT reasoning from cot_cache/ (run scripts/generate_cot.py first)
   selection: "bert"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets

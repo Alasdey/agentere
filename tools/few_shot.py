@@ -40,6 +40,7 @@ _TFIDF_MATRIX = None
 _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
 _BERT_MODEL = None
 _BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
+_COT_CACHE: Optional[dict] = None  # doc_id → reasoning string, loaded from cot_cache/
 
 
 def preload() -> None:
@@ -49,8 +50,36 @@ def preload() -> None:
         _TRAIN_CACHE = _load_train_split()
 
 
+async def select_examples_async(n: int) -> list:
+    """Public async interface: ensure cache is loaded, then select n examples."""
+    global _TRAIN_CACHE
+    if _TRAIN_CACHE is None:
+        _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
+    return _select_examples(_TRAIN_CACHE, n)
+
+
+def _load_cot_cache() -> None:
+    global _COT_CACHE
+    import json
+    from pathlib import Path
+    fs_cfg = _CFG.get("few_shot", {})
+    if not fs_cfg.get("use_cot", False):
+        return
+    active_ds = _CFG["active_dataset"]
+    split = fs_cfg.get("split", "train")
+    cache_path = Path(_CONFIG_PATH).parent / "cot_cache" / f"{active_ds}_{split}.json"
+    if not cache_path.exists():
+        raise FileNotFoundError(
+            f"CoT cache not found at {cache_path}. "
+            f"Run: uv run python scripts/generate_cot.py"
+        )
+    _COT_CACHE = json.loads(cache_path.read_text(encoding="utf-8"))
+    print(f"Loaded {len(_COT_CACHE)} CoTs from {cache_path}")
+
+
 def _load_train_split() -> list:
     global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS
+    _load_cot_cache()
 
     fs_cfg = _CFG.get("few_shot", {})
     active_ds = _CFG["active_dataset"]
@@ -98,14 +127,18 @@ def _load_train_split() -> list:
 
 def _format_examples(docs: list) -> str:
     active_ds = _CFG["active_dataset"]
+    binary_mode = _CFG.get("binary_mode", False)
     parts = []
     for i, doc in enumerate(docs, 1):
         pair_lines = format_pair_lines(doc, active_ds)
-        gold_out = format_gold_output(doc["gold_triples"], active_ds)
+        gold_out = format_gold_output(doc["gold_triples"], active_ds, binary_mode=binary_mode)
+        cot = _COT_CACHE.get(doc["id"]) if _COT_CACHE else None
+        reasoning_block = f"Reasoning:\n{cot}\n\n" if cot else ""
         parts.append(
             f"--- Example {i} ---\n"
             f"Text:\n{doc['doc_text']}\n\n"
             f"Pairs:\n{pair_lines}\n\n"
+            f"{reasoning_block}"
             f"Output:\n{gold_out}"
         )
     return "\n\n".join(parts)
