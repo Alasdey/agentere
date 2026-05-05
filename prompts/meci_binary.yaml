@@ -26,6 +26,13 @@ system: |
 
   6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are satisfied.
 
+  # Decision Checklist (Run visibly for each pair)
+  1. Does a causal link exist between Ti and Tj **in the text** (either direction) — not just world knowledge?
+  2. If no explicit connective: is there **two-signal** support (counterfactual + mechanism, or cue + counterfactual for long-range)?
+  3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+  4. Prefer the **nearest, most specific** cause; if a more direct event explains the link → **NoRel**.
+  5. If uncertain after the above → **NoRel**.
+
   # Output Format
   - Follow the provided JSON structure exactly.
   - Use only the approved label strings.
@@ -38,13 +45,17 @@ user_template: |
   - "Rel" means there is a causal link between the two events in at least one direction; direction does not matter.
   - Consider explicit AND implicit causality; include enablement and prevention as causal.
   - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
-  - Return ONLY a JSON array like:
-  [
-    {{"pair":"T0,T1","label":"Rel"}}
-  ]
 
   Coherence Rules:
   - Missing: Any pair you leave out will be considered NoRel.
+
+  For each pair, run the Decision Checklist and write one line:
+  (Ti, Tj): <explicit cue / signals found / why rejected> → Rel / NoRel
+
+  Then output the final JSON array and nothing else after it:
+  [
+    {{"pair":"T0,T1","label":"Rel"}}
+  ]
 
   Text:
   {doc_text}

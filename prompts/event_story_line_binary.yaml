@@ -19,8 +19,15 @@ system: |
 
   6. **Default to NoRel when Uncertain:** Ambiguous, underspecified, or equally plausible links → **NoRel**. Precision over recall.
 
+  # Decision Checklist (Run visibly for each pair)
+  1. Does the text answer "Why did one event happen?" by pointing to the other, or describe one as a direct result of the other? If yes → **Rel** candidate.
+  2. Can you quote a specific sentence or phrase that grounds the link? If the link relies solely on world knowledge → **NoRel**.
+  3. Reject reporting/attribution verbs as causal heads or tails unless the speech act physically enables the other event.
+  4. Prefer the **nearest, most specific** cause; if a more proximate event explains the link → **NoRel**.
+  5. If uncertain after the above → **NoRel**.
+
   # Output Format
-  - Return ONLY a JSON array. No markdown fences, no commentary.
+  - Return ONLY a JSON array. No markdown fences, no commentary after the array.
   - Use only the approved label strings.
 
 user_template: |
@@ -29,13 +36,17 @@ user_template: |
   - Annotate both explicit links (marked by "because", "due to", "sparking", "leading to") and implicit links clearly supported by the narrative.
   - Ignore attribution/reporting events as causal heads or tails.
   - Only output pairs with a confirmed relation; any pair you omit is treated as NoRel.
-  - Return ONLY a JSON array like:
-  [
-    {{"pair":"a1,a2","label":"Rel"}}
-  ]
 
   Coherence Rules:
   - Missing: Any pair you leave out will be treated as NoRel.
+
+  For each candidate pair, run the Decision Checklist and write one line:
+  (ai, aj): <textual evidence found / why rejected> → Rel / NoRel
+
+  Then output the final JSON array and nothing else after it:
+  [
+    {{"pair":"a1,a2","label":"Rel"}}
+  ]
 
   Text:
   {doc_text}
