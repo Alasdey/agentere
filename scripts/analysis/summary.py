@@ -66,6 +66,22 @@ def flatten_binary(results: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def flatten_per_lang(results: Dict[str, Any]) -> Dict[str, Any]:
+    """Expand results.per_lang_metrics into flat columns."""
+    out: Dict[str, Any] = {}
+    per_lang = results.get("per_lang_metrics") or {}
+    for lang, lm in per_lang.items():
+        if not isinstance(lm, dict):
+            continue
+        mc = lm.get("multiclass") or {}
+        out[f"{lang}_micro_f1"]        = mc.get("micro_f1")
+        out[f"{lang}_macro_f1"]        = mc.get("macro_f1")
+        out[f"{lang}_micro_precision"] = mc.get("micro_precision")
+        out[f"{lang}_micro_recall"]    = mc.get("micro_recall")
+        out[f"{lang}_total_pairs"]     = lm.get("total_pairs")
+    return out
+
+
 def get_active_dataset_cfg(data: Dict[str, Any]) -> Dict[str, Any]:
     """Return the config dict for the active dataset (or {})."""
     active = safe_get(data, ["config", "active_dataset"])
@@ -141,6 +157,9 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
 
     # per-label metrics
     row.update(flatten_per_label(results))
+
+    # per-language metrics
+    row.update(flatten_per_lang(results))
 
     return row
 

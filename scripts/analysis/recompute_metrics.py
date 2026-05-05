@@ -162,6 +162,9 @@ def process_log(path: str, dry_run: bool) -> dict[str, Any] | None:
             old_r[key] = val
         with open(path, "w") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+    else:
+        for key, value in new_metrics['per_lang_metrics'].items():
+            print(f"{key}: f1 {value['multiclass']['micro_f1']:.4f} | EC {value['multiclass']['per_label']['EffectCause']['f1']:.4f} | CE {value['multiclass']['per_label']['CauseEffect']['f1']:.4f}")
 
     return summary
 

@@ -109,6 +109,14 @@ def log_run(
             metrics[f"{safe}_f1"]        = lm.get("f1", 0.0)
             metrics[f"{safe}_precision"] = lm.get("precision", 0.0)
             metrics[f"{safe}_recall"]    = lm.get("recall", 0.0)
+        for lang, lm in final_report.get("per_lang_metrics", {}).items():
+            mc = lm["multiclass"]
+            safe_lang = lang.lower().replace(" ", "_")
+            metrics[f"lang_{safe_lang}_micro_f1"]        = mc.get("micro_f1", 0.0)
+            metrics[f"lang_{safe_lang}_macro_f1"]        = mc.get("macro_f1", 0.0)
+            metrics[f"lang_{safe_lang}_micro_precision"] = mc.get("micro_precision", 0.0)
+            metrics[f"lang_{safe_lang}_micro_recall"]    = mc.get("micro_recall", 0.0)
+            metrics[f"lang_{safe_lang}_total_pairs"]     = lm.get("total_pairs", 0)
 
         # ── Token usage + cost ───────────────────────────────────────────────
         if trace_path and trace_path.exists():
