@@ -7,6 +7,7 @@ from .bare_causes import bare_causes
 from .eci import eci
 from .few_shot import few_shot_examples
 from .placeholder import placeholder
+from .reprompt import reprompt
 
 TOOL_REGISTRY = {
     "coherence": coherence,
@@ -16,6 +17,7 @@ TOOL_REGISTRY = {
     "eci": eci,
     "few_shot_examples": few_shot_examples,
     "placeholder": placeholder,
+    "reprompt": reprompt,
 }
 
 def get_enabled_tools(tool_names: list):
