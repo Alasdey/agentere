@@ -85,8 +85,9 @@ def _load_train_split() -> list:
         import numpy as np
         from sentence_transformers import SentenceTransformer
 
+        import torch
         model_name = fs_cfg.get("bert_model", "all-MiniLM-L6-v2")
-        _BERT_MODEL = SentenceTransformer(model_name)
+        _BERT_MODEL = SentenceTransformer(model_name, device="cuda" if torch.cuda.is_available() else "cpu")
         texts = [d["doc_text"] for d in docs]
         _BERT_EMBEDDINGS = _BERT_MODEL.encode(texts, convert_to_numpy=True, show_progress_bar=True)
         norms = np.linalg.norm(_BERT_EMBEDDINGS, axis=1, keepdims=True)
