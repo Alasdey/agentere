@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
 from utils.metrics import compute_multiclass_metrics, compute_binary_metrics
+from utils.binary import collapse_to_binary, BINARY_LABELS
 
 def reconstruct_pairwise_predictions(
     doc_id: str,
@@ -70,6 +71,10 @@ def generate_run_report(
     if valid_labels is None:
         raise ValueError("valid_labels must be provided — pass ds_config['labels'] from config")
 
+    binary_mode = config.get("binary_mode", False)
+    if binary_mode:
+        valid_labels = BINARY_LABELS
+
     # Containers
     labels_all_true = []
     labels_all_pred = []
@@ -83,11 +88,13 @@ def generate_run_report(
     # --- 1. Iterate over docs ---
     for res in valid_results:
         # A. Pairwise Reconstruction (Includes Vote Counts)
+        gold = collapse_to_binary(res["gold_triples"]) if binary_mode else res["gold_triples"]
+        pred = collapse_to_binary(res["pred_triples"]) if binary_mode else res["pred_triples"]
         alignment = reconstruct_pairwise_predictions(
             doc_id=res["id"],
             doc_idx=res["doc_idx"],
-            gold_triples=res["gold_triples"],
-            pred_triples=res["pred_triples"],
+            gold_triples=gold,
+            pred_triples=pred,
             pair_stats=res.get("pair_stats", {}),
             lang=res["lang"]
         )

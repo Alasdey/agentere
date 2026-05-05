@@ -89,6 +89,7 @@ def log_run(
             "tools":               str(exp_cfg.get("tools", [])),
             "concurrency":         exp_cfg.get("concurrency", 1),
             "retries":             exp_cfg.get("retries", 0),
+            "binary_mode":         config.get("binary_mode", False),
         })
 
         # ── Performance metrics ──────────────────────────────────────────────

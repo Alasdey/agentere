@@ -141,6 +141,10 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
         "encoder_filter_norel_enabled": safe_get(data, ["config", "encoder", "filter_norel", "enabled"]),
         "encoder_filter_norel_delta":   safe_get(data, ["config", "encoder", "filter_norel", "delta"]),
 
+        # git
+        "git_branch":         safe_get(data, ["git", "branch"]),
+        "git_commit":         safe_get(data, ["git", "commit"]),
+
         # aggregate metrics
         "micro_precision":    results.get("micro_precision"),
         "micro_recall":       results.get("micro_recall"),
@@ -223,6 +227,7 @@ def main():
         "few_shot_enabled", "few_shot_n", "few_shot_selection",
         "resampling_enabled", "resampling_n_runs", "resampling_tie_breaking",
         "encoder_filter_norel_enabled", "encoder_filter_norel_delta",
+        "git_branch", "git_commit",
         "micro_precision", "micro_recall", "micro_f1",
         "macro_f1", "total_pairs",
         "binary_precision", "binary_recall", "binary_f1", "binary_support_pos",

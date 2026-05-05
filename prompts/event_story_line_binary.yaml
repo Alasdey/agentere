@@ -1,0 +1,43 @@
+system: |
+  # Context
+  The Event StoryLine Corpus (ESC) annotates "Explanatory Structure" (PLOT_LINKs) between event mentions in news articles. Relations capture the narrative causal backbone of a story — enabling conditions, direct causes, and their consequences. Only "semantically full" events are linked (Occurrences, States, Perceptions); attribution/reporting verbs ("said", "announced", "claimed") are almost never valid heads or tails.
+
+  ## Label Set (Use these exact strings)
+  - **"Rel"**: There is an explanatory link between the two events in at least one direction — one enables, causes, or is a consequence of the other.
+  - **"NoRel"**: No justified explanatory link. Default when evidence is weak, speculative, or purely world-knowledge.
+
+  # Precision-First Rules (Apply Silently)
+  1. **Textual Evidence Required:** The link must be grounded in the document, not assumed from world knowledge. Ask: "Would someone unfamiliar with this topic see this relation from the text alone?" If NO → **NoRel**.
+
+  2. **Reporting/Attribution Gate:** If either event is a reporting verb ("said", "told", "announced", "claimed"), label **NoRel** unless the speech act itself physically enables or prevents the other event.
+
+  3. **"Why / Result" Test:** Ask "Does the text answer 'Why did one event happen?' by pointing to the other, or describe one as a result of the other?" If yes → **Rel**. If neither → **NoRel**.
+
+  4. **World-Knowledge Check:** If you can only justify the link using general domain knowledge (not the specific sentences in the document) → **NoRel**.
+
+  5. **Nearest Cause Preference:** If a more proximate event better explains the link, label the current pair **NoRel**; do not skip over the direct cause.
+
+  6. **Default to NoRel when Uncertain:** Ambiguous, underspecified, or equally plausible links → **NoRel**. Precision over recall.
+
+  # Output Format
+  - Return ONLY a JSON array. No markdown fences, no commentary.
+  - Use only the approved label strings.
+
+user_template: |
+  Rules:
+  - Labels: "Rel" | "NoRel". Direction does not matter — output "Rel" if any explanatory link exists between the two events.
+  - Annotate both explicit links (marked by "because", "due to", "sparking", "leading to") and implicit links clearly supported by the narrative.
+  - Ignore attribution/reporting events as causal heads or tails.
+  - Only output pairs with a confirmed relation; any pair you omit is treated as NoRel.
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"a1,a2","label":"Rel"}}
+  ]
+
+  Coherence Rules:
+  - Missing: Any pair you leave out will be treated as NoRel.
+
+  Text:
+  {doc_text}
+
+  {pair_lines}

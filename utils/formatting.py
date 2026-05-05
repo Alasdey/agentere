@@ -18,8 +18,13 @@ def format_pair_lines(doc: dict, active_dataset: str) -> str:
     raise ValueError(f"format_pair_lines: unsupported dataset '{active_dataset}'")
 
 
-def format_gold_output(gold_triples: List[Tuple[str, str, str]], active_dataset: str) -> str:
+def format_gold_output(gold_triples: List[Tuple[str, str, str]], active_dataset: str, binary_mode: bool = False) -> str:
     """Formats gold triples as the JSON output the model is expected to produce."""
+    if binary_mode:
+        from utils.binary import collapse_to_binary
+        triples = collapse_to_binary(gold_triples)
+        items = [{"pair": f"{src},{tgt}", "label": lbl} for src, lbl, tgt in triples]
+        return json.dumps(items)
     if active_dataset == "meci":
         items = [{"pair": f"{src},{tgt}", "label": lbl} for src, lbl, tgt in gold_triples]
     elif active_dataset == "event_story_line":

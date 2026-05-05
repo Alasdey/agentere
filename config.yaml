@@ -78,6 +78,8 @@ few_shot:
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
 
+binary_mode: false        # true: collapse all labels to Rel/NoRel and deduplicate undirected pairs
+
 # ── Reprompt tool ──
 reprompt:
   systematic: true     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
@@ -128,10 +130,11 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    prompt: "meci_orig"
+    # prompt: "meci_orig"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
+    prompt: "meci_binary"
     max_examples: 714
     # max_examples: 50
     # max_examples: 5
@@ -148,10 +151,11 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    prompt: "event_story_line_eci"
+    # prompt: "event_story_line_eci"
     # prompt: "event_story_line_v2"
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
+    prompt: "event_story_line_binary"
     max_examples: 24
     labels: 
       - "PRECONDITION"

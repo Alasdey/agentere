@@ -101,7 +101,7 @@ def _format_examples(docs: list) -> str:
     parts = []
     for i, doc in enumerate(docs, 1):
         pair_lines = format_pair_lines(doc, active_ds)
-        gold_out = format_gold_output(doc["gold_triples"], active_ds)
+        gold_out = format_gold_output(doc["gold_triples"], active_ds, binary_mode=_CFG.get("binary_mode", False))
         parts.append(
             f"--- Example {i} ---\n"
             f"Text:\n{doc['doc_text']}\n\n"
