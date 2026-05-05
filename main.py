@@ -14,7 +14,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload
+from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload, select_examples_async, get_cot_cache
 from tools.reprompt import CURRENT_USER_PROMPT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
@@ -29,6 +29,30 @@ import utils.trace_dump as trace_dump
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+def build_cot_history(
+    docs: list,
+    cot_cache: dict,
+    prompt_cfg: Dict[str, Any],
+    active_ds: str,
+    binary_mode: bool,
+) -> List[BaseMessage]:
+    """Build HumanMessage/AIMessage pairs from CoT examples for chat history injection."""
+    messages: List[BaseMessage] = []
+    for doc in docs:
+        pair_lines = format_pair_lines(doc, active_ds)
+        human_turn = prompt_cfg["user_template"].format(
+            doc_text=doc["doc_text"],
+            pair_lines=pair_lines,
+            doc_id=doc.get("id", ""),
+        )
+        from utils.formatting import format_gold_output
+        gold_out = format_gold_output(doc["gold_triples"], active_ds, binary_mode=binary_mode)
+        cot = cot_cache.get(doc["id"], "")
+        ai_turn = f"{cot}\n\n{gold_out}" if cot else gold_out
+        messages.extend([HumanMessage(content=human_turn), AIMessage(content=ai_turn)])
+    return messages
+
 
 def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
     """Parses the LLM response message into a list of (src, label, tgt) triples."""
@@ -54,12 +78,11 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "", reprompt_str: str = "") -> Dict[str, Any]:
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "", reprompt_str: str = "", cot_messages: List[BaseMessage] = []) -> Dict[str, Any]:
     """Executes a single pass and returns parsed triples + raw content."""
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ]
+    messages = [SystemMessage(content=system_prompt)]
+    messages.extend(cot_messages)
+    messages.append(HumanMessage(content=user_prompt))
     if few_shot_str:
         call_id = uuid.uuid4().hex[:8]
         messages.extend([
@@ -87,13 +110,13 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
         "raw_response": raw_content
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", reprompt_str: str = "", cot_messages: List[BaseMessage] = [], doc_id: str = "?", timeout: int = 3600):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
             return await asyncio.wait_for(
-                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str, reprompt_str),
+                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str, reprompt_str, cot_messages),
                 timeout=timeout,
             )
         except (ValueError, asyncio.TimeoutError) as e:
@@ -143,9 +166,19 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         from tools.reprompt import reprompt as reprompt_tool
         reprompt_str = await reprompt_tool.ainvoke({})
 
+    # ── CoT history injection ─────────────────────────────────────────────────
+    cot_messages: List[BaseMessage] = []
+    if fs_cfg.get("use_cot", False):
+        cot_cache = get_cot_cache()
+        if cot_cache is not None:
+            n = fs_cfg.get("n_examples", 3)
+            cot_docs = await select_examples_async(n)
+            binary_mode = config.get("binary_mode", False)
+            cot_messages = build_cot_history(cot_docs, cot_cache, prompt_cfg, active_ds, binary_mode)
+
     # 1. Run inference N times
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, reprompt_str, doc_id=doc["id"], timeout=timeout)
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, reprompt_str, cot_messages, doc_id=doc["id"], timeout=timeout)
         for _ in range(n_runs)
     ]
     

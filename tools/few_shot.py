@@ -58,6 +58,11 @@ async def select_examples_async(n: int) -> list:
     return _select_examples(_TRAIN_CACHE, n)
 
 
+def get_cot_cache() -> Optional[dict]:
+    """Return the loaded CoT cache (None if use_cot is disabled or cache not loaded yet)."""
+    return _COT_CACHE
+
+
 def _load_cot_cache() -> None:
     global _COT_CACHE
     import json
