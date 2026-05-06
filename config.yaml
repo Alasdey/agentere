@@ -56,8 +56,8 @@ experiment:
     # - "eci"
     # - "reprompt"
   concurrency: 100
-  retries: 5          # How many times to retry a failed sample
-  timeout: 3600       # Seconds before a single inference attempt is cancelled and retried
+  retries: 3          # How many times to retry a failed sample
+  timeout: 1200       # Seconds before a single inference attempt is cancelled and retried
   resampling:
     enabled: false
     n_runs: 1         # Votes per document
