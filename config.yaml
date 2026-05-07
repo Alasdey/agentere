@@ -82,6 +82,12 @@ few_shot:
 reprompt:
   systematic: true     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
 
+# ── Pair extractor tool ──
+pair_extractor:
+  # model_id: ~        # leave null to fall back to model.default_model_id
+  model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  systematic: false    # true: auto-inject after reprompt; false: agent calls the tool
+
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
   # path: "encoder_baseline/logs/EventStoryLine-1.5-Causal_test_2026_02_13_09_32_58/predictions.json"

@@ -8,6 +8,7 @@ from .eci import eci
 from .few_shot import few_shot_examples
 from .placeholder import placeholder
 from .reprompt import reprompt
+from .pair_extractor import pair_extractor
 
 TOOL_REGISTRY = {
     "coherence": coherence,
@@ -18,6 +19,7 @@ TOOL_REGISTRY = {
     "few_shot_examples": few_shot_examples,
     "placeholder": placeholder,
     "reprompt": reprompt,
+    "pair_extractor": pair_extractor,
 }
 
 def get_enabled_tools(tool_names: list):

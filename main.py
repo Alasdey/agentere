@@ -16,6 +16,7 @@ from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
 from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload
 from tools.reprompt import CURRENT_USER_PROMPT
+from tools.pair_extractor import CURRENT_MENTIONS_MAP
 from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment, make_run_stem
@@ -54,7 +55,7 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "", reprompt_str: str = "") -> Dict[str, Any]:
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "", reprompt_str: str = "", pair_extractor_str: str = "") -> Dict[str, Any]:
     """Executes a single pass and returns parsed triples + raw content."""
     messages = [
         SystemMessage(content=system_prompt),
@@ -72,6 +73,12 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
             AIMessage(content="", tool_calls=[{"id": call_id, "name": "reprompt", "args": {}}]),
             ToolMessage(content=reprompt_str, tool_call_id=call_id),
         ])
+    if pair_extractor_str:
+        call_id = uuid.uuid4().hex[:8]
+        messages.extend([
+            AIMessage(content="", tool_calls=[{"id": call_id, "name": "pair_extractor", "args": {}}]),
+            ToolMessage(content=pair_extractor_str, tool_call_id=call_id),
+        ])
     state = await graph_ainvoke(messages)
     
     trace_dump.trace_dump(state)
@@ -87,13 +94,13 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
         "raw_response": raw_content
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", reprompt_str: str = "", pair_extractor_str: str = "", doc_id: str = "?", timeout: int = 3600):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
             return await asyncio.wait_for(
-                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str, reprompt_str),
+                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str, reprompt_str, pair_extractor_str),
                 timeout=timeout,
             )
         except (ValueError, asyncio.TimeoutError) as e:
@@ -129,6 +136,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     ctx_token_text = CURRENT_DOC_TEXT.set(doc["doc_text"])
     ctx_token_mentions = CURRENT_DOC_MENTIONS.set(frozenset(doc.get("mentions_map", {}).values()))
     ctx_token_prompt = CURRENT_USER_PROMPT.set(user_prompt)
+    ctx_token_mentions_map = CURRENT_MENTIONS_MAP.set(doc.get("mentions_map", {}))
 
     # ── Few-shot systematic injection ────────────────────────────────────────
     fs_cfg = config.get("few_shot", {})
@@ -143,9 +151,15 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         from tools.reprompt import reprompt as reprompt_tool
         reprompt_str = await reprompt_tool.ainvoke({})
 
+    # ── Pair extractor systematic injection ──────────────────────────────────
+    pair_extractor_str = ""
+    if config.get("pair_extractor", {}).get("systematic", False):
+        from tools.pair_extractor import pair_extractor as pair_extractor_tool
+        pair_extractor_str = await pair_extractor_tool.ainvoke({})
+
     # 1. Run inference N times
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, reprompt_str, doc_id=doc["id"], timeout=timeout)
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, reprompt_str, pair_extractor_str, doc_id=doc["id"], timeout=timeout)
         for _ in range(n_runs)
     ]
     
@@ -198,6 +212,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         CURRENT_DOC_ID.reset(ctx_token)
         CURRENT_DOC_TEXT.reset(ctx_token_text)
         CURRENT_DOC_MENTIONS.reset(ctx_token_mentions)
+        CURRENT_MENTIONS_MAP.reset(ctx_token_mentions_map)
 
 
 # =============================================================================
