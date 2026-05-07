@@ -120,6 +120,7 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
         "dataset_name":       ds_cfg.get("name"),
         "split":              ds_cfg.get("split"),
         "max_examples":       ds_cfg.get("max_examples"),
+        "neg_fact":           ds_cfg.get("neg_fact"),
         "prompt":             ds_cfg.get("prompt"),
 
         # experiment / tracing
@@ -128,9 +129,19 @@ def extract_row(data: Dict[str, Any], fname: str) -> Dict[str, Any]:
         "tools":              tools_str,
 
         # few-shot
-        "few_shot_enabled":   safe_get(data, ["config", "few_shot", "enabled"]),
-        "few_shot_n":         safe_get(data, ["config", "few_shot", "n_examples"]),
-        "few_shot_selection": safe_get(data, ["config", "few_shot", "selection"]),
+        "few_shot_enabled":    safe_get(data, ["config", "few_shot", "enabled"]),
+        "few_shot_n":          safe_get(data, ["config", "few_shot", "n_examples"]),
+        "few_shot_split":      safe_get(data, ["config", "few_shot", "split"]),
+        "few_shot_systematic": safe_get(data, ["config", "few_shot", "systematic"]),
+        "few_shot_selection":  safe_get(data, ["config", "few_shot", "selection"]),
+        "few_shot_bert_model": safe_get(data, ["config", "few_shot", "bert_model"]),
+
+        # reprompt
+        "reprompt_systematic": safe_get(data, ["config", "reprompt", "systematic"]),
+
+        # experiment timing / reliability
+        "timeout": experiment.get("timeout"),
+        "retries": experiment.get("retries"),
 
         # resampling
         "resampling_enabled":     safe_get(data, ["config", "experiment", "resampling", "enabled"]),
@@ -172,12 +183,23 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.join(_SCRIPT_DIR, "..", "..")
 
 
+def parse_log(fp: str) -> Dict[str, Any]:
+    try:
+        with open(fp, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return extract_row(data, fp)
+    except Exception as e:
+        return {"file": os.path.basename(fp), "parse_error": str(e)}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--logs", default=os.path.join(_PROJECT_ROOT, "logs"),
                     help="Root logs folder (searched recursively for run_*.json)")
     ap.add_argument("--out", default="runs_summary.xlsx",
                     help="Path to output Excel file")
+    ap.add_argument("--mode", choices=["append", "update", "all"], default="append",
+                    help="append: new files only (default); update: refresh existing rows only; all: both")
     args = ap.parse_args()
 
     # ---- load existing summary (if any) ----
@@ -189,38 +211,50 @@ def main():
             known_files = set(existing_df["file"].dropna())
         print(f"Loaded existing summary: {len(existing_df)} rows, {len(known_files)} known files")
 
-    # ---- find new log files only ----
+    # ---- index all log files by basename ----
     pattern = os.path.join(args.logs, "**", "run_*.json")
     all_files = sorted(glob.glob(pattern, recursive=True))
-    new_files = [fp for fp in all_files if os.path.basename(fp) not in known_files]
+    log_index = {os.path.basename(fp): fp for fp in all_files}
 
-    if not new_files:
-        print("No new log files found — summary is already up to date.")
+    # ---- update rows for files already in the summary ----
+    updated_count = 0
+    if args.mode in ("update", "all") and existing_df is not None and "file" in existing_df.columns:
+        refreshed: Dict[str, Dict[str, Any]] = {}
+        for basename, fp in log_index.items():
+            if basename in known_files:
+                refreshed[basename] = parse_log(fp)
+        if refreshed:
+            for basename, new_row in refreshed.items():
+                mask = existing_df["file"] == basename
+                for col, val in new_row.items():
+                    if col not in existing_df.columns:
+                        existing_df[col] = None
+                    existing_df.loc[mask, col] = val
+            updated_count = len(refreshed)
+            print(f"Updated {updated_count} existing rows from logs")
+
+    # ---- append genuinely new files ----
+    new_files = [fp for bn, fp in log_index.items() if bn not in known_files] \
+        if args.mode in ("append", "all") else []
+    new_rows: List[Dict[str, Any]] = [parse_log(fp) for fp in new_files]
+
+    if not new_rows and not updated_count:
+        print("No new log files found and nothing to update — summary is already up to date.")
         return
 
-    # ---- parse new files ----
-    new_rows: List[Dict[str, Any]] = []
-    for fp in new_files:
-        try:
-            with open(fp, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            new_rows.append(extract_row(data, fp))
-        except Exception as e:
-            new_rows.append({
-                "file": os.path.basename(fp),
-                "parse_error": str(e),
-            })
-
-    new_df = pd.DataFrame(new_rows)
+    new_df = pd.DataFrame(new_rows) if new_rows else pd.DataFrame()
     df = pd.concat([existing_df, new_df], ignore_index=True) if existing_df is not None else new_df
 
     # ---- column ordering: important cols first, then per-label cols ----
     preferred = [
         "file", "run_id", "status", "timestamp_utc",
         "model_id", "temperature",
-        "active_dataset", "dataset_name", "split", "max_examples", "prompt",
+        "active_dataset", "dataset_name", "split", "max_examples", "neg_fact", "prompt",
         "langsmith_project", "tools_enabled", "tools",
-        "few_shot_enabled", "few_shot_n", "few_shot_selection",
+        "few_shot_enabled", "few_shot_n", "few_shot_split", "few_shot_systematic",
+        "few_shot_selection", "few_shot_bert_model",
+        "reprompt_systematic",
+        "timeout", "retries",
         "resampling_enabled", "resampling_n_runs", "resampling_tie_breaking",
         "encoder_filter_norel_enabled", "encoder_filter_norel_delta",
         "micro_precision", "micro_recall", "micro_f1",
@@ -236,7 +270,12 @@ def main():
     with pd.ExcelWriter(args.out, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="runs")
 
-    print(f"Appended {len(new_rows)} new rows → {args.out} ({len(df)} total)")
+    parts = []
+    if new_rows:
+        parts.append(f"appended {len(new_rows)} new rows")
+    if updated_count:
+        parts.append(f"refreshed {updated_count} existing rows")
+    print(f"{', '.join(parts).capitalize()} → {args.out} ({len(df)} total)")
 
 
 if __name__ == "__main__":

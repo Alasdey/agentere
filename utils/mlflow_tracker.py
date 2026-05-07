@@ -77,6 +77,7 @@ def log_run(
             "dataset":             ds_cfg["name"],
             "dataset_split":       ds_cfg.get("split", "test"),
             "max_examples":        ds_cfg.get("max_examples", 0),
+            "neg_fact":            ds_cfg.get("neg_fact"),
             "temperature":         config["model"]["temperature"],
             "prompt":              ds_cfg.get("prompt", ""),
             "few_shot_enabled":    fs_cfg.get("enabled", False),

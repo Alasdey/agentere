@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Tuple
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage
 
-from dataprep.dataprep import load_hf_dataset_parsed
+from dataprep.dataprep import load_hf_dataset_parsed, augment_with_negatives
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
@@ -264,6 +264,9 @@ async def main():
         return result
 
     docs = list(dataset_iter)
+    if active_ds_key == "maven_ere":
+        neg_fact = ds_config.get("neg_fact", 3)
+        docs = [augment_with_negatives(doc, neg_fact) for doc in docs]
     total = len(docs)
     tasks = [sem_task(doc, total) for doc in docs]
     results = await asyncio.gather(*tasks)

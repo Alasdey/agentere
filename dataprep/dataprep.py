@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import random
 import re
 from typing import Set, List, Dict, Any, Optional, Iterator, Tuple
 from datasets import load_dataset
@@ -132,3 +133,33 @@ def load_hf_dataset_parsed(
         }
         
         count += 1
+
+
+def augment_with_negatives(doc: Dict[str, Any], neg_fact: int) -> Dict[str, Any]:
+    """
+    Adds sampled NoRel pairs to a doc's gold_triples so the model is given an
+    explicit pair list (all positives + neg_fact * n_positives negatives).
+
+    Uses the doc id as a random seed so sampling is deterministic across runs.
+    """
+    mentions = list(doc.get("mentions_map", {}).keys())
+    if not mentions:
+        return doc
+
+    positive_triples = [(s, l, t) for s, l, t in doc["gold_triples"] if l != "NoRel"]
+    positive_pairs = {(s, t) for s, _, t in positive_triples}
+
+    # All directed pairs excluding self-loops and already-positive pairs
+    candidates = [
+        (s, t)
+        for s in mentions
+        for t in mentions
+        if s != t and (s, t) not in positive_pairs
+    ]
+
+    n_sample = min(neg_fact * max(len(positive_triples), 1), len(candidates))
+    rng = random.Random(doc["id"])
+    sampled = rng.sample(candidates, n_sample)
+
+    norel_triples = [(s, "NoRel", t) for s, t in sampled]
+    return {**doc, "gold_triples": positive_triples + norel_triples}

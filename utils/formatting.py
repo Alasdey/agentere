@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 def format_pair_lines(doc: dict, active_dataset: str) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""
-    if active_dataset == "meci":
+    if active_dataset in ("meci", "maven_ere"):
         mentions_map = doc.get("mentions_map", {})
         lines = [
             f'{src} ("{mentions_map.get(src, "")}"), {tgt} ("{mentions_map.get(tgt, "")}")'
@@ -20,7 +20,7 @@ def format_pair_lines(doc: dict, active_dataset: str) -> str:
 
 def format_gold_output(gold_triples: List[Tuple[str, str, str]], active_dataset: str) -> str:
     """Formats gold triples as the JSON output the model is expected to produce."""
-    if active_dataset == "meci":
+    if active_dataset in ("meci", "maven_ere"):
         items = [{"pair": f"{src},{tgt}", "label": lbl} for src, lbl, tgt in gold_triples]
     elif active_dataset == "event_story_line":
         items = [

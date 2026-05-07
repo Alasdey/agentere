@@ -16,11 +16,11 @@ model:
   # default_model_id: "x-ai/grok-4.1-fast"
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
-  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
-  default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
   # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
@@ -70,7 +70,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "bert"   # "random"     — resample every call for variance
+  selection: "similarity"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
                         # "bert"       — cosine similarity on sentence-transformer embeddings
@@ -94,8 +94,8 @@ encoder:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-# active_dataset: "maven_ere"
-active_dataset: "event_story_line"
+active_dataset: "maven_ere"
+# active_dataset: "event_story_line"
 # active_dataset: "meci"
 
 # =============================================================================
@@ -109,14 +109,15 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
-    # prompt: "maven_ere_1"
+    prompt: "maven_ere_1"
     # prompt: "maven_ere_enc_coh"
     # prompt: "maven_ere_enc_inc"
-    prompt: "maven_ere_eci"
-    rule_set: "maven-ere" 
+    # prompt: "maven_ere_eci"
+    rule_set: "maven-ere"
+    neg_fact: 2
     # max_examples: 714
-    max_examples: 50                                              
-    labels: 
+    max_examples: 50
+    labels:
       - "CAUSE"
       - "PRECONDITION"
       - "NoRel"
@@ -148,7 +149,8 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    prompt: "event_story_line_eci"
+    # prompt: "event_story_line_eci"
+    prompt: "event_story_line_eci_cot"
     # prompt: "event_story_line_v2"
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
