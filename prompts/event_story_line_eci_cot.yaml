@@ -1,0 +1,61 @@
+system: |
+  # Context
+  The Event StoryLine Corpus (ESC) annotates "Explanatory Structure" (PLOT_LINKs) between event mentions in news articles. Relations capture the narrative causal backbone of a story — enabling conditions, direct causes, and their consequences. Only "semantically full" events are linked (Occurrences, States, Perceptions); attribution/reporting verbs ("said", "announced", "claimed") are almost never valid heads or tails.
+
+  ## Label Set (Use these exact strings)
+  - **"PRECONDITION"**: The Head event is a necessary enabler or cause of the Tail event (Head → enables/causes → Tail). The Tail could not have happened, or would not make sense, without the Head.
+  - **"FALLING_ACTION"**: The Head event is a result, reaction, or consequence of the Tail event (Head ← caused by ← Tail). Head is the "step down" from Tail.
+  - **"NoRel"**: No justified explanatory link. Default when evidence is weak, speculative, or purely world-knowledge.
+
+  # Precision-First Rules (Apply Silently)
+  1. **Textual Evidence Required:** The link must be grounded in the document, not assumed from world knowledge. Ask: "Would someone unfamiliar with this topic see this relation from the text alone?" If NO → **NoRel**.
+
+  2. **Reporting/Attribution Gate:** If either event is a reporting verb ("said", "told", "announced", "claimed"), label **NoRel** unless the speech act itself physically enables or prevents the other event.
+
+  3. **"Why" Test:** Ask "Does the text answer 'Why did Tj happen?' by pointing to Ti?" If yes → candidate for PRECONDITION(Ti, Tj). Ask "Is Ti described as a result of Tj?" If yes → candidate for FALLING_ACTION(Ti, Tj). If neither → **NoRel**.
+
+  4. **World-Knowledge Check:** If you can only justify the link using general domain knowledge (not the specific sentences in the document) → **NoRel**.
+
+  5. **Nearest Cause Preference:** If a more proximate event better explains Tj, label the current pair **NoRel**; do not skip over the direct cause.
+
+  6. **Default to NoRel when Uncertain:** Ambiguous, underspecified, or equally plausible links → **NoRel**. Precision over recall.
+
+  # Coherence Rules
+  - **Inverse Symmetry:** PRECONDITION(Ti, Tj) and FALLING_ACTION(Tj, Ti) are inverses of the same plot-link. If you label one direction, the other must reflect it.
+  - **Asymmetry:** PRECONDITION(Ti, Tj) and PRECONDITION(Tj, Ti) cannot both hold (same for FALLING_ACTION). Circular causality is annotation error.
+  - **NoRel Consistency:** NoRel(Ti, Tj) is incompatible with any positive label on (Tj, Ti).
+
+  # Reasoning Requirement
+  You MUST reason step-by-step before producing your final answer. For each pair (or group of related pairs), briefly state:
+  1. What each event denotes in the text.
+  2. Whether textual evidence (not world knowledge) supports a causal link, and in which direction.
+  3. Which label follows, or why NoRel applies.
+  Only after completing this reasoning should you emit the JSON array.
+
+  # Output Format
+  - First output your reasoning as free text.
+  - Then output the final answer as a JSON array on its own, with no markdown fences and no commentary.
+  - Every pair you omit is treated as NoRel — only list pairs with a confirmed positive relation.
+  - Use only the approved label strings.
+
+user_template: |
+  Labels: "PRECONDITION" | "FALLING_ACTION". Any pair you omit is treated as NoRel.
+
+  Rules:
+  - Annotate both explicit links (marked by "because", "due to", "sparking", "leading to") and implicit links clearly supported by the narrative.
+  - Ignore attribution/reporting events as causal heads or tails.
+
+  Coherence Rules:
+  - Inverse: "Ti,Tj" "PRECONDITION" implies "Tj,Ti" "FALLING_ACTION" and inversely.
+  - Missing: Any pair you leave out will be treated as NoRel.
+  - Conflict: "Ti,Tj" "NoRel" is incompatible with any positive label on "Tj,Ti".
+
+  Text:
+  {doc_text}
+
+  {pair_lines}
+
+  Think through each pair carefully before answering. After your reasoning, output ONLY a JSON array like:
+  [
+    {{"pair":"a1,a2","label":"PRECONDITION"}}
+  ]
