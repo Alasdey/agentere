@@ -6,6 +6,7 @@
 # =============================================================================
 model:
   # default_model_id: "minimax/minimax-m2.7"
+  # default_model_id: "anthropic/claude-sonnet-4.6"
   # default_model_id: "z-ai/glm-5"
   # default_model_id: "moonshotai/kimi-k2.5"
   # default_model_id: "openai/chatgpt-4o-latest"
@@ -16,11 +17,11 @@ model:
   # default_model_id: "x-ai/grok-4.1-fast"
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
-  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
-  default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
   # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
@@ -85,8 +86,9 @@ reprompt:
 # ── Pair extractor tool ──
 pair_extractor:
   # model_id: ~        # leave null to fall back to model.default_model_id
-  model_id: "qwen/qwen3-30b-a3b-instruct-2507"
-  systematic: false    # true: auto-inject after reprompt; false: agent calls the tool
+  model_id: "deepseek/deepseek-v3.2"
+  # model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  systematic: true    # true: auto-inject after reprompt; false: agent calls the tool
 
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
@@ -100,8 +102,8 @@ encoder:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-# active_dataset: "maven_ere"
-active_dataset: "event_story_line"
+active_dataset: "maven_ere"
+# active_dataset: "event_story_line"
 # active_dataset: "meci"
 
 # =============================================================================
