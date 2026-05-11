@@ -111,6 +111,28 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
+async def get_few_shot_message_pairs(user_template: str, active_ds: str) -> list:
+    """Returns [(human_content, ai_content), ...] for conversation-based few-shot injection."""
+    global _TRAIN_CACHE
+    if _TRAIN_CACHE is None:
+        _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
+
+    n = _CFG.get("few_shot", {}).get("n_examples", 3)
+    docs = _select_examples(_TRAIN_CACHE, n)
+
+    pairs = []
+    for doc in docs:
+        pair_lines = format_pair_lines(doc, active_ds)
+        human_content = user_template.format(
+            doc_text=doc["doc_text"],
+            pair_lines=pair_lines,
+            doc_id=doc.get("id", ""),
+        )
+        ai_content = format_gold_output(doc["gold_triples"], active_ds)
+        pairs.append((human_content, ai_content))
+    return pairs
+
+
 def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
     union = a | b
     return len(a & b) / len(union) if union else 0.0

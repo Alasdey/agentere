@@ -14,7 +14,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload
+from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as few_shot_preload, get_few_shot_message_pairs
 from tools.reprompt import CURRENT_USER_PROMPT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
@@ -54,18 +54,13 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str: str = "", reprompt_str: str = "") -> Dict[str, Any]:
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_pairs: list = None, reprompt_str: str = "") -> Dict[str, Any]:
     """Executes a single pass and returns parsed triples + raw content."""
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_prompt),
-    ]
-    if few_shot_str:
-        call_id = uuid.uuid4().hex[:8]
-        messages.extend([
-            AIMessage(content="", tool_calls=[{"id": call_id, "name": "few_shot_examples", "args": {}}]),
-            ToolMessage(content=few_shot_str, tool_call_id=call_id),
-        ])
+    messages = [SystemMessage(content=system_prompt)]
+    for human_content, ai_content in (few_shot_pairs or []):
+        messages.append(HumanMessage(content=human_content))
+        messages.append(AIMessage(content=ai_content))
+    messages.append(HumanMessage(content=user_prompt))
     if reprompt_str:
         call_id = uuid.uuid4().hex[:8]
         messages.extend([
@@ -87,13 +82,13 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
         "raw_response": raw_content
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_str: str = "", reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
             return await asyncio.wait_for(
-                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_str, reprompt_str),
+                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_pairs, reprompt_str),
                 timeout=timeout,
             )
         except (ValueError, asyncio.TimeoutError) as e:
@@ -123,6 +118,8 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         pair_lines=pair_lines,
         doc_id=doc["id"],
     )
+    if suffix := prompt_cfg.get("user_suffix", "").strip():
+        user_prompt = user_prompt.rstrip() + "\n\n" + suffix
 
     # ── Set document context (needed by tools and similarity-based few-shot) ──
     ctx_token = CURRENT_DOC_ID.set(doc["id"])
@@ -132,10 +129,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     # ── Few-shot systematic injection ────────────────────────────────────────
     fs_cfg = config.get("few_shot", {})
-    few_shot_str = ""
+    few_shot_pairs = None
     if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
-        from tools.few_shot import few_shot_examples
-        few_shot_str = await few_shot_examples.ainvoke({})
+        few_shot_pairs = await get_few_shot_message_pairs(prompt_cfg["user_template"], active_ds)
 
     # ── Reprompt systematic injection ────────────────────────────────────────
     reprompt_str = ""
@@ -145,7 +141,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     # 1. Run inference N times
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_str, reprompt_str, doc_id=doc["id"], timeout=timeout)
+        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
         for _ in range(n_runs)
     ]
     
