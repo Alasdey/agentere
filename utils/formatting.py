@@ -3,6 +3,23 @@ from __future__ import annotations
 import json
 from typing import List, Tuple
 
+_NOREL_LABELS = frozenset({"norel", "none", "no_rel"})
+
+
+def convert_to_binary_undirected(triples: List[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
+    """Collapse directional labels to CAUSAL/NoRel and deduplicate by unordered pair."""
+    seen: set = set()
+    result = []
+    for src, lbl, tgt in triples:
+        key = frozenset([src, tgt])
+        if key in seen:
+            continue
+        seen.add(key)
+        canonical = tuple(sorted([src, tgt]))
+        label = "NoRel" if lbl.lower() in _NOREL_LABELS else "CAUSAL"
+        result.append((canonical[0], label, canonical[1]))
+    return result
+
 
 def format_pair_lines(doc: dict, active_dataset: str) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""

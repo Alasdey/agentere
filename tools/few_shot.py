@@ -65,6 +65,7 @@ def _load_train_split() -> list:
         text_field=ds_cfg["text_field"],
         ann_field=ds_cfg["ann_field"],
         streaming=True,
+        binary_undirected=ds_cfg.get("binary_undirected", False),
     ))
 
     selection = fs_cfg.get("selection")

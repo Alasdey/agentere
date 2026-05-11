@@ -5,6 +5,8 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
+  # default_model_id: "openai/gpt-5.5"
+  # default_model_id: "anthropic/claude-opus-4.7"
   # default_model_id: "minimax/minimax-m2.7"
   # default_model_id: "z-ai/glm-5"
   # default_model_id: "moonshotai/kimi-k2.5"
@@ -148,14 +150,15 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
-    prompt: "event_story_line_eci"
+    prompt: "event_story_line_binary"
+    # prompt: "event_story_line_eci"
     # prompt: "event_story_line_v2"
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
     max_examples: 24
-    labels: 
-      - "PRECONDITION"
-      - "FALLING_ACTION"
+    binary_undirected: true
+    labels:
+      - "CAUSAL"
       - "NoRel"
 
 # =============================================================================

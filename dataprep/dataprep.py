@@ -68,6 +68,7 @@ def load_hf_dataset_parsed(
     valid_labels: Optional[Set[str]] = None,
     streaming: bool = False,
     max_examples: int = 0,
+    binary_undirected: bool = False,
 ) -> Iterator[Dict[str, Any]]:
     """
     Loads a Hugging Face dataset and yields the raw text and parsed relation triples.
@@ -107,7 +108,12 @@ def load_hf_dataset_parsed(
         spans = row.get("spans", [])
         mentions = row.get("mentions", [])
 
-        gold_triples = parse_annotations(ann_text, valid_labels=valid_labels)
+        gold_triples = parse_annotations(ann_text, valid_labels=None)
+        if binary_undirected:
+            from utils.formatting import convert_to_binary_undirected
+            gold_triples = convert_to_binary_undirected(gold_triples)
+        elif valid_labels:
+            gold_triples = [(s, l, t) for s, l, t in gold_triples if l in valid_labels]
         
         mentions_map = {}
         if tokens and spans and mentions and len(spans) == len(mentions):

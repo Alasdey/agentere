@@ -156,15 +156,20 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         pair_stats = {}
         if len(triples_only_lists) > 1:
             final_preds, pair_stats = aggregate_run_triples(
-                triples_only_lists, 
+                triples_only_lists,
                 tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
             )
         else:
             final_preds = triples_only_lists[0]
             # Dummy stats for single run
-            pair_stats = {} 
+            pair_stats = {}
             for src, lbl, tgt in final_preds:
                 pair_stats[f"{src},{tgt}"] = {"vote_counts": {lbl: 1}}
+
+        # Normalize pair order for binary undirected datasets
+        ds_cfg = config["datasets"][active_ds]
+        if ds_cfg.get("binary_undirected"):
+            final_preds = [(min(s, t), lbl, max(s, t)) for s, lbl, t in final_preds]
 
         # 2. Metrics
         metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
@@ -245,6 +250,7 @@ async def main():
         ann_field=ds_config["ann_field"],
         max_examples=ds_config.get("max_examples", 0),
         valid_labels=set(active_labels),
+        binary_undirected=ds_config.get("binary_undirected", False),
     )
 
     # 4. Execute Concurrently

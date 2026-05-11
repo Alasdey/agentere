@@ -1,0 +1,80 @@
+system: |
+  # Context
+  The Event StoryLine Corpus (ESC) annotates causal "Explanatory Structure" (PLOT_LINKs) between event
+  mentions in news articles. Your task is binary: decide whether two event mentions are causally related
+  at all, regardless of direction.
+
+  Only "semantically full" events are linked (Occurrences, States, Perceptions); attribution/reporting
+  verbs ("said", "announced", "claimed") are almost never valid.
+
+  ## Label Set (Use these exact strings)
+  - **"CAUSAL"**: The two events are causally linked — one enables, causes, or is a direct consequence
+    of the other. Direction does not matter; a single label covers both PRECONDITION and FALLING_ACTION.
+  - Omitting a pair means **no causal relation** (treated as NoRel).
+
+  # Rules (Apply Silently)
+  1. **Textual Evidence Required:** The link must be grounded in the document, not assumed from world
+     knowledge. Ask: "Would someone unfamiliar with this topic see a causal link from the text alone?"
+     If NO → omit.
+
+  2. **Reporting/Attribution Gate:** Pure speech and communication acts ("said", "told", "announced",
+     "claimed", "stated") are invalid unless the speech act itself physically enables or prevents the
+     other event. When in doubt whether an event is a substantive occurrence or a mere reporting act,
+     treat it as a substantive occurrence and keep it as a valid causal node.
+
+  3. **Causal Test:** Ask "Does the text answer 'Why did one event happen?' by pointing to the other,
+     or describe one as a result of the other?" If yes → CAUSAL. If neither → omit.
+
+  4. **World-Knowledge Check:** If you can only justify the link using general domain knowledge rather
+     than specific sentences in the document → omit.
+
+  5. **Nearest Cause Preference:** Prefer the most direct, proximate causal links. If event B sits
+     between A and C in a chain, annotate A–B and B–C rather than skipping to A–C. This rule governs
+     the *granularity* of individual links — it does NOT mean an entire chain should be dropped because
+     one intermediate link is uncertain. Annotate every direct link you can confirm; omit only the
+     skip-level ones.
+
+  6. **Full Chain Coverage:** Narrative chains often span multiple phases. Do NOT halt a chain early.
+     Every event that is textually connected to a prior event in the chain is a valid next link.
+     Trace every chain to its textually supported end.
+
+  7. **Calibrated Default:** Use NoRel for speculative or world-knowledge-only links. However, do not
+     let caution suppress links that are clearly supported by the narrative. A missing real link (false
+     negative) is as harmful as a spurious one (false positive). When the text explicitly or strongly
+     implicitly connects two events, annotate the pair.
+
+  # Output Format
+  - Return ONLY a JSON array. No markdown fences, no commentary.
+  - Only include pairs you are confident are causally related; omit all others.
+  - Pair order does not matter: {{"pair":"a1,a2"}} and {{"pair":"a2,a1"}} are equivalent — output
+    each pair only once.
+  - Use only the label string "CAUSAL".
+
+user_template: |
+  Identify all causally related mention pairs in the text. Output only pairs with a confirmed causal
+  link; any pair you omit is treated as no relation. Pair order does not matter.
+
+  Return ONLY a JSON array like:
+  [
+    {{"pair":"a1,a2","label":"CAUSAL"}}
+  ]
+
+  Text:
+  {doc_text}
+
+  {pair_lines}
+
+user_suffix: |
+  Before outputting the JSON, reason step by step:
+
+  1. **Categorize every event mention** — identify which are substantive events (valid causal nodes)
+     and which are pure speech/reporting acts (exclude as causal nodes).
+
+  2. **Map ALL narrative chains** — do not stop after the first chain you find. Explicitly enumerate
+     every distinct causal thread in the story, and trace each one to its textually supported end.
+
+  3. **List candidate pairs** — for each chain, list every adjacent pair of events as a candidate.
+
+  4. **Decide** for each candidate pair whether the text supports a causal link.
+
+  5. **Output the JSON.**
