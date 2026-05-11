@@ -80,7 +80,7 @@ few_shot:
 
 # ── Reprompt tool ──
 reprompt:
-  systematic: true     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
+  systematic: false     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
 
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
@@ -95,8 +95,8 @@ encoder:
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
-active_dataset: "event_story_line"
-# active_dataset: "meci"
+# active_dataset: "event_story_line"
+active_dataset: "meci"
 
 # =============================================================================
 # DATASETS

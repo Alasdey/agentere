@@ -20,8 +20,8 @@ def reconstruct_pairwise_predictions(
     gold_map = {(src, tgt): lbl for src, lbl, tgt in gold_triples}
     pred_map = {(src, tgt): lbl for src, lbl, tgt in pred_triples}
     
-    # Union of all relevant pairs (Gold + Pred)
-    all_pairs = set(gold_map.keys()) | set(pred_map.keys())
+    # Only evaluate on annotated pairs; predicted pairs outside the gold set are ignored
+    all_pairs = set(gold_map.keys())
 
     pairwise_rows = []
     y_true_doc = []

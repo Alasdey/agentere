@@ -7,12 +7,7 @@ from typing import List, Tuple
 def format_pair_lines(doc: dict, active_dataset: str) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""
     if active_dataset == "meci":
-        mentions_map = doc.get("mentions_map", {})
-        lines = [
-            f'{src} ("{mentions_map.get(src, "")}"), {tgt} ("{mentions_map.get(tgt, "")}")'
-            for src, _lbl, tgt in doc["gold_triples"]
-        ]
-        return "\n".join(lines)
+        return ""
     if active_dataset == "event_story_line":
         return "Predict all the pairs, all pairs not predicted will be considered NoRel"
     raise ValueError(f"format_pair_lines: unsupported dataset '{active_dataset}'")

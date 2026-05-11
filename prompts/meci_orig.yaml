@@ -62,21 +62,18 @@ user_template: |
   Rules:
   - Labels: "CauseEffect" | "EffectCause" | "NoRel".
   - Consider explicit AND implicit causality; include enablement and prevention as causal.
-  - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
   - Return ONLY a JSON array like:
   [
     {{"pair":"T0,T1","label":"CauseEffect"}}
   ]
-  
+
   Coherence Rules:
-  - Symmetry: "Ti,Tj" "CauseEffect" implies that "Tj,Ti" "EffectCause" and inversly
-  - Missing: Any relation you leave missing will be considered a NoRel
-  - Relations: "Tj,Ti" "NoRel" is not compatible with either "Ti,Tj" "CauseEffect" or "Ti,Tj" "CauseEffect"
-  
+  - Symmetry: "Ti,Tj" "CauseEffect" implies that "Tj,Ti" "EffectCause" and inversely
+  - Relations: "Tj,Ti" "NoRel" is not compatible with "Ti,Tj" "CauseEffect" or "Ti,Tj" "EffectCause"
+
   Text:
   {doc_text}
 
-  Pairs to classify (use EXACT pair ids; output order does NOT matter):
-  {pair_lines}
+  Identify all causal event mention pairs in the text. For each pair of event mentions that has a causal relation, output it in the JSON array using the exact mention IDs from the text.
 # Note: Tool Guidance was commented out in the original request as tools like thinker/critic are removed.
 # If you enable tools like coherence in the graph, the model may decide to use them based on general instructions.
