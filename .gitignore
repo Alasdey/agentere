@@ -18,6 +18,8 @@ graph.html
 *old_prompts.yaml
 mlruns/*
 mlruns
+cot_cache
+cot_cache/*
 
 # C extensions
 *.so
