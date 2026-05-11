@@ -192,7 +192,7 @@ async def run(args: argparse.Namespace) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Generate CoT cache for few-shot examples.")
-    ap.add_argument("--concurrency", type=int, default=5,
+    ap.add_argument("--concurrency", type=int, default=100,
                     help="Number of concurrent LLM requests (default: 5)")
     ap.add_argument("--max-docs", type=int, default=None,
                     help="Limit number of documents to process (for testing)")

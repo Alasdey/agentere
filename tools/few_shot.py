@@ -132,11 +132,10 @@ def _load_train_split() -> list:
 
 def _format_examples(docs: list) -> str:
     active_ds = _CFG["active_dataset"]
-    binary_mode = _CFG.get("binary_mode", False)
     parts = []
     for i, doc in enumerate(docs, 1):
         pair_lines = format_pair_lines(doc, active_ds)
-        gold_out = format_gold_output(doc["gold_triples"], active_ds, binary_mode=binary_mode)
+        gold_out = format_gold_output(doc["gold_triples"], active_ds)
         cot = _COT_CACHE.get(doc["id"]) if _COT_CACHE else None
         reasoning_block = f"Reasoning:\n{cot}\n\n" if cot else ""
         parts.append(
