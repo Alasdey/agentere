@@ -111,7 +111,8 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     system_prompt = prompt_cfg["system"]
     active_ds = config["active_dataset"]
 
-    pair_lines = format_pair_lines(doc, active_ds)
+    sampling_cfg = config["datasets"][active_ds].get("sampling")
+    pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
 
     user_prompt = prompt_cfg["user_template"].format(
         doc_text=doc["doc_text"],
@@ -131,7 +132,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     fs_cfg = config.get("few_shot", {})
     few_shot_pairs = None
     if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
-        few_shot_pairs = await get_few_shot_message_pairs(prompt_cfg["user_template"], active_ds)
+        few_shot_pairs = await get_few_shot_message_pairs(prompt_cfg["user_template"], active_ds, sampling_cfg=sampling_cfg)
 
     # ── Reprompt systematic injection ────────────────────────────────────────
     reprompt_str = ""

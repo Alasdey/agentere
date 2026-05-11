@@ -112,7 +112,7 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
-async def get_few_shot_message_pairs(user_template: str, active_ds: str) -> list:
+async def get_few_shot_message_pairs(user_template: str, active_ds: str, sampling_cfg: dict = None) -> list:
     """Returns [(human_content, ai_content), ...] for conversation-based few-shot injection."""
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
@@ -123,7 +123,7 @@ async def get_few_shot_message_pairs(user_template: str, active_ds: str) -> list
 
     pairs = []
     for doc in docs:
-        pair_lines = format_pair_lines(doc, active_ds)
+        pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
         human_content = user_template.format(
             doc_text=doc["doc_text"],
             pair_lines=pair_lines,
