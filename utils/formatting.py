@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import itertools
 import json
-from typing import List, Tuple
+import random
+from typing import List, Optional, Tuple
 
 _NOREL_LABELS = frozenset({"norel", "none", "no_rel"})
 
@@ -21,7 +23,27 @@ def convert_to_binary_undirected(triples: List[Tuple[str, str, str]]) -> List[Tu
     return result
 
 
-def format_pair_lines(doc: dict, active_dataset: str) -> str:
+def _sample_esl_pair_lines(doc: dict, sampling_cfg: dict) -> str:
+    """Build a sampled pair list: all positive pairs + a random NoRel fraction."""
+    mentions = sorted(doc.get("mentions_map", {}).keys())
+    positive = {
+        (min(s, t), max(s, t))
+        for s, lbl, t in doc["gold_triples"]
+        if lbl.lower() not in _NOREL_LABELS
+    }
+    all_pairs = set(itertools.combinations(mentions, 2))
+    norel_pool = list(all_pairs - positive)
+    n_norel = int(len(positive) * sampling_cfg.get("norel_ratio", 1.0))
+    norel_sample = random.sample(norel_pool, min(n_norel, len(norel_pool)))
+    mentions_map = doc.get("mentions_map", {})
+    selected = sorted(positive | set(norel_sample))
+    return "\n".join(
+        f'{s} ("{mentions_map.get(s, "")}"), {t} ("{mentions_map.get(t, "")}")'
+        for s, t in selected
+    )
+
+
+def format_pair_lines(doc: dict, active_dataset: str, sampling_cfg: Optional[dict] = None) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""
     if active_dataset == "meci":
         mentions_map = doc.get("mentions_map", {})
@@ -31,7 +53,9 @@ def format_pair_lines(doc: dict, active_dataset: str) -> str:
         ]
         return "\n".join(lines)
     if active_dataset == "event_story_line":
-        return "Predict all the pairs, all pairs not predicted will be considered NoRel"
+        if sampling_cfg and sampling_cfg.get("enabled"):
+            return _sample_esl_pair_lines(doc, sampling_cfg)
+        return "Predict all event mention pairs in the text; omit a pair to mark it NoRel."
     raise ValueError(f"format_pair_lines: unsupported dataset '{active_dataset}'")
 
 

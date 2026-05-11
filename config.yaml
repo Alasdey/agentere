@@ -8,7 +8,7 @@ model:
   # default_model_id: "openai/gpt-5.5"
   # default_model_id: "anthropic/claude-opus-4.7"
   # default_model_id: "minimax/minimax-m2.7"
-  # default_model_id: "z-ai/glm-5"
+  default_model_id: "z-ai/glm-5"
   # default_model_id: "moonshotai/kimi-k2.5"
   # default_model_id: "openai/chatgpt-4o-latest"
   # default_model_id: "openai/gpt-5-mini"
@@ -18,7 +18,7 @@ model:
   # default_model_id: "x-ai/grok-4.1-fast"
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
@@ -160,6 +160,9 @@ datasets:
     labels:
       - "CAUSAL"
       - "NoRel"
+    sampling:
+      enabled: true
+      norel_ratio: 4.0   # n_norel_selected = floor(n_positive * norel_ratio)
 
 # =============================================================================
 # PROMPTS

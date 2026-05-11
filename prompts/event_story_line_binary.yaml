@@ -62,6 +62,7 @@ user_template: |
   Text:
   {doc_text}
 
+  Pairs to evaluate:
   {pair_lines}
 
 user_suffix: |
