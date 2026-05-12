@@ -18,7 +18,7 @@ from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, preload as fe
 from tools.reprompt import CURRENT_USER_PROMPT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
-from utils.logger import log_experiment, make_run_stem
+from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
 from utils.mlflow_tracker import log_run as mlflow_log_run
 from utils.reporting import generate_run_report
@@ -211,6 +211,13 @@ async def main():
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
+    # Capture git state immediately so it reflects the code at launch time
+    git_state = capture_git_state(Path.cwd())
+    branch = git_state.get("branch", "unknown")
+    commit = git_state.get("commit", "unknown")[:8]
+    dirty = " (dirty)" if git_state.get("dirty") else ""
+    print(f"Git: branch={branch}  commit={commit}{dirty}")
+
     # Pre-generate log stem so traces land in the same file family
     _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
     trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
@@ -290,6 +297,7 @@ async def main():
         results=final_report,
         filename_prefix="run",
         _stem=_stem,
+        git_state=git_state,
     )
     print(f"Results logged to: {outfile}")
     keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]

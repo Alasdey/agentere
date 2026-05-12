@@ -86,6 +86,7 @@ def log_experiment(
     results: Any,
     filename_prefix: str = "run",
     _stem: Optional[str] = None,
+    git_state: Optional[Dict[str, Any]] = None,
 ) -> str:
     root_path = Path.cwd()
     logs_path = root_path / logdir
@@ -101,8 +102,9 @@ def log_experiment(
         run_id = uuid.uuid4().hex[:8]
         stem = f"{filename_prefix}_{ts_safe}_{run_id}"
 
-    # Capture environment state
-    git_state = capture_git_state(root_path)
+    # Use pre-captured git state if provided, otherwise capture now
+    if git_state is None:
+        git_state = capture_git_state(root_path)
     runtime_info = {
         "python": sys.version,
         "platform": platform.platform(),
