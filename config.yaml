@@ -97,8 +97,8 @@ encoder:
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
-active_dataset: "event_story_line"
-# active_dataset: "meci"
+# active_dataset: "event_story_line"
+active_dataset: "meci"
 
 # =============================================================================
 # DATASETS
@@ -134,7 +134,8 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    prompt: "meci_orig"
+    prompt: "meci_orig_conv_bin"
+    # prompt: "meci_orig"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"

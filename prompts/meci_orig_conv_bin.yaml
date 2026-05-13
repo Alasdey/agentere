@@ -1,0 +1,103 @@
+system: |
+  # Context
+  MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and
+  EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit
+  and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in
+  EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart).
+  [Reference: COLING'22 MECI paper.]
+
+  ## Label Set (Use these exact strings)
+  - **"CAUSAL"**: There is a causal link between Ti and Tj — one causes, enables, leads to, or
+    prevents the absence of the other. Direction does not matter.
+  - **"NoRel"**: No justified causal link (reject temporal-only, correlation-only, or vague
+    plausibility).
+
+  # Precision-First Rules (Apply Silently)
+  1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like
+     "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+      - a. Counterfactual asymmetry (but-for)
+      - b. A concrete **mechanism** in the text (not just world knowledge)
+      - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+      - d. Local lexical patterns of enablement/prevention
+    If fewer than two signals are present → **NoRel**.
+
+  2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance,
+     raise the bar:
+      - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out
+        mechanism. Otherwise, label **NoRel**.
+      - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between
+        causal events).
+
+  3. **Default to NoRel when Uncertain:** If evidence is ambiguous, underspecified, or equally
+     well explained by correlation, reporting, or chronology → **NoRel**.
+
+  4. **Confounder & Chain Check:** If another event more directly explains the causal link,
+     label the pair as **NoRel**; do not "skip over" the proximal cause.
+
+  5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not
+     causes of the content unless the **content event** is enabled/prevented by the speech act
+     itself.
+
+  6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or
+     "despite" do not justify causal labels unless the rules above are explicitly/implicitly
+     satisfied.
+
+  # Decision Checklist (Apply Silently)
+  1. Does either event materially change the likelihood or state of the other **in the text**
+     (not just world knowledge)?
+  2. Is there **two-signal** support (or explicit cue + counterfactual for long-range links)?
+  3. Reject temporal-only, correlation-only, reporting, and contrastive links.
+  4. Keep scope within the window; prefer the **nearest, most specific** cause.
+  5. If a more direct cause is present, label **NoRel** for the current pair.
+
+  # Output Format
+  - After your step-by-step reasoning, conclude with a JSON array of all classified pairs.
+  - Use only the approved label strings ("CAUSAL" or "NoRel").
+  - Ensure EVERY requested pair appears exactly once in the final JSON.
+
+  If there are no mentions in the text and no pairs to classify return the example.
+
+user_template: |
+  Rules:
+  - Labels: "CAUSAL" | "NoRel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
+  - After your step-by-step reasoning, conclude with a JSON array like:
+  [
+    {{"pair":"T0,T1","label":"CAUSAL"}}
+  ]
+
+  Coherence Rules:
+  - Missing: Any pair absent from your final JSON will be treated as NoRel.
+  - Consistency: Every pair labeled "CAUSAL" must have at least one documented signal from your
+    reasoning; re-check any CAUSAL label you cannot trace back to a specific signal.
+
+  Text:
+  {doc_text}
+
+  Pairs to classify (use EXACT pair ids; output order does NOT matter):
+  {pair_lines}
+
+user_suffix: |
+  Before outputting the JSON, reason step by step:
+
+  1. **Categorize every event mention** — identify which are substantive events (valid causal
+     nodes) and which are pure speech/reporting acts (invalid as causal nodes per Rule 5).
+
+  2. **Scan for explicit cues** — identify connectives ("because", "so", "therefore", "lead to",
+     "due to", etc.). Pairs with a clear explicit cue automatically satisfy one signal; note them
+     before moving to implicit pairs.
+
+  3. **Apply the Two-Signal Rule to implicit pairs** — for each pair without an explicit cue,
+     enumerate which of the four signals (a–d) are present. Confirm at least two before
+     considering a pair CAUSAL.
+
+  4. **Apply the Distance/Scope Gate** — for every inter-sentential or long-range pair, confirm
+     it passes counterfactual + explicit cue/mechanism. If not → NoRel.
+
+  5. **Run the Confounder Check** — for each candidate CAUSAL pair, verify no more proximate
+     cause exists in the text. If a closer cause is identifiable, downgrade the pair to NoRel.
+
+  6. **Decide** for each pair: CAUSAL or NoRel, citing the specific signals or their absence.
+
+  7. **Output the JSON**, ensuring every requested pair ID appears exactly once.
