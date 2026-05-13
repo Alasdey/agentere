@@ -49,6 +49,49 @@ def preload() -> None:
         _TRAIN_CACHE = _load_train_split()
 
 
+def load_pool(docs: list) -> None:
+    """Replace the few-shot pool with an in-memory list and refit the similarity index.
+
+    Used by k-fold evaluation so each fold gets a fresh pool without hitting HF.
+    The BERT model (expensive) is reused across calls if already loaded.
+    """
+    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_EMBEDDINGS
+
+    _TFIDF_VECTORIZER = None
+    _TFIDF_MATRIX = None
+    _MENTION_SETS = None
+    _BERT_EMBEDDINGS = None
+    _TRAIN_CACHE = docs
+
+    fs_cfg = _CFG.get("few_shot", {})
+    selection = fs_cfg.get("selection")
+
+    if selection == "similarity":
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        texts = [d["doc_text"] for d in docs]
+        _TFIDF_VECTORIZER = TfidfVectorizer()
+        _TFIDF_MATRIX = _TFIDF_VECTORIZER.fit_transform(texts)
+
+    elif selection == "mentions":
+        _MENTION_SETS = [frozenset(d.get("mentions_map", {}).values()) for d in docs]
+
+    elif selection == "bert":
+        import numpy as np
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        if _BERT_MODEL is None:
+            model_name = fs_cfg.get("bert_model", "all-MiniLM-L6-v2")
+            globals()["_BERT_MODEL"] = SentenceTransformer(
+                model_name, device="cuda" if torch.cuda.is_available() else "cpu"
+            )
+
+        texts = [d["doc_text"] for d in docs]
+        emb = _BERT_MODEL.encode(texts, convert_to_numpy=True, show_progress_bar=True)
+        norms = np.linalg.norm(emb, axis=1, keepdims=True)
+        _BERT_EMBEDDINGS = emb / np.where(norms == 0, 1, norms)
+
+
 def _load_train_split() -> list:
     global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS
 

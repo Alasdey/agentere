@@ -64,6 +64,13 @@ experiment:
     enabled: false
     n_runs: 1         # Votes per document
     tie_breaking: "norel"
+  kfold:
+    enabled: true
+    n_folds: 5
+    seed: 42
+    splits:           # source splits to concatenate before folding
+      - "train"
+      - "test"
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -96,8 +103,8 @@ encoder:
 # ACTIVE RUN CONFIGURATION
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
-active_dataset: "maven_ere"
-# active_dataset: "event_story_line"
+# active_dataset: "maven_ere"
+active_dataset: "event_story_line"
 # active_dataset: "meci"
 
 # =============================================================================
