@@ -12,7 +12,7 @@ system: |
     of the other. Direction does not matter; a single label covers both PRECONDITION and FALLING_ACTION.
   - Omitting a pair means **no causal relation** (treated as NoRel).
 
-  # Rules 
+  # Rules (Apply ex)
   1. **Textual Evidence Required:** The link must be grounded in the document, not assumed from world
      knowledge. Ask: "Would someone unfamiliar with this topic see a causal link from the text alone?"
      If NO → omit.
@@ -44,7 +44,7 @@ system: |
      implicitly connects two events, annotate the pair.
 
   # Output Format
-  - After your step-by-step reasoning, conclude with a JSON array of all confirmed causal pairs.
+  - Return ONLY a JSON array. No markdown fences, no commentary.
   - Only include pairs you are confident are causally related; omit all others.
   - Pair order does not matter: {{"pair":"a1,a2"}} and {{"pair":"a2,a1"}} are equivalent — output
     each pair only once.
@@ -54,7 +54,7 @@ user_template: |
   Identify all causally related mention pairs in the text. Output only pairs with a confirmed causal
   link; any pair you omit is treated as no relation. Pair order does not matter.
 
-  After your step-by-step reasoning, conclude with a JSON array like:
+  Return ONLY a JSON array like:
   [
     {{"pair":"a1,a2","label":"CAUSAL"}}
   ]
