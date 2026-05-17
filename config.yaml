@@ -142,9 +142,9 @@ datasets:
     max_examples: 714
     # max_examples: 50
     # max_examples: 5
-    labels: 
-      - "CauseEffect"
-      - "EffectCause"
+    binary_undirected: true   # conv_bin prompt uses CAUSAL/NoRel; deduplicate directed triples
+    labels:
+      - "CAUSAL"
       - "NoRel"
 
 
