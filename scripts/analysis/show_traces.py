@@ -191,11 +191,21 @@ def _load_gold_index(run_json_path: Path) -> Optional[Dict[str, Any]]:
 
 
 def _extract_doc_text(trace: List[Dict]) -> Optional[str]:
-    """Pull the document text out of the last HumanMessage (after 'Text:\\n')."""
+    """Pull the document text out of the last HumanMessage (after 'Text:\\n').
+
+    Uses 'Pairs to classify' as the end-of-text boundary when present (handles
+    multi-paragraph documents that contain blank lines inside the text).
+    Falls back to the first blank line or end-of-string for prompts without
+    an explicit pair list.
+    """
     for msg in reversed(trace):
         if _msg_type(msg) == "HumanMessage":
             content = _kwargs(msg).get("content", "")
-            m = re.search(r"Text:\n(.*?)(?:\n\n|\Z)", content, re.DOTALL)
+            # Prefer the explicit section boundary so internal blank lines in
+            # the document don't truncate the extracted text.
+            m = re.search(r"Text:\n(.*?)(?=\n\nPairs to classify|\Z)", content, re.DOTALL)
+            if not m:
+                m = re.search(r"Text:\n(.*?)(?:\n\n|\Z)", content, re.DOTALL)
             if m:
                 return m.group(1).strip()
     return None
