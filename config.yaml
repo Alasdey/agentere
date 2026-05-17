@@ -64,6 +64,9 @@ experiment:
     enabled: false
     n_runs: 1         # Votes per document
     tie_breaking: "norel"
+  kfold:
+    enabled: true
+    n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -72,7 +75,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "random"   # "random"     — resample every call for variance
+  selection: "similarity"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
                         # "bert"       — cosine similarity on sentence-transformer embeddings
@@ -98,7 +101,8 @@ encoder:
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
-active_dataset: "meci"
+# active_dataset: "meci"
+active_dataset: "causal_timebank"
 
 # =============================================================================
 # DATASETS
@@ -147,6 +151,20 @@ datasets:
       - "CAUSAL"
       - "NoRel"
 
+
+  causal_timebank:
+    name: "CausalTimeBank-ECI"
+    repo_id: "Nofing/CausalTimeBank-causal"
+    split: "train"          # no fixed split; all 183 docs in one split
+    text_field: "text"
+    ann_field: "annots"     # all intra-sentence pairs with CLINK / NoRel labels
+    rule_set: "causal_timebank"
+    prompt: "causal_timebank_eci"
+    max_examples: 183
+    binary_undirected: true   # CLINK → CAUSAL; evaluate as unordered pairs
+    labels:
+      - "CAUSAL"
+      - "NoRel"
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -219,6 +237,10 @@ rule_sets:
         rel: "CauseEffect"
         dir: "21"
       negated: false
+
+  causal_timebank:
+    # No transitivity or symmetry rules — CLINKs are directed and sentence-local.
+    # The corpus has only 6 transitivity opportunities (none annotated), so no rules needed.
 
   esl:
     # Transitivity of rising action (A causes B, B causes C -> A causes C)

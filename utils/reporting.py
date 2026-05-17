@@ -79,6 +79,7 @@ def generate_run_report(
     per_lang_stats = defaultdict(lambda: {"y_true": [], "y_pred": []})
     
     valid_results = [r for r in results if r is not None]
+    retry_failed_count = sum(1 for r in valid_results if r.get("context", {}).get("retry_failure"))
 
     # --- 1. Iterate over docs ---
     for res in valid_results:
@@ -150,6 +151,7 @@ def generate_run_report(
         
         # Metadata
         "skipped_docs": total_processed_count - len(valid_results),
+        "retry_failed_docs": retry_failed_count,
         
         # Detailed Lists
         "per_doc_metrics": per_doc_metrics_log,

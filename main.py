@@ -195,7 +195,16 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         }
     except Exception as e:
         print(f"Document {doc['id']} failed after all retries: {e}")
-        return None
+        return {
+            "id": doc["id"],
+            "doc_idx": doc["doc_idx"],
+            "lang": doc.get("lang", "unknown"),
+            "gold_triples": doc["gold_triples"],
+            "pred_triples": [],
+            "pair_stats": {},
+            "metrics": compute_ere_metrics(doc["gold_triples"], []),
+            "context": {"system_prompt": "", "user_prompt": "", "raw_responses": [], "retry_failure": True},
+        }
     finally:
         CURRENT_DOC_ID.reset(ctx_token)
         CURRENT_DOC_TEXT.reset(ctx_token_text)
@@ -206,6 +215,24 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 # MAIN ENTRYPOINT
 # =============================================================================
 
+async def run_docs_concurrent(docs: List[Dict], config: Dict, graph_ainvoke, label: str = "") -> List[Dict]:
+    """Run inference concurrently over a list of docs and return results."""
+    semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
+    completed = 0
+    total = len(docs)
+
+    async def sem_task(doc):
+        nonlocal completed
+        async with semaphore:
+            result = await process_document_resampled(doc, config, graph_ainvoke)
+        completed += 1
+        prefix = f"[{label}] " if label else ""
+        print(f"{prefix}[{completed}/{total}] Processed doc {doc['id']}", flush=True)
+        return result
+
+    return await asyncio.gather(*[sem_task(doc) for doc in docs])
+
+
 async def main():
     # 1. Load Config
     config = load_config()
@@ -213,16 +240,9 @@ async def main():
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
-    # Pre-generate log stem so traces land in the same file family
-    _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
-    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
-    trace_dump._sample_written = 0
-
     # Dataset
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
-
-    # Labels types
     active_labels = ds_config.get("labels")
     print(f"Active Labels for {ds_config['name']}: {active_labels}")
 
@@ -236,14 +256,25 @@ async def main():
         enable_tools=config["experiment"]["enable_tools"]
     )
 
+    kfold_cfg = config["experiment"].get("kfold", {})
+    if kfold_cfg.get("enabled", False):
+        await _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg)
+    else:
+        await _run_standard(config, ds_config, active_labels, graph_ainvoke)
+
+
+async def _run_standard(config, ds_config, active_labels, graph_ainvoke):
+    """Normal single-split evaluation — unchanged from original."""
+    _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
+    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
+    trace_dump._sample_written = 0
+
     print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment'].get('retries', 0)}")
 
-    # 2b. Pre-load few-shot cache (fits TF-IDF / mention sets before concurrency starts)
     if config.get("few_shot", {}).get("enabled"):
         print("Pre-loading few-shot training split...")
         await asyncio.to_thread(few_shot_preload)
 
-    # 3. Load Data
     dataset_iter = load_hf_dataset_parsed(
         repo_id=ds_config["repo_id"],
         split=ds_config["split"],
@@ -254,38 +285,19 @@ async def main():
         binary_undirected=ds_config.get("binary_undirected", False),
     )
 
-    # 4. Execute Concurrently
-    semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
-    completed = 0
-
-    async def sem_task(doc, total):
-        nonlocal completed
-        async with semaphore:
-            result = await process_document_resampled(doc, config, graph_ainvoke)
-        completed += 1
-        print(f"[{completed}/{total}] Processed doc {doc['id']}", flush=True)
-        return result
-
     docs = list(dataset_iter)
-    total = len(docs)
-    tasks = [sem_task(doc, total) for doc in docs]
-    results = await asyncio.gather(*tasks)
+    results = await run_docs_concurrent(docs, config, graph_ainvoke)
 
-    # 5. Generate Report (Using new module)
     print("Aggregating results and computing metrics...")
-    
     final_report = generate_run_report(
         results=results,
-        total_processed_count=total,
+        total_processed_count=len(docs),
         config=config,
         valid_labels=set(active_labels),
-        # Optional: Override labels if needed, otherwise uses default ERE set
-        # valid_labels=["CauseEffect", "EffectCause", "CAUSE", "PRECONDITION", "NoRel"]
     )
 
     print(f"Eval completed. Metric F1: {final_report['micro_f1']:.4f}")
 
-    # 6. Log to Disk
     outfile = log_experiment(
         logdir="logs/allatonce",
         config=config,
@@ -295,8 +307,7 @@ async def main():
         _stem=_stem,
     )
     print(f"Results logged to: {outfile}")
-    keys = ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]
-    for key in keys:
+    for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]:
         print(key, ":", final_report[key])
     if final_report.get("per_lang_metrics"):
         print("\nPer-language metrics:")
@@ -304,7 +315,6 @@ async def main():
             mc = lm["multiclass"]
             print(f"  [{lang}] pairs={lm['total_pairs']}  micro_f1={mc['micro_f1']:.4f}  macro_f1={mc['macro_f1']:.4f}  p={mc['micro_precision']:.4f}  r={mc['micro_recall']:.4f}")
 
-    # 7. Log to MLflow
     if config.get("mlflow", {}).get("enabled", False):
         mlflow_run_id = mlflow_log_run(
             config=config,
@@ -314,6 +324,101 @@ async def main():
             run_name=_stem,
         )
         print(f"MLflow run: {mlflow_run_id}")
+
+
+async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg):
+    """K-fold CV using doc_idx % n_folds for deterministic fold assignment."""
+    import numpy as np
+
+    n_folds = kfold_cfg.get("n_folds", 5)
+    logdir = "logs/allatonce"
+
+    print(f"K-fold mode: {n_folds} folds | assignment: doc_idx % {n_folds} | dataset={ds_config['name']}")
+
+    if config.get("few_shot", {}).get("enabled"):
+        print("Pre-loading few-shot split...")
+        await asyncio.to_thread(few_shot_preload)
+
+    all_docs = list(load_hf_dataset_parsed(
+        repo_id=ds_config["repo_id"],
+        split=ds_config["split"],
+        text_field=ds_config["text_field"],
+        ann_field=ds_config["ann_field"],
+        max_examples=ds_config.get("max_examples", 0),
+        valid_labels=set(active_labels),
+        binary_undirected=ds_config.get("binary_undirected", False),
+    ))
+    print(f"Loaded {len(all_docs)} docs → {n_folds} folds by doc_idx % {n_folds}")
+
+    fold_reports = []
+
+    for fold_idx in range(n_folds):
+        test_docs  = [d for d in all_docs if d["doc_idx"] % n_folds == fold_idx]
+        train_docs = [d for d in all_docs if d["doc_idx"] % n_folds != fold_idx]
+
+        print(f"\n{'='*60}")
+        print(f"Fold {fold_idx + 1}/{n_folds} — train={len(train_docs)}  test={len(test_docs)}")
+        print(f"{'='*60}")
+
+        _logs_path, _stem, _ = make_run_stem(logdir, f"kfold{fold_idx + 1}of{n_folds}")
+        trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
+        trace_dump._sample_written = 0
+
+        results = await run_docs_concurrent(test_docs, config, graph_ainvoke, label=f"fold{fold_idx + 1}")
+
+        fold_report = generate_run_report(
+            results=results,
+            total_processed_count=len(test_docs),
+            config=config,
+            valid_labels=set(active_labels),
+        )
+        fold_report["kfold_fold"] = fold_idx + 1
+        fold_reports.append(fold_report)
+
+        print(f"Fold {fold_idx + 1} — micro_f1={fold_report['micro_f1']:.4f}  p={fold_report['micro_precision']:.4f}  r={fold_report['micro_recall']:.4f}  macro_f1={fold_report['macro_f1']:.4f}")
+
+        log_experiment(
+            logdir=logdir,
+            config=config,
+            cli_args=sys.argv,
+            results=fold_report,
+            filename_prefix=f"kfold{fold_idx + 1}of{n_folds}",
+            _stem=_stem,
+        )
+
+    # Summary across folds
+    print(f"\n{'='*60}")
+    print(f"K-FOLD SUMMARY ({n_folds} folds)")
+    print(f"{'='*60}")
+    for metric in ["micro_f1", "macro_f1", "micro_precision", "micro_recall"]:
+        vals = np.array([r[metric] for r in fold_reports])
+        print(f"  {metric:<20} mean={vals.mean():.4f}  std={vals.std():.4f}  min={vals.min():.4f}  max={vals.max():.4f}")
+        for i, v in enumerate(vals):
+            print(f"    fold {i + 1}: {v:.4f}")
+
+    aggregate = {
+        "kfold_n_folds": n_folds,
+        "kfold_total_docs": len(all_docs),
+        "fold_reports": fold_reports,
+        "summary": {
+            metric: {
+                "mean": float(np.mean([r[metric] for r in fold_reports])),
+                "std":  float(np.std( [r[metric] for r in fold_reports])),
+                "per_fold": [float(r[metric]) for r in fold_reports],
+            }
+            for metric in ["micro_f1", "macro_f1", "micro_precision", "micro_recall"]
+        },
+    }
+    _logs_path, _stem, _ = make_run_stem(logdir, f"kfold_summary_{n_folds}fold")
+    outfile = log_experiment(
+        logdir=logdir,
+        config=config,
+        cli_args=sys.argv,
+        results=aggregate,
+        filename_prefix=f"kfold_summary_{n_folds}fold",
+        _stem=_stem,
+    )
+    print(f"\nAggregate summary logged to: {outfile}")
 
 if __name__ == "__main__":
     asyncio.run(main())

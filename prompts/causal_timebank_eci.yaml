@@ -1,0 +1,107 @@
+system: |
+  # Context
+  Causal-TimeBank annotates causal links between event mentions in late-1990s English newswire
+  documents (APW, WSJ, ABC, CNN, etc.). Your task is binary ECI: given a set of event mention pairs
+  from a single document, classify each as CAUSAL or NoRel.
+
+  ## Corpus-Specific Properties — Read Carefully
+  - **Intra-sentence scope:** almost all annotated causal links connect two events within the
+    same sentence. Cross-sentence causality is rare and requires strong explicit evidence.
+  - **C-SIGNAL markers (explicit causal connectives):** ~53% of causal pairs are licensed by an
+    explicit signal word or phrase embedded between or around the events:
+      "because", "due to", "so", "therefore", "as a result", "since" (causal),
+      "in exchange", "by" (instrumental), "consequently", "thus", "leading to", "causing".
+    When such a connective clearly links two specific events in the same sentence, that is
+    sufficient evidence for CAUSAL on its own.
+  - **Extreme sparsity:** only ~1–2 causal pairs per document on average; ~1 in 64 event pairs
+    are CAUSAL. The prior is strongly NoRel.
+  - **Newswire domain:** text is full of temporal sequences, reporting verbs, and attributed
+    speech — none of which are causal by default.
+
+  ## Label Set (Use these exact strings)
+  - **"CAUSAL"**: One event causes, enables, leads to, or prevents the other. Direction does not
+    matter; include both direct causation and enabling conditions.
+  - Omitting a pair means **NoRel** (no justified causal link).
+
+  # Precision-First Rules (Apply Silently)
+  1. **C-Signal Rule:** If an explicit causal connective (see list above) directly and specifically
+     links two presented events in the same sentence → **CAUSAL**. One clear connective is
+     sufficient; do not require additional signals.
+
+  2. **Implicit Two-Signal Rule:** Without any explicit C-signal, require at least **two independent
+     signals** among:
+       a. Counterfactual asymmetry ("if not A, then B would not have occurred")
+       b. A concrete mechanism stated in the text (not just world knowledge)
+       c. Strong discourse evidence (apposition or relative clause encoding causality)
+       d. Local lexical enablement/prevention pattern
+     Fewer than two signals → **NoRel**.
+
+  3. **Sentence-Scope Gate:** Both events must plausibly be in the same causal scene. Events in
+     different sentences require an explicit cross-sentence connective AND a clear mechanism.
+     Without both → **NoRel**.
+
+  4. **Temporal ≠ Causal:** Sequential ordering ("X happened, then Y"), BEFORE/AFTER temporal
+     relations, or temporal proximity alone do NOT justify CAUSAL. Ask: "Does the text say Y
+     happened *because of* X, not merely *after* X?"
+
+  5. **Reporting/Attribution Gate:** Verbs like "said", "reported", "announced", "estimated",
+     "warned", "claimed", "noted" do NOT cause their embedded events. The speech act is not a
+     cause of the content it describes. Exception: when the speech act itself physically enables
+     or prevents the other event (rare).
+
+  6. **Sparsity Prior (Default to NoRel):** Most event pairs in news text are temporally related
+     but not causally related. When evidence is ambiguous, correlational, or requires world
+     knowledge not grounded in the text → **NoRel**.
+
+  # Output Format
+  - After your reasoning, conclude with a JSON array.
+  - Only include pairs you are **confident** are causally related; omit all others (omit = NoRel).
+  - Pair order does not matter: {{"pair":"ei1,ei2"}} and {{"pair":"ei2,ei1"}} are equivalent —
+    output each pair only once.
+  - Use only the label string "CAUSAL".
+
+user_template: |
+  Identify the causally related event pairs in the text below.
+  Output ONLY pairs with a confirmed causal link; omitting a pair means NoRel.
+
+  Rules reminder:
+  - An explicit causal connective ("because", "due to", "so", "therefore", …) directly linking
+    two events is sufficient evidence for CAUSAL.
+  - Implicit links require two independent signals (counterfactual, mechanism, discourse).
+  - Temporal ordering alone is NOT causality.
+  - Reporting verbs ("said", "reported", "announced") are NOT causal nodes.
+  - Default strongly to NoRel — most pairs in newswire are NOT causal.
+
+  Return ONLY a JSON array like:
+  [
+    {{"pair":"ei1,ei2","label":"CAUSAL"}}
+  ]
+
+  Text:
+  {doc_text}
+
+  Pairs to evaluate:
+  {pair_lines}
+
+user_suffix: |
+  Before outputting the JSON, reason step by step:
+
+  1. **Scan for C-SIGNAL connectives** — find any explicit causal signal words in the sentence
+     ("because", "due to", "so", "therefore", "as a result", "leading to", etc.).
+     For each connective, identify the two events it connects and mark the pair as CAUSAL.
+
+  2. **List remaining pairs without an explicit connective** — for each, enumerate which of the
+     four implicit signals (a–d) are present. Confirm at least two before considering CAUSAL.
+
+  3. **Apply the Sentence-Scope Gate** — verify both events in each candidate pair appear in the
+     same (or immediately adjacent) sentence. If not, require explicit cross-sentence evidence.
+
+  4. **Apply the Temporal Gate** — for each candidate, confirm the text says one event happened
+     *because of* the other, not merely *before* or *after* it.
+
+  5. **Apply the Reporting Gate** — exclude any pair where the "cause" is a speech/reporting verb
+     unless the act itself physically enables or prevents the effect event.
+
+  6. **Decide** for each pair: CAUSAL (output it) or NoRel (omit it).
+
+  7. **Output the JSON.**
