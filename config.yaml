@@ -58,7 +58,7 @@ experiment:
     # - "eci"
     # - "reprompt"
   concurrency: 100
-  retries: 3          # How many times to retry a failed sample
+  retries: 1          # How many times to retry a failed sample
   timeout: 1200       # Seconds before a single inference attempt is cancelled and retried
   resampling:
     enabled: false
@@ -66,7 +66,7 @@ experiment:
     tie_breaking: "norel"
   kfold:
     enabled: true
-    n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
+    n_folds: 2        # fold = doc_idx % n_folds (deterministic, no shuffle)
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -75,7 +75,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "similarity"   # "random"     — resample every call for variance
+  selection: "random"   # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
                         # "bert"       — cosine similarity on sentence-transformer embeddings
@@ -101,8 +101,8 @@ encoder:
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
-# active_dataset: "meci"
-active_dataset: "causal_timebank"
+active_dataset: "meci"
+# active_dataset: "causal_timebank"
 
 # =============================================================================
 # DATASETS
@@ -143,8 +143,8 @@ datasets:
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
-    max_examples: 714
-    # max_examples: 50
+    # max_examples: 714
+    max_examples: 50
     # max_examples: 5
     binary_undirected: true   # conv_bin prompt uses CAUSAL/NoRel; deduplicate directed triples
     labels:
@@ -161,6 +161,7 @@ datasets:
     rule_set: "causal_timebank"
     prompt: "causal_timebank_eci"
     max_examples: 183
+    # max_examples: 6
     binary_undirected: true   # CLINK → CAUSAL; evaluate as unordered pairs
     labels:
       - "CAUSAL"

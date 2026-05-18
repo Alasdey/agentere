@@ -327,13 +327,16 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke):
 
 
 async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg):
-    """K-fold CV using doc_idx % n_folds for deterministic fold assignment."""
-    import numpy as np
-
+    """K-fold CV: each doc is tested exactly once (fold = doc_idx % n_folds).
+    All results are pooled and metrics computed once — identical output to _run_standard."""
     n_folds = kfold_cfg.get("n_folds", 5)
     logdir = "logs/allatonce"
 
-    print(f"K-fold mode: {n_folds} folds | assignment: doc_idx % {n_folds} | dataset={ds_config['name']}")
+    _logs_path, _stem, _ = make_run_stem(logdir, "run")
+    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
+    trace_dump._sample_written = 0
+
+    print(f"K-fold mode: {n_folds} folds (doc_idx % {n_folds}) | dataset={ds_config['name']}")
 
     if config.get("few_shot", {}).get("enabled"):
         print("Pre-loading few-shot split...")
@@ -348,77 +351,47 @@ async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg)
         valid_labels=set(active_labels),
         binary_undirected=ds_config.get("binary_undirected", False),
     ))
-    print(f"Loaded {len(all_docs)} docs → {n_folds} folds by doc_idx % {n_folds}")
+    print(f"Loaded {len(all_docs)} docs | Retries: {config['experiment'].get('retries', 0)}")
 
-    fold_reports = []
-
+    all_results = []
     for fold_idx in range(n_folds):
-        test_docs  = [d for d in all_docs if d["doc_idx"] % n_folds == fold_idx]
-        train_docs = [d for d in all_docs if d["doc_idx"] % n_folds != fold_idx]
+        test_docs = [d for d in all_docs if d["doc_idx"] % n_folds == fold_idx]
+        print(f"Fold {fold_idx + 1}/{n_folds} — {len(test_docs)} test docs", flush=True)
+        fold_results = await run_docs_concurrent(test_docs, config, graph_ainvoke, label=f"fold{fold_idx + 1}")
+        all_results.extend(fold_results)
 
-        print(f"\n{'='*60}")
-        print(f"Fold {fold_idx + 1}/{n_folds} — train={len(train_docs)}  test={len(test_docs)}")
-        print(f"{'='*60}")
+    print("Aggregating results and computing metrics...")
+    final_report = generate_run_report(
+        results=all_results,
+        total_processed_count=len(all_docs),
+        config=config,
+        valid_labels=set(active_labels),
+    )
+    final_report["kfold_n_folds"] = n_folds
 
-        _logs_path, _stem, _ = make_run_stem(logdir, f"kfold{fold_idx + 1}of{n_folds}")
-        trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
-        trace_dump._sample_written = 0
+    print(f"Eval completed. Metric F1: {final_report['micro_f1']:.4f}")
 
-        results = await run_docs_concurrent(test_docs, config, graph_ainvoke, label=f"fold{fold_idx + 1}")
-
-        fold_report = generate_run_report(
-            results=results,
-            total_processed_count=len(test_docs),
-            config=config,
-            valid_labels=set(active_labels),
-        )
-        fold_report["kfold_fold"] = fold_idx + 1
-        fold_reports.append(fold_report)
-
-        print(f"Fold {fold_idx + 1} — micro_f1={fold_report['micro_f1']:.4f}  p={fold_report['micro_precision']:.4f}  r={fold_report['micro_recall']:.4f}  macro_f1={fold_report['macro_f1']:.4f}")
-
-        log_experiment(
-            logdir=logdir,
-            config=config,
-            cli_args=sys.argv,
-            results=fold_report,
-            filename_prefix=f"kfold{fold_idx + 1}of{n_folds}",
-            _stem=_stem,
-        )
-
-    # Summary across folds
-    print(f"\n{'='*60}")
-    print(f"K-FOLD SUMMARY ({n_folds} folds)")
-    print(f"{'='*60}")
-    for metric in ["micro_f1", "macro_f1", "micro_precision", "micro_recall"]:
-        vals = np.array([r[metric] for r in fold_reports])
-        print(f"  {metric:<20} mean={vals.mean():.4f}  std={vals.std():.4f}  min={vals.min():.4f}  max={vals.max():.4f}")
-        for i, v in enumerate(vals):
-            print(f"    fold {i + 1}: {v:.4f}")
-
-    aggregate = {
-        "kfold_n_folds": n_folds,
-        "kfold_total_docs": len(all_docs),
-        "fold_reports": fold_reports,
-        "summary": {
-            metric: {
-                "mean": float(np.mean([r[metric] for r in fold_reports])),
-                "std":  float(np.std( [r[metric] for r in fold_reports])),
-                "per_fold": [float(r[metric]) for r in fold_reports],
-            }
-            for metric in ["micro_f1", "macro_f1", "micro_precision", "micro_recall"]
-        },
-    }
-    _logs_path, _stem, _ = make_run_stem(logdir, f"kfold_summary_{n_folds}fold")
     outfile = log_experiment(
         logdir=logdir,
         config=config,
         cli_args=sys.argv,
-        results=aggregate,
-        filename_prefix=f"kfold_summary_{n_folds}fold",
+        results=final_report,
+        filename_prefix="run",
         _stem=_stem,
     )
-    print(f"\nAggregate summary logged to: {outfile}")
+    print(f"Results logged to: {outfile}")
+    for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]:
+        print(key, ":", final_report[key])
+
+    if config.get("mlflow", {}).get("enabled", False):
+        mlflow_run_id = mlflow_log_run(
+            config=config,
+            final_report=final_report,
+            outfile=outfile,
+            trace_path=trace_dump.TRACE_PATH,
+            run_name=_stem,
+        )
+        print(f"MLflow run: {mlflow_run_id}")
 
 if __name__ == "__main__":
     asyncio.run(main())
