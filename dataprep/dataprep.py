@@ -128,6 +128,17 @@ def load_hf_dataset_parsed(
                 if text_parts:
                     mentions_map[mention_id] = " ".join(text_parts)
 
+        # pair_list: intra-sentence directed pairs stored as mention-index pairs.
+        # Present in CausalTimeBank; used as the prompt pair list instead of gold_triples.
+        pair_list_raw = row.get("pair_list") or []
+        pair_list_ids: List[Tuple[str, str]] = []
+        if pair_list_raw and mentions:
+            for pair in pair_list_raw:
+                if len(pair) == 2:
+                    a, b = int(pair[0]), int(pair[1])
+                    if a < len(mentions) and b < len(mentions):
+                        pair_list_ids.append((mentions[a], mentions[b]))
+
         yield {
             "id": row_id,
             "doc_idx": i,
@@ -135,6 +146,7 @@ def load_hf_dataset_parsed(
             "gold_triples": gold_triples,
             "lang": lang,
             "mentions_map": mentions_map,
+            "pair_list_ids": pair_list_ids,
         }
         
         count += 1

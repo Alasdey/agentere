@@ -51,6 +51,20 @@ def _sample_pair_lines(doc: dict, sampling_cfg: dict) -> str:
 
 def format_pair_lines(doc: dict, active_dataset: str, sampling_cfg: Optional[dict] = None) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""
+    if active_dataset == "causal_timebank":
+        # Use the full intra-sentence pair_list from the HF dataset, deduplicated to
+        # unordered pairs. gold_triples (CLINKs only) is kept separate for evaluation.
+        mentions_map = doc.get("mentions_map", {})
+        seen: set = set()
+        lines = []
+        for e1, e2 in doc.get("pair_list_ids", []):
+            key = tuple(sorted([e1, e2]))
+            if key in seen:
+                continue
+            seen.add(key)
+            s, t = key
+            lines.append(f'{s} ("{mentions_map.get(s, "")}"), {t} ("{mentions_map.get(t, "")}")')
+        return "\n".join(lines)
     if active_dataset in _EXPLICIT_PAIR_DATASETS:
         mentions_map = doc.get("mentions_map", {})
         lines = [
