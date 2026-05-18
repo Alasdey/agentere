@@ -25,6 +25,7 @@ from utils.formatting import format_pair_lines, format_gold_output
 
 CURRENT_DOC_TEXT: ContextVar[str] = ContextVar("current_doc_text", default="")
 CURRENT_DOC_MENTIONS: ContextVar[FrozenSet[str]] = ContextVar("current_doc_mentions", default=frozenset())
+CURRENT_DOC_FOLD: ContextVar[int] = ContextVar("current_doc_fold", default=-1)
 
 # ── Module-level config ───────────────────────────────────────────────────────
 
@@ -142,6 +143,12 @@ def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
 def _select_examples(docs: list, n: int) -> list:
     fs_cfg = _CFG.get("few_shot", {})
     selection = fs_cfg.get("selection")
+
+    # Exclude same-fold docs when running k-fold CV.
+    current_fold = CURRENT_DOC_FOLD.get()
+    n_folds = _CFG["experiment"]["kfold"]["n_folds"]
+    if current_fold >= 0 and n_folds > 1:
+        docs = [d for d in docs if d["doc_idx"] % n_folds != current_fold]
 
     if selection == "similarity" and _TFIDF_VECTORIZER is not None:
         import numpy as np
