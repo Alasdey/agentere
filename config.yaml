@@ -138,13 +138,15 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    prompt: "meci_orig_conv_bin"
+    prompt: "meci_orig_conv_eci"
+    # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 714
     max_examples: 50
+    # max_examples: 10
     # max_examples: 5
     binary_undirected: true   # conv_bin prompt uses CAUSAL/NoRel; deduplicate directed triples
     labels:
