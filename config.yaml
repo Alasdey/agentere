@@ -101,7 +101,8 @@ encoder:
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
-active_dataset: "meci"
+active_dataset: "causal_timebank_standard"
+# active_dataset: "meci"
 # active_dataset: "causal_timebank"
 
 # =============================================================================
@@ -148,11 +149,27 @@ datasets:
     max_examples: 50
     # max_examples: 10
     # max_examples: 5
-    binary_undirected: true   # conv_bin prompt uses CAUSAL/NoRel; deduplicate directed triples
+    binary_undirected: false
     labels:
-      - "CAUSAL"
+      # - "CAUSAL"
+      - "CauseEffect"
+      - "EffectCause"
       - "NoRel"
 
+
+  causal_timebank_standard:
+    name: "CausalTimeBank-standard"
+    repo_id: "Nofing/CausalTimeBank-standard"
+    split: "train"
+    relations_field: "relations"  # dict {label: [[src_idx, tgt_idx], ...]}; no text/annots fields
+    rule_set: "meci"
+    prompt: "meci_orig"
+    max_examples: 183
+    binary_undirected: false
+    labels:
+      - "CauseEffect"
+      - "EffectCause"
+      - "NoRel"
 
   causal_timebank:
     name: "CausalTimeBank-ECI"

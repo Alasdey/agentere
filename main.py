@@ -18,7 +18,7 @@ from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_F
 from tools.reprompt import CURRENT_USER_PROMPT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
-from utils.logger import log_experiment, make_run_stem
+from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
 from utils.mlflow_tracker import log_run as mlflow_log_run
 from utils.reporting import generate_run_report
@@ -247,6 +247,13 @@ async def main():
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
+    # Capture git state immediately so it reflects the code at launch time
+    git_state = capture_git_state(Path.cwd())
+    branch = git_state.get("branch", "unknown")
+    commit = git_state.get("commit", "unknown")[:8]
+    dirty = " (dirty)" if git_state.get("dirty") else ""
+    print(f"Git: branch={branch}  commit={commit}{dirty}")
+
     # Dataset
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
@@ -265,12 +272,12 @@ async def main():
 
     kfold_cfg = config["experiment"].get("kfold", {})
     if kfold_cfg.get("enabled", False):
-        await _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg)
+        await _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg, git_state=git_state)
     else:
-        await _run_standard(config, ds_config, active_labels, graph_ainvoke)
+        await _run_standard(config, ds_config, active_labels, graph_ainvoke, git_state=git_state)
 
 
-async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds: int = 0):
+async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds: int = 0, git_state=None):
     """Normal single-split evaluation. kfold_n_folds > 0 adds it to the report."""
     _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
     trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
@@ -315,6 +322,7 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n
         results=final_report,
         filename_prefix="run",
         _stem=_stem,
+        git_state=git_state,
     )
     print(f"Results logged to: {outfile}")
     for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]:
@@ -336,13 +344,13 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n
         print(f"MLflow run: {mlflow_run_id}")
 
 
-async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg):
+async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg, git_state=None):
     """K-fold CV: all docs processed in one parallel batch.
     Fold assignment (doc_idx % n_folds) is used only to filter few-shot examples.
     Output is identical to _run_standard plus kfold_n_folds in the report."""
     n_folds = kfold_cfg["n_folds"]
     print(f"K-fold mode: {n_folds} folds (doc_idx % {n_folds}) | dataset={ds_config['name']}")
-    await _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds=n_folds)
+    await _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds=n_folds, git_state=git_state)
 
 if __name__ == "__main__":
     asyncio.run(main())
