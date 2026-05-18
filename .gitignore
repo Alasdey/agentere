@@ -20,6 +20,8 @@ mlruns/*
 mlruns
 cot_cache
 cot_cache/*
+refs
+refs/*
 
 # C extensions
 *.so
