@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import random
 import re
 from typing import Set, List, Dict, Any, Optional, Iterator, Tuple
 from datasets import load_dataset
@@ -69,6 +70,7 @@ def load_hf_dataset_parsed(
     streaming: bool = False,
     max_examples: int = 0,
     binary_undirected: bool = False,
+    shuffle_pair_list: bool = False,
 ) -> Iterator[Dict[str, Any]]:
     """
     Loads a Hugging Face dataset and yields the raw text and parsed relation triples.
@@ -128,16 +130,23 @@ def load_hf_dataset_parsed(
                 if text_parts:
                     mentions_map[mention_id] = " ".join(text_parts)
 
-        # pair_list: intra-sentence directed pairs stored as mention-index pairs.
-        # Present in CausalTimeBank; used as the prompt pair list instead of gold_triples.
-        pair_list_raw = row.get("pair_list") or []
+        # pair_list: candidate pairs to present to the model — never derived from gold.
+        # All datasets must provide this column in HF; re-run dataprep and re-push if missing.
+        pair_list_raw = row.get("pair_list")
+        if pair_list_raw is None:
+            raise KeyError(
+                f"'pair_list' column missing from dataset '{repo_id}' row '{row_id}'. "
+                "Re-run the dataprep script and re-push to HF."
+            )
         pair_list_ids: List[Tuple[str, str]] = []
-        if pair_list_raw and mentions:
+        if mentions:
             for pair in pair_list_raw:
                 if len(pair) == 2:
                     a, b = int(pair[0]), int(pair[1])
                     if a < len(mentions) and b < len(mentions):
                         pair_list_ids.append((mentions[a], mentions[b]))
+        if shuffle_pair_list:
+            random.shuffle(pair_list_ids)
 
         yield {
             "id": row_id,

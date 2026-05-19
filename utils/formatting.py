@@ -10,8 +10,8 @@ _NOREL_LABELS = frozenset({"norel", "none", "no_rel"})
 # Datasets that use the binary-undirected sampled-pair-list format
 _BINARY_SAMPLED_DATASETS = frozenset({"event_story_line", "maven_ere"})
 
-# Datasets that list every annotated pair explicitly (positive + negative), like MECI
-_EXPLICIT_PAIR_DATASETS = frozenset({"meci", "causal_timebank"})
+# Datasets that use pair_list_ids from HF directly (undirected deduplication for causal_timebank)
+_PAIR_LIST_DATASETS = frozenset({"meci", "causal_timebank", "causal_timebank_standard"})
 
 
 def convert_to_binary_undirected(triples: List[Tuple[str, str, str]]) -> List[Tuple[str, str, str]]:
@@ -51,26 +51,19 @@ def _sample_pair_lines(doc: dict, sampling_cfg: dict) -> str:
 
 def format_pair_lines(doc: dict, active_dataset: str, sampling_cfg: Optional[dict] = None) -> str:
     """Returns the pair_lines string for a document, matching the pipeline's prompt format."""
-    if active_dataset == "causal_timebank":
-        # Use the full intra-sentence pair_list from the HF dataset, deduplicated to
-        # unordered pairs. gold_triples (CLINKs only) is kept separate for evaluation.
+    if active_dataset in _PAIR_LIST_DATASETS:
         mentions_map = doc.get("mentions_map", {})
+        # causal_timebank is binary-undirected: collapse to unordered pairs.
+        undirected = (active_dataset == "causal_timebank")
         seen: set = set()
         lines = []
         for e1, e2 in doc.get("pair_list_ids", []):
-            key = tuple(sorted([e1, e2]))
+            key = tuple(sorted([e1, e2])) if undirected else (e1, e2)
             if key in seen:
                 continue
             seen.add(key)
             s, t = key
             lines.append(f'{s} ("{mentions_map.get(s, "")}"), {t} ("{mentions_map.get(t, "")}")')
-        return "\n".join(lines)
-    if active_dataset in _EXPLICIT_PAIR_DATASETS:
-        mentions_map = doc.get("mentions_map", {})
-        lines = [
-            f'{src} ("{mentions_map.get(src, "")}"), {tgt} ("{mentions_map.get(tgt, "")}")'
-            for src, _lbl, tgt in doc["gold_triples"]
-        ]
         return "\n".join(lines)
     if active_dataset in _BINARY_SAMPLED_DATASETS:
         if sampling_cfg and sampling_cfg.get("enabled"):
@@ -81,7 +74,7 @@ def format_pair_lines(doc: dict, active_dataset: str, sampling_cfg: Optional[dic
 
 def format_gold_output(gold_triples: List[Tuple[str, str, str]], active_dataset: str) -> str:
     """Formats gold triples as the JSON output the model is expected to produce."""
-    if active_dataset in _EXPLICIT_PAIR_DATASETS:
+    if active_dataset in _PAIR_LIST_DATASETS:
         items = [{"pair": f"{src},{tgt}", "label": lbl} for src, lbl, tgt in gold_triples]
     elif active_dataset in _BINARY_SAMPLED_DATASETS:
         items = [

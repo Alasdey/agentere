@@ -5,7 +5,7 @@
 # MODEL CONFIGURATION
 # =============================================================================
 model:
-  # default_model_id: "openai/gpt-5.5"
+  default_model_id: "openai/gpt-5.5"
   # default_model_id: "anthropic/claude-opus-4.7"
   # default_model_id: "minimax/minimax-m2.7"
   # default_model_id: "z-ai/glm-5"
@@ -22,7 +22,7 @@ model:
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
-  default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
   # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
@@ -39,6 +39,9 @@ mlflow:
   enabled: true
   tracking_uri: "mlruns"
   experiment_name: "agentere"
+
+data:
+  shuffle_pair_list: false   # randomise pair order within each document at load time
 
 experiment:
   tracing: "false"
@@ -58,7 +61,7 @@ experiment:
     # - "eci"
     # - "reprompt"
   concurrency: 100
-  retries: 1          # How many times to retry a failed sample
+  retries: 3          # How many times to retry a failed sample
   timeout: 1200       # Seconds before a single inference attempt is cancelled and retried
   resampling:
     enabled: false
@@ -71,11 +74,12 @@ experiment:
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
 few_shot:
-  enabled: true
+  enabled: false
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "similarity"   # "random"     — resample every call for variance
+  selection: "bert"   
+                        # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
                         # "bert"       — cosine similarity on sentence-transformer embeddings
@@ -101,9 +105,9 @@ encoder:
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
-active_dataset: "causal_timebank_standard"
-# active_dataset: "meci"
+active_dataset: "meci"
 # active_dataset: "causal_timebank"
+# active_dataset: "causal_timebank_standard"
 
 # =============================================================================
 # DATASETS
@@ -134,21 +138,22 @@ datasets:
 
   meci:
     name: "MECI-v0.1"
-    repo_id: "Nofing/MECI-v0.1-public-span"
+    # repo_id: "Nofing/MECI-v0.1-public-span"
+    repo_id: "Nofing/MECI-v0.1-public-standard"
     split: "test"
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    prompt: "meci_orig_conv_eci"
+    # prompt: "meci_orig_conv_eci"
     # prompt: "meci_orig_conv_bin"
-    # prompt: "meci_orig"
+    prompt: "meci_orig"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 714
-    max_examples: 50
+    # max_examples: 50
     # max_examples: 10
-    # max_examples: 5
+    max_examples: 5
     binary_undirected: false
     labels:
       # - "CAUSAL"
@@ -156,20 +161,6 @@ datasets:
       - "EffectCause"
       - "NoRel"
 
-
-  causal_timebank_standard:
-    name: "CausalTimeBank-standard"
-    repo_id: "Nofing/CausalTimeBank-standard"
-    split: "train"
-    relations_field: "relations"  # dict {label: [[src_idx, tgt_idx], ...]}; no text/annots fields
-    rule_set: "meci"
-    prompt: "meci_orig"
-    max_examples: 183
-    binary_undirected: false
-    labels:
-      - "CauseEffect"
-      - "EffectCause"
-      - "NoRel"
 
   causal_timebank:
     name: "CausalTimeBank-ECI"
@@ -179,11 +170,27 @@ datasets:
     ann_field: "annots"     # all intra-sentence pairs with CLINK / NoRel labels
     rule_set: "causal_timebank"
     prompt: "causal_timebank_eci"
-    max_examples: 183
-    # max_examples: 6
+    # max_examples: 183
+    max_examples: 50
     binary_undirected: true   # CLINK → CAUSAL; evaluate as unordered pairs
     labels:
       - "CAUSAL"
+      - "NoRel"
+
+  causal_timebank_standard:
+    name: "CausalTimeBank-standard"
+    repo_id: "Nofing/CausalTimeBank-standard"
+    split: "train"
+    text_field: "text"
+    ann_field: "annots"
+    rule_set: "meci"
+    prompt: "meci_orig"
+    # max_examples: 183
+    max_examples: 20
+    binary_undirected: false
+    labels:
+      - "CauseEffect"
+      - "EffectCause"
       - "NoRel"
 
   event_story_line:

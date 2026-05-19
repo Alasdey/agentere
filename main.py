@@ -297,6 +297,7 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n
         max_examples=ds_config.get("max_examples", 0),
         valid_labels=set(active_labels),
         binary_undirected=ds_config.get("binary_undirected", False),
+        shuffle_pair_list=config.get("data", {}).get("shuffle_pair_list", False),
     )
 
     docs = list(dataset_iter)

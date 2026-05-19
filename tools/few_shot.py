@@ -67,6 +67,7 @@ def _load_train_split() -> list:
         ann_field=ds_cfg["ann_field"],
         streaming=True,
         binary_undirected=ds_cfg.get("binary_undirected", False),
+        shuffle_pair_list=_CFG.get("data", {}).get("shuffle_pair_list", False),
     ))
 
     selection = fs_cfg.get("selection")
@@ -145,10 +146,16 @@ def _select_examples(docs: list, n: int) -> list:
     selection = fs_cfg.get("selection")
 
     # Exclude same-fold docs when running k-fold CV.
+    # Keep track of original indices so similarity matrices can be sliced correctly.
     current_fold = CURRENT_DOC_FOLD.get()
     n_folds = _CFG["experiment"]["kfold"]["n_folds"]
     if current_fold >= 0 and n_folds > 1:
-        docs = [d for d in docs if d["doc_idx"] % n_folds != current_fold]
+        filtered = [(i, d) for i, d in enumerate(docs) if d["doc_idx"] % n_folds != current_fold]
+        orig_indices, docs = zip(*filtered) if filtered else ([], [])
+        orig_indices = list(orig_indices)
+        docs = list(docs)
+    else:
+        orig_indices = list(range(len(docs)))
 
     if selection == "similarity" and _TFIDF_VECTORIZER is not None:
         import numpy as np
@@ -158,17 +165,17 @@ def _select_examples(docs: list, n: int) -> list:
         if query:
             scores = cosine_similarity(
                 _TFIDF_VECTORIZER.transform([query]),
-                _TFIDF_MATRIX
+                _TFIDF_MATRIX[orig_indices]
             )[0]
-            top_indices = np.argsort(scores)[::-1][:n]
-            return [docs[i] for i in top_indices]
+            top_local = np.argsort(scores)[::-1][:n]
+            return [docs[i] for i in top_local]
 
     elif selection == "mentions" and _MENTION_SETS is not None:
         query_mentions = CURRENT_DOC_MENTIONS.get()
         if query_mentions:
-            scores = [_jaccard(query_mentions, ms) for ms in _MENTION_SETS]
-            top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
-            return [docs[i] for i in top_indices]
+            scores = [_jaccard(query_mentions, _MENTION_SETS[i]) for i in orig_indices]
+            top_local = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
+            return [docs[i] for i in top_local]
 
     elif selection == "bert" and _BERT_MODEL is not None and _BERT_EMBEDDINGS is not None:
         import numpy as np
@@ -177,9 +184,9 @@ def _select_examples(docs: list, n: int) -> list:
         if query:
             q_emb = _BERT_MODEL.encode([query], convert_to_numpy=True)
             q_emb = q_emb / np.linalg.norm(q_emb, keepdims=True).clip(min=1e-12)
-            scores = (_BERT_EMBEDDINGS @ q_emb.T).ravel()
-            top_indices = np.argsort(scores)[::-1][:n]
-            return [docs[i] for i in top_indices]
+            scores = (_BERT_EMBEDDINGS[orig_indices] @ q_emb.T).ravel()
+            top_local = np.argsort(scores)[::-1][:n]
+            return [docs[i] for i in top_local]
 
     return random.sample(docs, min(n, len(docs)))
 
