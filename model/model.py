@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Optional, Sequence, Callable
 
+import mlflow
+
 from langchain_openai import ChatOpenAI
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AnyMessage
@@ -79,6 +81,7 @@ def build_chat_graph(
 
     # --- Node ---
 
+    @mlflow.trace(name="call_model")
     def call_model(state: MessagesState, *, config: Optional[Dict[str, Any]] = None):
         messages: List[AnyMessage] = state["messages"]
         ai = llm_to_use.invoke(messages, config=config)
@@ -104,6 +107,7 @@ def build_chat_graph(
 
     # --- Convenience wrapper ---
 
+    @mlflow.trace(name="graph_ainvoke")
     async def ainvoke(messages: Sequence[AnyMessage], *, config: Optional[Dict[str, Any]] = None) -> MessagesState:
         cfg = dict(config or {})
         cfg.setdefault("recursion_limit", recursion_limit)

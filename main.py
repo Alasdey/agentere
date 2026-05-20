@@ -21,7 +21,9 @@ from utils.config import load_config
 from utils.formatting import format_pair_lines
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
-from utils.mlflow_tracker import log_run as mlflow_log_run
+import contextlib
+import mlflow
+from utils.mlflow_tracker import log_run as mlflow_log_run, setup as mlflow_setup
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
 import utils.trace_dump as trace_dump
@@ -261,6 +263,9 @@ async def main():
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
 
+    if config.get("mlflow", {}).get("enabled", False):
+        mlflow_setup(config)
+
     # Capture git state immediately so it reflects the code at launch time
     git_state = capture_git_state(Path.cwd())
     branch = git_state.get("branch", "unknown")
@@ -297,6 +302,14 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n
     trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
     trace_dump._sample_written = 0
 
+    mlflow_enabled = config.get("mlflow", {}).get("enabled")
+    run_ctx = mlflow.start_run(run_name=_stem) if mlflow_enabled else contextlib.nullcontext()
+
+    with run_ctx:
+        await _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds, git_state, _logs_path, _stem)
+
+
+async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds, git_state, _logs_path, _stem):
     print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment'].get('retries', 0)}")
 
     if config.get("few_shot", {}).get("enabled"):
