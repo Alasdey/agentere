@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import random
 import re
 import sys
 import uuid
@@ -112,15 +113,21 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     active_ds = config["active_dataset"]
 
     sampling_cfg = config["datasets"][active_ds].get("sampling")
-    pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
+    reshuffle_per_resample = config.get("data", {}).get("reshuffle_per_resample", False)
 
-    user_prompt = prompt_cfg["user_template"].format(
-        doc_text=doc["doc_text"],
-        pair_lines=pair_lines,
-        doc_id=doc["id"],
-    )
-    if suffix := prompt_cfg.get("user_suffix", "").strip():
-        user_prompt = user_prompt.rstrip() + "\n\n" + suffix
+    def _build_user_prompt(pair_list_ids):
+        doc_view = {**doc, "pair_list_ids": pair_list_ids}
+        pair_lines = format_pair_lines(doc_view, active_ds, sampling_cfg=sampling_cfg)
+        prompt = prompt_cfg["user_template"].format(
+            doc_text=doc["doc_text"],
+            pair_lines=pair_lines,
+            doc_id=doc["id"],
+        )
+        if suffix := prompt_cfg.get("user_suffix", "").strip():
+            prompt = prompt.rstrip() + "\n\n" + suffix
+        return prompt
+
+    user_prompt = _build_user_prompt(doc["pair_list_ids"])
 
     # ── Set document context (needed by tools and similarity-based few-shot) ──
     ctx_token = CURRENT_DOC_ID.set(doc["id"])
@@ -144,8 +151,15 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         reprompt_str = await reprompt_tool.ainvoke({})
 
     # 1. Run inference N times
+    def _prompt_for_run():
+        if not reshuffle_per_resample:
+            return user_prompt
+        ids = list(doc["pair_list_ids"])
+        random.shuffle(ids)
+        return _build_user_prompt(ids)
+
     sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
+        run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
         for _ in range(n_runs)
     ]
     
