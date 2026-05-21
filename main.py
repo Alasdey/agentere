@@ -15,7 +15,7 @@ from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD, preload as few_shot_preload, get_few_shot_message_pairs
+from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD, preload as few_shot_preload, get_few_shot_message_pairs, pregenerate_cot
 from tools.reprompt import CURRENT_USER_PROMPT
 from utils.config import load_config
 from utils.formatting import format_pair_lines
@@ -334,6 +334,21 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
     )
 
     docs = list(dataset_iter)
+
+    fs_cfg = config.get("few_shot", {})
+    if fs_cfg.get("enabled") and fs_cfg.get("cot_generation", {}).get("enabled"):
+        prompt_cfg = config["prompt"]
+        await pregenerate_cot(
+            test_docs=docs,
+            user_template=prompt_cfg["user_template"],
+            active_ds=config["active_dataset"],
+            sampling_cfg=ds_config.get("sampling"),
+            system_prompt=prompt_cfg["system"],
+            graph_ainvoke=graph_ainvoke,
+            concurrency=config["experiment"].get("concurrency", 10),
+            cache_path=fs_cfg["cot_generation"].get("cache_path"),
+        )
+
     results = await run_docs_concurrent(docs, config, graph_ainvoke)
 
     print("Aggregating results and computing metrics...")

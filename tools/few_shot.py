@@ -10,10 +10,12 @@ The full training split is loaded lazily and cached in memory.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import random
 import yaml
 from contextvars import ContextVar
+from pathlib import Path
 from typing import FrozenSet, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -21,6 +23,7 @@ from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from utils.formatting import format_pair_lines, format_gold_output
+import utils.trace_dump as trace_dump
 
 # ── Context variables — set by main.py, read by the tool ─────────────────────
 
@@ -153,6 +156,7 @@ async def _generate_cot_for_doc(
         HumanMessage(content=_COT_STEP1_PROMPT.format(gold_json=gold_output)),
     ]
     state1 = await graph_ainvoke(step1_messages)
+    trace_dump.trace_dump(state1)
     ai_step1 = state1["messages"][-1].content
 
     step2_messages = step1_messages + [
@@ -160,6 +164,7 @@ async def _generate_cot_for_doc(
         HumanMessage(content=_COT_STEP2_PROMPT),
     ]
     state2 = await graph_ainvoke(step2_messages)
+    trace_dump.trace_dump(state2)
     ai_step2 = state2["messages"][-1].content
 
     _COT_CACHE[doc_id] = ai_step2
@@ -232,6 +237,10 @@ def _select_examples(docs: list, n: int) -> list:
     else:
         orig_indices = list(range(len(docs)))
 
+    if selection == "smallest":
+        non_empty = [d for d in docs if len(d.get("pair_list_ids", [])) != 0]
+        return sorted(non_empty, key=lambda d: len(d["pair_list_ids"]))[:n]
+    
     if selection == "similarity" and _TFIDF_VECTORIZER is not None:
         import numpy as np
         from sklearn.metrics.pairwise import cosine_similarity
@@ -264,6 +273,90 @@ def _select_examples(docs: list, n: int) -> list:
             return [docs[i] for i in top_local]
 
     return random.sample(docs, min(n, len(docs)))
+
+
+# ── CoT disk cache ────────────────────────────────────────────────────────────
+
+def _load_cot_disk_cache(cache_path: str) -> None:
+    path = Path(cache_path)
+    if not path.exists():
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        _COT_CACHE.update(json.load(f))
+    print(f"[few_shot] Loaded {len(_COT_CACHE)} CoT entries from {cache_path}")
+
+
+def _save_cot_disk_cache(cache_path: str) -> None:
+    path = Path(cache_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(_COT_CACHE, f, ensure_ascii=False, indent=2)
+    print(f"[few_shot] Saved {len(_COT_CACHE)} CoT entries to {cache_path}")
+
+
+# ── Pre-generation ────────────────────────────────────────────────────────────
+
+async def pregenerate_cot(
+    test_docs: list,
+    user_template: str,
+    active_ds: str,
+    sampling_cfg: Optional[dict],
+    system_prompt: str,
+    graph_ainvoke,
+    concurrency: int = 10,
+    cache_path: Optional[str] = None,
+) -> None:
+    """Generate CoT for every unique few-shot training doc needed across all test_docs.
+
+    Runs before the main inference loop so each training doc is processed exactly once.
+    Results land in _COT_CACHE; inference calls to _generate_cot_for_doc then just hit
+    the cache. Optionally persists the cache to disk to avoid re-generating across runs.
+    """
+    global _TRAIN_CACHE
+    if _TRAIN_CACHE is None:
+        _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
+
+    if cache_path:
+        _load_cot_disk_cache(cache_path)
+
+    n = _CFG["few_shot"]["n_examples"]
+    kfold_cfg = _CFG["experiment"]["kfold"]
+    n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
+
+    # Scan all test docs to collect the unique training docs that will be used as few-shots.
+    needed: dict = {}  # training doc_id -> doc
+    for test_doc in test_docs:
+        CURRENT_DOC_TEXT.set(test_doc["doc_text"])
+        CURRENT_DOC_MENTIONS.set(frozenset(test_doc.get("mentions_map", {}).values()))
+        CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
+        for fs_doc in _select_examples(_TRAIN_CACHE, n):
+            doc_id = fs_doc.get("id", "")
+            if doc_id not in _COT_CACHE and doc_id not in needed:
+                needed[doc_id] = fs_doc
+
+    if not needed:
+        print("[few_shot] All CoT entries already cached — skipping pre-generation.")
+        return
+
+    print(f"[few_shot] Pre-generating CoT for {len(needed)} unique few-shot docs...")
+    sem = asyncio.Semaphore(concurrency)
+
+    async def _gen(doc):
+        async with sem:
+            pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
+            human_content = user_template.format(
+                doc_text=doc["doc_text"],
+                pair_lines=pair_lines,
+                doc_id=doc.get("id", ""),
+            )
+            gold_output = format_gold_output(doc["gold_triples"], active_ds)
+            await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke)
+
+    await asyncio.gather(*[_gen(doc) for doc in needed.values()])
+    print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}")
+
+    if cache_path:
+        _save_cot_disk_cache(cache_path)
 
 
 # ── Tool ─────────────────────────────────────────────────────────────────────
