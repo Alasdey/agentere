@@ -3,32 +3,57 @@ from __future__ import annotations
 import contextlib
 import gzip
 import json
+import os
+import urllib.request
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import mlflow
 
 from utils.logger import capture_git_state
 
-# Cost per 1 million tokens (input, output) in USD.
-# OpenRouter prices — update as needed.
-_PRICING: Dict[str, tuple[float, float]] = {
-    "openai/chatgpt-4o-latest":                    (5.00,  15.00),
-    "openai/gpt-5-mini":                           (0.40,   1.60),
-    "deepseek/deepseek-r1-0528":                   (0.55,   2.19),
-    "deepseek/deepseek-v3.2":                      (0.27,   1.10),
-    "google/gemini-2.5-flash-lite-preview-09-2025":(0.10,   0.40),
-    "qwen/qwen3-30b-a3b-instruct-2507":            (0.10,   0.30),
-    "mistralai/mistral-small-2603":                (0.10,   0.30),
-    "mistralai/mistral-small-3.2-24b-instruct":    (0.10,   0.30),
-    "mistralai/ministral-3b-2512":                 (0.04,   0.10),
-    "x-ai/grok-4.1-fast":                         (2.00,  10.00),
-    "moonshotai/kimi-k2.5":                        (0.14,   0.55),
-    "nvidia/nemotron-3-super-120b-a12b":           (0.40,   0.40),
-    "nvidia/nemotron-3-nano-30b-a3b":              (0.09,   0.18),
-    "allenai/olmo-3.1-32b-instruct":               (0.10,   0.20),
-    "allenai/olmo-3.1-32b-think":                  (0.10,   0.20),
-}
+# Cached live pricing from OpenRouter /api/v1/models.
+# None = not yet fetched; {} = fetch failed.
+_PRICING_LIVE: Optional[Dict[str, Tuple[float, float]]] = None
+
+
+def _fetch_openrouter_pricing(base_url: str, api_key: str) -> Dict[str, Tuple[float, float]]:
+    """Fetch per-token prices (USD) for every model from OpenRouter.
+    Returns {model_id: (price_per_input_token, price_per_output_token)}.
+    """
+    url = base_url.rstrip("/") + "/models"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {api_key}"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read())
+
+    pricing: Dict[str, Tuple[float, float]] = {}
+    for model in data.get("data", []):
+        model_id = model.get("id", "")
+        p = model.get("pricing", {})
+        try:
+            pricing[model_id] = (float(p["prompt"]), float(p["completion"]))
+        except (KeyError, ValueError, TypeError):
+            pass
+    return pricing
+
+
+def _get_model_price(
+    model_id: str, base_url: str, api_key: str
+) -> Optional[Tuple[float, float]]:
+    """Return (price_per_input_token, price_per_output_token) for model_id.
+    Fetches from OpenRouter on first call and caches for the process lifetime.
+    Returns None if the model is not found or the fetch failed.
+    """
+    global _PRICING_LIVE
+    if _PRICING_LIVE is None:
+        try:
+            _PRICING_LIVE = _fetch_openrouter_pricing(base_url, api_key)
+            print(f"[mlflow] Fetched live pricing for {len(_PRICING_LIVE)} models from OpenRouter.")
+        except Exception as e:
+            print(f"[mlflow] Warning: could not fetch OpenRouter pricing ({e}). cost_usd will not be logged.")
+            _PRICING_LIVE = {}
+
+    return _PRICING_LIVE.get(model_id)
 
 
 def _parse_token_usage(trace_path: Path) -> Dict[str, int]:
@@ -117,7 +142,9 @@ def log_run(
     mlflow.set_tracking_uri(mlflow_cfg.get("tracking_uri", "mlruns"))
     mlflow.set_experiment(mlflow_cfg.get("experiment_name", "agentere"))
 
-    model_id = config["model"]["default_model_id"]  # still needed for cost calculation below
+    model_id = config["model"]["default_model_id"]
+    base_url  = config["model"]["base_url"]
+    api_key   = os.environ.get("OPENROUTER_API_KEY", "")
 
     active = mlflow.active_run()
     run_ctx = contextlib.nullcontext(active) if active else mlflow.start_run(run_name=run_name)
@@ -160,14 +187,14 @@ def log_run(
             metrics["tokens_output"]      = usage["output_tokens"]
             metrics["tokens_cache_read"]  = usage["cache_read_tokens"]
 
-            price = _PRICING.get(model_id)
+            price = _get_model_price(model_id, base_url, api_key)
             if price:
                 price_in, price_out = price
                 # cache_read is billed at ~10% of input price on most providers
                 cost = (
-                    (usage["input_tokens"] - usage["cache_read_tokens"]) * price_in / 1_000_000
-                    + usage["cache_read_tokens"] * price_in * 0.1 / 1_000_000
-                    + usage["output_tokens"] * price_out / 1_000_000
+                    (usage["input_tokens"] - usage["cache_read_tokens"]) * price_in
+                    + usage["cache_read_tokens"] * price_in * 0.1
+                    + usage["output_tokens"] * price_out
                 )
                 metrics["cost_usd"] = round(cost, 6)
 
