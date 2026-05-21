@@ -16,6 +16,7 @@ import yaml
 from contextvars import ContextVar
 from typing import FrozenSet, Optional
 
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
@@ -41,6 +42,25 @@ _TFIDF_MATRIX = None
 _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
 _BERT_MODEL = None
 _BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
+_COT_CACHE: dict = {}  # doc_id -> generated CoT string
+
+_COT_STEP1_PROMPT = (
+    "The correct label assignments for this document are:\n\n{gold_json}\n\n"
+    "Write a complete response exactly as the system prompt requires — all steps followed by "
+    "the final JSON — as if you reasoned your way to these labels from the text alone. "
+    "Your reasoning must lead naturally to each label. "
+    "Do not mention or imply that you already know the answer."
+)
+
+_COT_STEP2_PROMPT = (
+    "Rewrite your response from scratch to remove all privileged knowledge. "
+    "Replace any phrasing that reveals foreknowledge "
+    "(e.g. \"we see in the JSON that X is NoRel\", \"the answer shows\", "
+    "\"as indicated by the labels\", \"we know that\", \"the expected output\") "
+    "with genuine reasoning grounded in the text and rules. "
+    "Every sentence in every step should read as if you discovered the label through analysis, "
+    "not confirmed it from a pre-known answer. Output only the rewritten response, nothing else."
+)
 
 
 def preload() -> None:
@@ -114,14 +134,63 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
-async def get_few_shot_message_pairs(user_template: str, active_ds: str, sampling_cfg: dict = None) -> list:
-    """Returns [(human_content, ai_content), ...] for conversation-based few-shot injection."""
+async def _generate_cot_for_doc(
+    doc: dict,
+    system_prompt: str,
+    user_content: str,
+    gold_output: str,
+    graph_ainvoke,
+) -> str:
+    """Two-step LLM generation: produce a realistic CoT+answer using the gold labels, then
+    rewrite to strip any privileged-knowledge phrasing so the result looks like genuine reasoning."""
+    doc_id = doc.get("id", "")
+    if doc_id in _COT_CACHE:
+        return _COT_CACHE[doc_id]
+
+    step1_messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_content),
+        HumanMessage(content=_COT_STEP1_PROMPT.format(gold_json=gold_output)),
+    ]
+    state1 = await graph_ainvoke(step1_messages)
+    ai_step1 = state1["messages"][-1].content
+
+    step2_messages = step1_messages + [
+        AIMessage(content=ai_step1),
+        HumanMessage(content=_COT_STEP2_PROMPT),
+    ]
+    state2 = await graph_ainvoke(step2_messages)
+    ai_step2 = state2["messages"][-1].content
+
+    _COT_CACHE[doc_id] = ai_step2
+    return ai_step2
+
+
+async def get_few_shot_message_pairs(
+    user_template: str,
+    active_ds: str,
+    sampling_cfg: dict = None,
+    system_prompt: str = "",
+    graph_ainvoke=None,
+) -> list:
+    """Returns [(human_content, ai_content), ...] for conversation-based few-shot injection.
+
+    When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, the ai_content
+    is generated via two LLM calls that produce a realistic CoT+answer from the gold labels,
+    then rewrite it to remove any privileged-knowledge phrasing.
+    """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
         _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
 
     n = _CFG.get("few_shot", {}).get("n_examples", 3)
     docs = _select_examples(_TRAIN_CACHE, n)
+
+    cot_enabled = (
+        _CFG.get("few_shot", {}).get("cot_generation", {}).get("enabled", False)
+        and graph_ainvoke is not None
+        and system_prompt
+    )
 
     pairs = []
     for doc in docs:
@@ -131,7 +200,13 @@ async def get_few_shot_message_pairs(user_template: str, active_ds: str, samplin
             pair_lines=pair_lines,
             doc_id=doc.get("id", ""),
         )
-        ai_content = format_gold_output(doc["gold_triples"], active_ds)
+        gold_output = format_gold_output(doc["gold_triples"], active_ds)
+        if cot_enabled:
+            ai_content = await _generate_cot_for_doc(
+                doc, system_prompt, human_content, gold_output, graph_ainvoke
+            )
+        else:
+            ai_content = gold_output
         pairs.append((human_content, ai_content))
     return pairs
 

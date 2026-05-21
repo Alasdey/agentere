@@ -22,12 +22,12 @@ model:
   # default_model_id: "deepseek/deepseek-v4-pro"
   # default_model_id: "deepseek/deepseek-v3.2-speciale"
   # default_model_id: "deepseek/deepseek-r1-distill-qwen-32b"
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
   # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
-  # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
+  default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "bytedance-seed/seed-1.6-flash" # Nope (never responded)
   # default_model_id: "mistralai/mistral-small-2603"
   # default_model_id: "mistralai/mistral-small-3.2-24b-instruct"
@@ -47,7 +47,7 @@ mlflow:
 
 data:
   shuffle_pair_list: true         # randomise pair order within each document at load time
-  reshuffle_per_resample: false   # re-randomise pair order independently for each resample run
+  reshuffle_per_resample: true   # re-randomise pair order independently for each resample run
   
 
 experiment:
@@ -81,11 +81,11 @@ experiment:
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
 few_shot:
-  enabled: false
+  enabled: true
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "random"   
+  selection: "similarity"   
                         # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
@@ -93,6 +93,8 @@ few_shot:
   # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
+  cot_generation:
+    enabled: true      # true: generate realistic CoT few-shots via 2-step LLM call
 
 # ── Reprompt tool ──
 reprompt:
@@ -193,7 +195,8 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     # prompt: "meci_orig"
-    prompt: "causal_timebank_sort"
+    # prompt: "causal_timebank_sort"
+    prompt: "meci_sort"
     max_examples: 183
     # max_examples: 20
     binary_undirected: false
