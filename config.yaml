@@ -90,6 +90,7 @@ few_shot:
   enabled: true
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
+  pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
   systematic: false      # true: auto-inject before LLM call; false: agent calls the tool
   selection: "smallest"   
                         # "random"     — resample every call for variance
