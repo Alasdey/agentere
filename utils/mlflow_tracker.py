@@ -53,7 +53,7 @@ def _get_model_price(
             print(f"[mlflow] Warning: could not fetch OpenRouter pricing ({e}). cost_usd will not be logged.")
             _PRICING_LIVE = {}
 
-    return _PRICING_LIVE.get(model_id)
+    return _PRICING_LIVE.get(model_id) or _PRICING_LIVE.get(model_id.split(":")[0])
 
 
 def _parse_token_usage(trace_path: Path) -> Dict[str, int]:
@@ -160,7 +160,8 @@ def log_run(
             "micro_precision": final_report["micro_precision"],
             "micro_recall":    final_report["micro_recall"],
             "total_pairs":     final_report["total_pairs"],
-            "skipped_docs":    final_report["skipped_docs"],
+            "skipped_docs":        final_report["skipped_docs"],
+            "retry_failed_docs":   final_report["retry_failed_docs"],
         }
         bin_m = final_report.get("binary", {})
         metrics["binary_f1"]        = bin_m.get("f1", 0.0)

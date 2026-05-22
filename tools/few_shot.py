@@ -93,6 +93,10 @@ def _load_train_split() -> list:
         shuffle_pair_list=_CFG.get("data", {}).get("shuffle_pair_list", False),
     ))
 
+    pool_size = fs_cfg.get("pool_size")
+    if pool_size:
+        docs = docs[:pool_size]
+
     selection = fs_cfg.get("selection")
 
     if selection == "similarity":
