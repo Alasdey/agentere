@@ -20,14 +20,8 @@ system: |
 
   6. **Default to NoRel when Uncertain:** Ambiguous, underspecified, or equally plausible links → **NoRel**. Precision over recall.
 
-  # Coherence Rules
-  - **Inverse Symmetry:** PRECONDITION(Ti, Tj) and FALLING_ACTION(Tj, Ti) are inverses of the same plot-link. If you label one direction, the other must reflect it.
-  - **Asymmetry:** PRECONDITION(Ti, Tj) and PRECONDITION(Tj, Ti) cannot both hold (same for FALLING_ACTION). Circular causality is annotation error.
-  - **NoRel Consistency:** NoRel(Ti, Tj) is incompatible with any positive label on (Tj, Ti).
-
   # Output Format
-  - Return ONLY a JSON array. No markdown fences, no commentary.
-  - Every requested pair must appear exactly once.
+  - Return a JSON array. 
   - Use only the approved label strings.
 
 user_template: |
@@ -41,11 +35,12 @@ user_template: |
   ]
 
   Coherence Rules:
-  - Inverse: "Ti,Tj" "PRECONDITION" implies "Tj,Ti" "FALLING_ACTION" and inversely.
   - Missing: Any pair you leave out will be treated as NoRel.
-  - Conflict: "Ti,Tj" "NoRel" is incompatible with any positive label on "Tj,Ti".
 
   Text:
   {doc_text}
 
   {pair_lines}
+
+user_suffix: |
+  Before outputting the JSON, reason step by step: first select the mention pairs that have any chance of being in a relation (filtering out obvious NoRel pairs), then for each candidate pair decide the label.

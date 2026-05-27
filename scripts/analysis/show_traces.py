@@ -20,6 +20,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -152,18 +153,91 @@ def _render_message(msg: Dict, width: int, limit: int, ai_step: List[int]) -> st
     return f"{bold(red(f'? {mtype}'))}\n{_wrap(_truncate(raw, limit), width)}"
 
 
+# ── Gold annotation lookup ────────────────────────────────────────────────────
+
+def _load_gold_index(run_json_path: Path) -> Optional[Dict[str, Any]]:
+    """Load HF dataset referenced by the companion run JSON; return text→gold map."""
+    try:
+        import sys as _sys
+        _project_root = run_json_path.parent.parent.parent
+        if str(_project_root) not in _sys.path:
+            _sys.path.insert(0, str(_project_root))
+
+        with open(run_json_path, encoding="utf-8") as f:
+            run_data = json.load(f)
+
+        cfg = run_data.get("config", {})
+        active_ds = cfg.get("active_dataset")
+        if not active_ds:
+            return None
+        ds_cfg = cfg.get("datasets", {}).get(active_ds, {})
+        repo_id   = ds_cfg.get("repo_id")
+        split     = ds_cfg.get("split", "test")
+        text_field = ds_cfg.get("text_field", "text")
+        ann_field  = ds_cfg.get("ann_field", "annots")
+        if not repo_id:
+            return None
+
+        from dataprep.dataprep import load_hf_dataset_parsed
+        docs = list(load_hf_dataset_parsed(
+            repo_id=repo_id, split=split,
+            text_field=text_field, ann_field=ann_field,
+            streaming=True,
+        ))
+        return {d["doc_text"]: d["gold_triples"] for d in docs}
+    except Exception as e:
+        print(grey(f"  [gold lookup] could not load dataset: {e}"), file=sys.stderr)
+        return None
+
+
+def _extract_doc_text(trace: List[Dict]) -> Optional[str]:
+    """Pull the document text out of the last HumanMessage (after 'Text:\\n').
+
+    Uses 'Pairs to classify' as the end-of-text boundary when present (handles
+    multi-paragraph documents that contain blank lines inside the text).
+    Falls back to the first blank line or end-of-string for prompts without
+    an explicit pair list.
+    """
+    for msg in reversed(trace):
+        if _msg_type(msg) == "HumanMessage":
+            content = _kwargs(msg).get("content", "")
+            # Prefer the explicit section boundary so internal blank lines in
+            # the document don't truncate the extracted text.
+            m = re.search(r"Text:\n(.*?)(?=\n\nPairs to classify|\Z)", content, re.DOTALL)
+            if not m:
+                m = re.search(r"Text:\n(.*?)(?:\n\n|\Z)", content, re.DOTALL)
+            if m:
+                return m.group(1).strip()
+    return None
+
+
+def _render_gold(gold_triples: List, width: int) -> str:
+    header = bold(red("★ GOLD"))
+    lines = [f"  {src} --[{lbl}]--> {tgt}" for src, lbl, tgt in gold_triples] or ["  (none)"]
+    return f"{header}\n" + "\n".join(lines)
+
+
 # ── Trace rendering ───────────────────────────────────────────────────────────
 
 def render_trace(trace: List[Dict], trace_num: int, total: int,
-                 width: int, limit: int) -> str:
+                 width: int, limit: int,
+                 gold_index: Optional[Dict[str, Any]] = None) -> str:
     bar = "─" * width
     header = bold(f"{'─'*3} Trace {trace_num}/{total}  ({len(trace)} messages) {'─'*(width-30)}")
     ai_step: List[int] = [0]
     blocks = [render_message(m, width, limit, ai_step) for m in trace]
+
+    if gold_index is not None:
+        doc_text = _extract_doc_text(trace)
+        gold_triples = gold_index.get(doc_text) if doc_text else None
+        if gold_triples is not None:
+            blocks.append(_render_gold(gold_triples, width))
+        else:
+            blocks.append(bold(red("★ GOLD")) + "\n  " + grey("(no match found in dataset)"))
+
     return f"\n{header}\n\n" + f"\n\n{dim(bar)}\n\n".join(blocks) + "\n"
 
 
-# Alias so caller can use either name
 def render_message(msg: Dict, width: int, limit: int, ai_step: List[int]) -> str:
     return _render_message(msg, width, limit, ai_step)
 
@@ -225,6 +299,13 @@ def main() -> None:
         print(bold(f"  FILE: {path}"))
         print(bold(f"{'═' * args.width}"))
 
+        # Try to load gold annotations from the companion run JSON
+        stem = re.sub(r"\.traces\.sample\.jsonl$", "", path.name)
+        companion_json = path.parent / f"{stem}.json"
+        gold_index = _load_gold_index(companion_json) if companion_json.exists() else None
+        if gold_index is not None:
+            print(grey(f"  Gold index loaded: {len(gold_index)} documents"))
+
         with open(path, encoding="utf-8") as fh:
             traces = [json.loads(line) for line in fh if line.strip()]
 
@@ -239,7 +320,7 @@ def main() -> None:
                 print(red(f"  Trace {i} out of range (file has {len(traces)} traces)"))
                 continue
             trace = traces[i - 1]
-            print(render_trace(trace, i, len(traces), args.width, limit))
+            print(render_trace(trace, i, len(traces), args.width, limit, gold_index=gold_index))
 
 
 if __name__ == "__main__":

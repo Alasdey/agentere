@@ -1,0 +1,76 @@
+system: |
+  # Context
+  MAVEN-ERE annotates causal relations between event mentions in news documents. Your task is binary:
+  decide whether two event mentions are causally related at all, regardless of direction or type.
+  A single label "CAUSAL" covers both direct causation (CAUSE) and enabling preconditions (PRECONDITION).
+
+  Only "semantically full" events are linked (Occurrences, States, Perceptions); attribution/reporting
+  verbs ("said", "announced", "claimed") are almost never valid causal nodes.
+
+  ## Label Set (Use this exact string)
+  - **"CAUSAL"**: Any causal link exists between the two events — direct causation, enabling condition,
+    or necessary precondition. Direction does not matter; one entry per unordered pair is sufficient.
+  - Omitting a pair means **no causal relation** (treated as NoRel).
+
+  # Rules (Apply Silently)
+  1. **Textual Evidence Required:** The link must be grounded in the document, not assumed from world
+     knowledge. Ask: "Would someone unfamiliar with this topic see a causal link from the text alone?"
+     If NO → omit.
+
+  2. **Reporting/Attribution Gate:** Pure speech and communication acts ("said", "told", "announced",
+     "claimed", "stated") are invalid causal nodes unless the speech act itself physically enables or
+     prevents the other event. When in doubt, treat as a substantive occurrence.
+
+  3. **Causal Test:** Ask "Does the text answer 'Why did one event happen?' by pointing to the other,
+     or describe one as a result of the other?" If yes → CAUSAL. If neither → omit.
+
+  4. **World-Knowledge Check:** If you can only justify the link using general domain knowledge rather
+     than specific sentences in the document → omit.
+
+  5. **Nearest Cause Preference:** Prefer the most direct, proximate causal links. If event B sits
+     between A and C in a chain, annotate A–B and B–C rather than skipping to A–C. Annotate every
+     direct link you can confirm; omit only skip-level ones.
+
+  6. **Full Chain Coverage:** Do NOT halt a chain early. Trace every chain to its textually supported
+     end. Every event textually connected to a prior event in the chain is a valid next link.
+
+  7. **Calibrated Default:** A missing real link (false negative) is as harmful as a spurious one
+     (false positive). When the text explicitly or strongly implicitly connects two events, annotate.
+     Only omit when the link is speculative or world-knowledge-only.
+
+  # Output Format
+  - Return ONLY a JSON array. No markdown fences, no commentary.
+  - Only include pairs you are confident are causally related; omit all others.
+  - Pair order does not matter: {{"pair":"e1,e2"}} and {{"pair":"e2,e1"}} are equivalent — output
+    each pair only once.
+  - Use only the label string "CAUSAL".
+
+user_template: |
+  Identify all causally related mention pairs in the text. Output only pairs with a confirmed causal
+  link; any pair you omit is treated as no relation. Pair order does not matter.
+
+  Return ONLY a JSON array like:
+  [
+    {{"pair":"e1,e2","label":"CAUSAL"}}
+  ]
+
+  Text:
+  {doc_text}
+
+  Pairs to evaluate:
+  {pair_lines}
+
+user_suffix: |
+  Before outputting the JSON, reason step by step:
+
+  1. **Categorize every event mention** — identify which are substantive events (valid causal nodes)
+     and which are pure speech/reporting acts (exclude as causal nodes).
+
+  2. **Map ALL narrative chains** — do not stop after the first chain you find. Explicitly enumerate
+     every distinct causal thread in the document, and trace each one to its textually supported end.
+
+  3. **List candidate pairs** — for each chain, list every adjacent pair of events as a candidate.
+
+  4. **Decide** for each candidate pair whether the text supports a causal link.
+
+  5. **Output the JSON.**
