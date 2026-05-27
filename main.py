@@ -14,11 +14,11 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
-from tools.encoder import CURRENT_DOC_ID
-from tools.few_shot import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD, preload as few_shot_preload, get_few_shot_message_pairs, pregenerate_cot
-from tools.reprompt import CURRENT_USER_PROMPT
+from tools.few_shot import preload as few_shot_preload, get_few_shot_message_pairs, pregenerate_cot
 from utils.config import load_config
+from utils.context import CURRENT_DOC_ID, doc_context
 from utils.formatting import format_pair_lines
+from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
 import contextlib
@@ -109,17 +109,23 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
     retries = config["experiment"].get("retries", 3)
     timeout = config["experiment"].get("timeout", 3600)
-    
+
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
     active_ds = config["active_dataset"]
 
+    data_cfg = config["data"]
     sampling_cfg = config["datasets"][active_ds].get("sampling")
-    reshuffle_per_resample = config.get("data", {}).get("reshuffle_per_resample", False)
+    binary_undirected = data_cfg["binary_undirected"]
+    reshuffle_per_resample = data_cfg["reshuffle_per_resample"]
 
     def _build_user_prompt(pair_list_ids):
         doc_view = {**doc, "pair_list_ids": pair_list_ids}
-        pair_lines = format_pair_lines(doc_view, active_ds, sampling_cfg=sampling_cfg)
+        pair_lines = format_pair_lines(
+            doc_view, active_ds,
+            sampling_cfg=sampling_cfg,
+            binary_undirected=binary_undirected,
+        )
         prompt = prompt_cfg["user_template"].format(
             doc_text=doc["doc_text"],
             pair_lines=pair_lines,
@@ -131,110 +137,96 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     user_prompt = _build_user_prompt(doc["pair_list_ids"])
 
-    # ── Set document context (needed by tools and similarity-based few-shot) ──
-    ctx_token = CURRENT_DOC_ID.set(doc["id"])
-    ctx_token_text = CURRENT_DOC_TEXT.set(doc["doc_text"])
-    ctx_token_mentions = CURRENT_DOC_MENTIONS.set(frozenset(doc.get("mentions_map", {}).values()))
-    ctx_token_prompt = CURRENT_USER_PROMPT.set(user_prompt)
     kfold_cfg = config["experiment"]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
-    ctx_token_fold = CURRENT_DOC_FOLD.set(doc["doc_idx"] % n_folds if n_folds > 1 else -1)
+    fold = doc["doc_idx"] % n_folds if n_folds > 1 else -1
 
-    # ── Few-shot systematic injection ────────────────────────────────────────
-    fs_cfg = config.get("few_shot", {})
-    few_shot_pairs = None
-    if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
-        few_shot_pairs = await get_few_shot_message_pairs(
-            prompt_cfg["user_template"],
-            active_ds,
-            sampling_cfg=sampling_cfg,
-            system_prompt=system_prompt,
-            graph_ainvoke=graph_ainvoke,
-        )
-
-    # ── Reprompt systematic injection ────────────────────────────────────────
-    reprompt_str = ""
-    if config.get("reprompt", {}).get("systematic", False):
-        from tools.reprompt import reprompt as reprompt_tool
-        reprompt_str = await reprompt_tool.ainvoke({})
-
-    # 1. Run inference N times
-    def _prompt_for_run():
-        if not reshuffle_per_resample:
-            return user_prompt
-        ids = list(doc["pair_list_ids"])
-        random.shuffle(ids)
-        return _build_user_prompt(ids)
-
-    sampling_tasks = [
-        run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
-        for _ in range(n_runs)
-    ]
-    
-    try:
-        # runs_results will be a list of dicts: [{'triples': [...], 'raw_response': "..."}]
-        runs_results = await asyncio.gather(*sampling_tasks)
-        
-        # Extract just the triples for aggregation logic
-        triples_only_lists = [r["triples"] for r in runs_results]
-        
-        # Aggregate using voting logic
-        pair_stats = {}
-        if len(triples_only_lists) > 1:
-            final_preds, pair_stats = aggregate_run_triples(
-                triples_only_lists,
-                tie_breaking=config["experiment"]["resampling"].get("tie_breaking", "norel")
+    async with doc_context(
+        doc_id=doc["id"],
+        doc_text=doc["doc_text"],
+        mentions=frozenset(doc.get("mentions_map", {}).values()),
+        user_prompt=user_prompt,
+        fold=fold,
+    ):
+        # ── Few-shot systematic injection ─────────────────────────────────────
+        fs_cfg = config.get("few_shot", {})
+        few_shot_pairs = None
+        if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
+            few_shot_pairs = await get_few_shot_message_pairs(
+                prompt_cfg["user_template"],
+                active_ds,
+                sampling_cfg=sampling_cfg,
+                system_prompt=system_prompt,
+                graph_ainvoke=graph_ainvoke,
             )
-        else:
-            final_preds = triples_only_lists[0]
-            # Dummy stats for single run
+
+        # ── Reprompt systematic injection ─────────────────────────────────────
+        reprompt_str = ""
+        if config.get("reprompt", {}).get("systematic", False):
+            from tools.reprompt import reprompt as reprompt_tool
+            reprompt_str = await reprompt_tool.ainvoke({})
+
+        # 1. Run inference N times
+        def _prompt_for_run():
+            if not reshuffle_per_resample:
+                return user_prompt
+            ids = list(doc["pair_list_ids"])
+            random.shuffle(ids)
+            return _build_user_prompt(ids)
+
+        sampling_tasks = [
+            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
+            for _ in range(n_runs)
+        ]
+
+        try:
+            runs_results = await asyncio.gather(*sampling_tasks)
+
+            triples_only_lists = [r["triples"] for r in runs_results]
+
+            # Aggregate using voting logic
             pair_stats = {}
-            for src, lbl, tgt in final_preds:
-                pair_stats[f"{src},{tgt}"] = {"vote_counts": {lbl: 1}}
+            if len(triples_only_lists) > 1:
+                final_preds, pair_stats = aggregate_run_triples(
+                    triples_only_lists,
+                    tie_breaking=config["experiment"]["resampling"].get("tie_breaking", NOREL)
+                )
+            else:
+                final_preds = triples_only_lists[0]
+                pair_stats = {f"{s},{t}": {"vote_counts": {lbl: 1}} for s, lbl, t in final_preds}
 
-        # Normalize pair order for binary undirected datasets
-        ds_cfg = config["datasets"][active_ds]
-        if ds_cfg.get("binary_undirected"):
-            final_preds = [(min(s, t), lbl, max(s, t)) for s, lbl, t in final_preds]
+            # Normalize pair order for binary undirected mode
+            if binary_undirected:
+                final_preds = [(min(s, t), lbl, max(s, t)) for s, lbl, t in final_preds]
 
-        # 2. Metrics
-        metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
-        
-        # 3. Build Context Object for Auditing
-        # We collect all raw responses from the N runs
-        context_trace = {
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-            "raw_responses": [r["raw_response"] for r in runs_results]
-        }
-        
-        return {
-            "id": doc["id"],
-            "doc_idx": doc["doc_idx"],
-            "lang": doc.get("lang", "unknown"),
-            "gold_triples": doc["gold_triples"],
-            "pred_triples": final_preds,
-            "pair_stats": pair_stats, 
-            "metrics": metrics,
-            "context": context_trace  # <--- NEW FIELD containing raw traces
-        }
-    except Exception as e:
-        print(f"Document {doc['id']} failed after all retries: {e}")
-        return {
-            "id": doc["id"],
-            "doc_idx": doc["doc_idx"],
-            "lang": doc.get("lang", "unknown"),
-            "gold_triples": doc["gold_triples"],
-            "pred_triples": [],
-            "pair_stats": {},
-            "metrics": compute_ere_metrics(doc["gold_triples"], []),
-            "context": {"system_prompt": "", "user_prompt": "", "raw_responses": [], "retry_failure": True},
-        }
-    finally:
-        CURRENT_DOC_ID.reset(ctx_token)
-        CURRENT_DOC_TEXT.reset(ctx_token_text)
-        CURRENT_DOC_MENTIONS.reset(ctx_token_mentions)
-        CURRENT_DOC_FOLD.reset(ctx_token_fold)
+            metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
+
+            return {
+                "id": doc["id"],
+                "doc_idx": doc["doc_idx"],
+                "lang": doc.get("lang", "unknown"),
+                "gold_triples": doc["gold_triples"],
+                "pred_triples": final_preds,
+                "pair_stats": pair_stats,
+                "metrics": metrics,
+                "context": {
+                    "system_prompt": system_prompt,
+                    "user_prompt": user_prompt,
+                    "raw_responses": [r["raw_response"] for r in runs_results],
+                },
+            }
+        except Exception as e:
+            print(f"Document {doc['id']} failed after all retries: {e}")
+            return {
+                "id": doc["id"],
+                "doc_idx": doc["doc_idx"],
+                "lang": doc.get("lang", "unknown"),
+                "gold_triples": doc["gold_triples"],
+                "pred_triples": [],
+                "pair_stats": {},
+                "metrics": compute_ere_metrics(doc["gold_triples"], []),
+                "context": {"system_prompt": "", "user_prompt": "", "raw_responses": [], "retry_failure": True},
+            }
 
 
 # =============================================================================
@@ -282,7 +274,9 @@ async def main():
     # Dataset
     active_ds_key = config["active_dataset"]
     ds_config = config["datasets"][active_ds_key]
-    active_labels = ds_config.get("labels")
+    # In binary mode gold is collapsed to [BINARY_POS, NOREL]; use the matching label set
+    # so that metrics and reports reflect the actual labels present in the data.
+    active_labels = BINARY_LABELS if config["data"]["binary_undirected"] else DIRECTED_LABELS
     print(f"Active Labels for {ds_config['name']}: {active_labels}")
 
     # 2. Build Graph
@@ -329,8 +323,8 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
         ann_field=ds_config["ann_field"],
         max_examples=ds_config.get("max_examples", 0),
         valid_labels=set(active_labels),
-        binary_undirected=ds_config.get("binary_undirected", False),
-        shuffle_pair_list=config.get("data", {}).get("shuffle_pair_list", False),
+        binary_undirected=config["data"]["binary_undirected"],
+        shuffle_pair_list=config["data"]["shuffle_pair_list"],
     )
 
     docs = list(dataset_iter)
