@@ -115,16 +115,16 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     active_ds = config["active_dataset"]
 
     data_cfg = config["data"]
-    sampling_cfg = config["datasets"][active_ds].get("sampling")
     binary_undirected = data_cfg["binary_undirected"]
     reshuffle_per_resample = data_cfg["reshuffle_per_resample"]
+    constrain_to_pair_list = config["datasets"][active_ds]["constrain_to_pair_list"]
 
     def _build_user_prompt(pair_list_ids):
         doc_view = {**doc, "pair_list_ids": pair_list_ids}
         pair_lines = format_pair_lines(
-            doc_view, active_ds,
-            sampling_cfg=sampling_cfg,
+            doc_view,
             binary_undirected=binary_undirected,
+            constrain_to_pair_list=constrain_to_pair_list,
         )
         prompt = prompt_cfg["user_template"].format(
             doc_text=doc["doc_text"],
@@ -155,7 +155,6 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             few_shot_pairs = await get_few_shot_message_pairs(
                 prompt_cfg["user_template"],
                 active_ds,
-                sampling_cfg=sampling_cfg,
                 system_prompt=system_prompt,
                 graph_ainvoke=graph_ainvoke,
             )
@@ -168,7 +167,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
         # 1. Run inference N times
         def _prompt_for_run():
-            if not reshuffle_per_resample:
+            # Reshuffling only has an effect when the prompt enumerates an explicit pair list.
+            # In open-ended mode (no pair_list_ids or constrain=False) the prompt is constant.
+            if not reshuffle_per_resample or not (doc.get("pair_list_ids") and constrain_to_pair_list):
                 return user_prompt
             ids = list(doc["pair_list_ids"])
             random.shuffle(ids)
@@ -336,7 +337,6 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             test_docs=docs,
             user_template=prompt_cfg["user_template"],
             active_ds=config["active_dataset"],
-            sampling_cfg=ds_config.get("sampling"),
             system_prompt=prompt_cfg["system"],
             graph_ainvoke=graph_ainvoke,
             concurrency=config["experiment"].get("concurrency", 10),

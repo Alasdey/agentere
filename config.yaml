@@ -150,11 +150,9 @@ datasets:
     # prompt: "maven_ere_enc_coh"
     # prompt: "maven_ere_enc_inc"
     rule_set: "maven-ere"
+    constrain_to_pair_list: false  # no pair_list column — open-ended task
     # max_examples: 714
     max_examples: 50
-    sampling:
-      enabled: false
-      norel_ratio: 2.0   # n_norel_selected = floor(n_positive * norel_ratio)
 
   meci:
     name: "MECI-v0.1"
@@ -164,6 +162,7 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
+    constrain_to_pair_list: true  # show only annotated subset; set false to test free-form prompting
     # prompt: "meci_orig_conv_eci"
     # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
@@ -185,6 +184,7 @@ datasets:
     text_field: "text"
     ann_field: "annots"     # all intra-sentence pairs with CLINK / NoRel labels
     rule_set: "causal_timebank"
+    constrain_to_pair_list: true  # intra-sentence pairs only; set false to expose all pairs
     # prompt: "causal_timebank_eci"
     # max_examples: 183
     max_examples: 50
@@ -196,6 +196,7 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
+    constrain_to_pair_list: true  # intra-sentence pairs only; set false to expose all pairs
     # prompt: "meci_orig"
     # prompt: "causal_timebank_sort"
     prompt: "meci_sort"
@@ -210,6 +211,7 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
+    constrain_to_pair_list: false  # no pair_list column — open-ended task
     prompt: "event_story_line_binary_cot"
     # prompt: "event_story_line_binary"
     # prompt: "event_story_line_eci"

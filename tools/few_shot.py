@@ -124,10 +124,12 @@ def _load_train_split() -> list:
 
 def _format_examples(docs: list) -> str:
     active_ds = _CFG["active_dataset"]
+    binary_undirected = _CFG["data"]["binary_undirected"]
+    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
     parts = []
     for i, doc in enumerate(docs, 1):
-        pair_lines = format_pair_lines(doc, active_ds)
-        gold_out = format_gold_output(doc["gold_triples"], active_ds)
+        pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
+        gold_out = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
         parts.append(
             f"--- Example {i} ---\n"
             f"Text:\n{doc['doc_text']}\n\n"
@@ -174,7 +176,6 @@ async def _generate_cot_for_doc(
 async def get_few_shot_message_pairs(
     user_template: str,
     active_ds: str,
-    sampling_cfg: dict = None,
     system_prompt: str = "",
     graph_ainvoke=None,
 ) -> list:
@@ -198,15 +199,16 @@ async def get_few_shot_message_pairs(
     )
 
     binary_undirected = _CFG["data"]["binary_undirected"]
+    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
     pairs = []
     for doc in docs:
-        pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg, binary_undirected=binary_undirected)
+        pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
         human_content = user_template.format(
             doc_text=doc["doc_text"],
             pair_lines=pair_lines,
             doc_id=doc.get("id", ""),
         )
-        gold_output = format_gold_output(doc["gold_triples"], active_ds)
+        gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
         if cot_enabled:
             ai_content = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output, graph_ainvoke
@@ -301,7 +303,6 @@ async def pregenerate_cot(
     test_docs: list,
     user_template: str,
     active_ds: str,
-    sampling_cfg: Optional[dict],
     system_prompt: str,
     graph_ainvoke,
     concurrency: int = 10,
@@ -343,16 +344,17 @@ async def pregenerate_cot(
     sem = asyncio.Semaphore(concurrency)
 
     binary_undirected = _CFG["data"]["binary_undirected"]
+    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
 
     async def _gen(doc):
         async with sem:
-            pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg, binary_undirected=binary_undirected)
+            pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
             human_content = user_template.format(
                 doc_text=doc["doc_text"],
                 pair_lines=pair_lines,
                 doc_id=doc.get("id", ""),
             )
-            gold_output = format_gold_output(doc["gold_triples"], active_ds)
+            gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
             await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke)
 
     await asyncio.gather(*[_gen(doc) for doc in needed.values()])
