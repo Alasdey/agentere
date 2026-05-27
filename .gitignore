@@ -22,6 +22,7 @@ cot_cache
 cot_cache/*
 refs/*
 refs
+mlflow.db
 
 
 # C extensions
