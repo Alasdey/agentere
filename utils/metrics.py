@@ -2,6 +2,8 @@
 from __future__ import annotations
 from typing import List, Dict, Any, Set
 
+from utils.labels import NOREL_VARIANTS as _NOREL_NORM  # re-export for resample.py import
+
 def compute_ere_metrics(gold_triples: List[tuple], pred_triples: List[tuple]):
     """
     Computes set-based precision, recall, and F1 for relation triples.
@@ -63,7 +65,7 @@ def compute_multiclass_metrics(y_true: List[str], y_pred: List[str], labels: Lis
 
     # Macro: usually exclude NoRel and heavily skewed classes if strictly following strict eval, 
     # but here we follow standard logic: avg of all relevant classes.
-    eval_labels = [lab for lab in unique_labels if lab.lower() not in ("norel", "none")]
+    eval_labels = [lab for lab in unique_labels if lab.lower() not in _NOREL_NORM]
     
     if not eval_labels:
         macro_f1 = 0.0
@@ -93,7 +95,7 @@ def compute_binary_metrics(y_true: List[str], y_pred: List[str]):
     Computes metrics treating ANY relation as Positive versus NoRel as Negative.
     """
     def binarize(y):
-        return "NEG" if str(y).lower() in ("norel", "none", "unknown") else "POS"
+        return "NEG" if str(y).lower() in _NOREL_NORM else "POS"
         
     yt = [binarize(x) for x in y_true]
     yp = [binarize(x) for x in y_pred]

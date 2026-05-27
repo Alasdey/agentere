@@ -54,7 +54,13 @@ mlflow:
 data:
   shuffle_pair_list: true         # randomise pair order within each document at load time
   reshuffle_per_resample: true   # re-randomise pair order independently for each resample run
-  
+  binary_undirected: false        # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
+  labels:                         # uniform label set for all HF datasets
+    - "causes"
+    - "causedby"
+    - "norel"
+
+
 
 experiment:
   tracing: "false"
@@ -146,10 +152,6 @@ datasets:
     rule_set: "maven-ere"
     # max_examples: 714
     max_examples: 50
-    binary_undirected: true
-    labels:
-      - "CAUSAL"
-      - "NoRel"
     sampling:
       enabled: false
       norel_ratio: 2.0   # n_norel_selected = floor(n_positive * norel_ratio)
@@ -174,12 +176,6 @@ datasets:
     # max_examples: 10
     # max_examples: 5
     max_examples: 1
-    binary_undirected: false
-    labels:
-      # - "CAUSAL"
-      - "CauseEffect"
-      - "EffectCause"
-      - "NoRel"
 
 
   causal_timebank:
@@ -192,10 +188,6 @@ datasets:
     # prompt: "causal_timebank_eci"
     # max_examples: 183
     max_examples: 50
-    binary_undirected: true   # CLINK → CAUSAL; evaluate as unordered pairs
-    labels:
-      - "CAUSAL"
-      - "NoRel"
 
   causal_timebank_standard:
     name: "CausalTimeBank-standard"
@@ -210,11 +202,6 @@ datasets:
     # max_examples: 183
     # max_examples: 20
     max_examples: 1
-    binary_undirected: false
-    labels:
-      - "CauseEffect"
-      - "EffectCause"
-      - "NoRel"
 
   event_story_line:
     name: "EventStoryLine-1.5"
@@ -230,10 +217,6 @@ datasets:
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
     max_examples: 24
-    binary_undirected: true
-    labels:
-      - "CAUSAL"
-      - "NoRel"
 
 # =============================================================================
 # PROMPTS

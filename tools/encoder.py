@@ -11,17 +11,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from contextvars import ContextVar
 from typing import Any, Dict, List, Optional
 
 import yaml
 from langchain_core.tools import tool
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# CONTEXT VARIABLE — set by main.py, read by the tool
-# ═══════════════════════════════════════════════════════════════════════════════
-
-CURRENT_DOC_ID: ContextVar[str] = ContextVar("current_doc_id", default="")
+from utils.context import CURRENT_DOC_ID
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULE-LEVEL CACHE  (loaded once, reused across all calls)

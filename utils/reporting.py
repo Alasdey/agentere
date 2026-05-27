@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import List, Dict, Any, Tuple, Optional
 from collections import defaultdict
+from utils.labels import NOREL
 from utils.metrics import compute_multiclass_metrics, compute_binary_metrics
 
 def reconstruct_pairwise_predictions(
@@ -28,8 +29,8 @@ def reconstruct_pairwise_predictions(
     y_pred_doc = []
 
     for src, tgt in all_pairs:
-        gold_lbl = gold_map.get((src, tgt), "NoRel")
-        pred_lbl = pred_map.get((src, tgt), "NoRel")
+        gold_lbl = gold_map.get((src, tgt), NOREL)
+        pred_lbl = pred_map.get((src, tgt), NOREL)
         
         y_true_doc.append(gold_lbl)
         y_pred_doc.append(pred_lbl)

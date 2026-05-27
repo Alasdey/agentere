@@ -14,7 +14,6 @@ import json
 import os
 import random
 import yaml
-from contextvars import ContextVar
 from pathlib import Path
 from typing import FrozenSet, Optional
 
@@ -23,13 +22,8 @@ from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from utils.formatting import format_pair_lines, format_gold_output
+from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 import utils.trace_dump as trace_dump
-
-# ── Context variables — set by main.py, read by the tool ─────────────────────
-
-CURRENT_DOC_TEXT: ContextVar[str] = ContextVar("current_doc_text", default="")
-CURRENT_DOC_MENTIONS: ContextVar[FrozenSet[str]] = ContextVar("current_doc_mentions", default=frozenset())
-CURRENT_DOC_FOLD: ContextVar[int] = ContextVar("current_doc_fold", default=-1)
 
 # ── Module-level config ───────────────────────────────────────────────────────
 
@@ -83,14 +77,16 @@ def _load_train_split() -> list:
     split = fs_cfg.get("split", "train")
     repo_id = fs_cfg.get("repo_id") or ds_cfg["repo_id"]
 
+    data_cfg = _CFG["data"]
     docs = list(load_hf_dataset_parsed(
         repo_id=repo_id,
         split=split,
         text_field=ds_cfg["text_field"],
         ann_field=ds_cfg["ann_field"],
+        valid_labels=set(data_cfg["labels"]),
         streaming=True,
-        binary_undirected=ds_cfg.get("binary_undirected", False),
-        shuffle_pair_list=_CFG.get("data", {}).get("shuffle_pair_list", False),
+        binary_undirected=data_cfg["binary_undirected"],
+        shuffle_pair_list=data_cfg["shuffle_pair_list"],
     ))
 
     pool_size = fs_cfg.get("pool_size")
@@ -201,9 +197,10 @@ async def get_few_shot_message_pairs(
         and system_prompt
     )
 
+    binary_undirected = _CFG["data"]["binary_undirected"]
     pairs = []
     for doc in docs:
-        pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
+        pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg, binary_undirected=binary_undirected)
         human_content = user_template.format(
             doc_text=doc["doc_text"],
             pair_lines=pair_lines,
@@ -345,9 +342,11 @@ async def pregenerate_cot(
     print(f"[few_shot] Pre-generating CoT for {len(needed)} unique few-shot docs...")
     sem = asyncio.Semaphore(concurrency)
 
+    binary_undirected = _CFG["data"]["binary_undirected"]
+
     async def _gen(doc):
         async with sem:
-            pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg)
+            pair_lines = format_pair_lines(doc, active_ds, sampling_cfg=sampling_cfg, binary_undirected=binary_undirected)
             human_content = user_template.format(
                 doc_text=doc["doc_text"],
                 pair_lines=pair_lines,

@@ -1,7 +1,6 @@
-from contextvars import ContextVar
 from langchain_core.tools import tool
 
-CURRENT_USER_PROMPT: ContextVar[str] = ContextVar("current_user_prompt", default="")
+from utils.context import CURRENT_USER_PROMPT
 
 
 @tool
