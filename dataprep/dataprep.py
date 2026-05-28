@@ -130,21 +130,25 @@ def load_hf_dataset_parsed(
                 if text_parts:
                     mentions_map[mention_id] = " ".join(text_parts)
 
-        # pair_list: candidate pairs to present to the model — never derived from gold.
-        # All datasets must provide this column in HF; re-run dataprep and re-push if missing.
         pair_list_raw = row.get("pair_list")
-        if pair_list_raw is None:
-            raise KeyError(
-                f"'pair_list' column missing from dataset '{repo_id}' row '{row_id}'. "
-                "Re-run the dataprep script and re-push to HF."
-            )
         pair_list_ids: List[Tuple[str, str]] = []
         if mentions:
-            for pair in pair_list_raw:
-                if len(pair) == 2:
-                    a, b = int(pair[0]), int(pair[1])
-                    if a < len(mentions) and b < len(mentions):
-                        pair_list_ids.append((mentions[a], mentions[b]))
+            if pair_list_raw is not None:
+                # Dataset provides an explicit candidate pair list (e.g. Causal-TimeBank).
+                for pair in pair_list_raw:
+                    if len(pair) == 2:
+                        a, b = int(pair[0]), int(pair[1])
+                        if a < len(mentions) and b < len(mentions):
+                            pair_list_ids.append((mentions[a], mentions[b]))
+            else:
+                # No pair_list column (e.g. EventStoryLine, MAVEN-ERE): enumerate all
+                # ordered mention pairs (i, j), i ≠ j — the standard SOTA setup.
+                pair_list_ids = [
+                    (mentions[a], mentions[b])
+                    for a in range(len(mentions))
+                    for b in range(len(mentions))
+                    if a != b
+                ]
         if shuffle_pair_list:
             random.shuffle(pair_list_ids)
 
