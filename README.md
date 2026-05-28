@@ -86,6 +86,11 @@ Each run produces up to three files sharing the same stem (`run_<ts>_<id>`):
 
 The primary evaluation field is `results.per_pair_predictions`: a list of `{doc_idx, id, lang, pair, gold, pred, vote_counts}` rows, one per (document, mention-pair).
 
+To visualize the traces:
+```bash
+uv run mlflow server --host 0.0.0.0 --port 5000 --allowed-hosts jupyterhub.pagoda.liris.cnrs.fr --cors-allowed-origins https://jupyterhub.pagoda.liris.cnrs.fr
+```
+
 ---
 
 ## Project layout
