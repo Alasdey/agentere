@@ -71,17 +71,19 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
             ToolMessage(content=reprompt_str, tool_call_id=call_id),
         ])
     state = await graph_ainvoke(messages)
-    
+    _trace_id = mlflow.get_last_active_trace_id()
+
     trace_dump.trace_dump(state)
 
     # The last message contains the final answer
     raw_content = state["messages"][-1].content
-    
+
     # helper for internal logic
-    parsed_triples = parse_llm_json(state["messages"][-1]) 
-    
+    parsed_triples = parse_llm_json(state["messages"][-1])
+
     return {
         "triples": parsed_triples,
+        "_trace_request_id": _trace_id,
         "raw_response": raw_content
     }
 
@@ -182,6 +184,12 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
         try:
             runs_results = await asyncio.gather(*sampling_tasks)
+
+            _gold_json = json.dumps(doc["gold_triples"])
+            for _r in runs_results:
+                if _req_id := _r.get("_trace_request_id"):
+                    mlflow.set_trace_tag(_req_id, "gold_triples", _gold_json)
+                    mlflow.set_trace_tag(_req_id, "doc_id", doc["id"])
 
             triples_only_lists = [r["triples"] for r in runs_results]
 
