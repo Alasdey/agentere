@@ -81,14 +81,16 @@ experiment:
     # - "reprompt"
   concurrency: 100
   retries: 3          # How many times to retry a failed sample
-  timeout: 1200       # Seconds before a single inference attempt is cancelled and retried
+  timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
-    enabled: false
-    n_runs: 1         # Votes per document
+    enabled: true
+    n_runs: 3         # Votes per document
     tie_breaking: "norel"
   kfold:
-    enabled: false
-    n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
+    enabled: true
+    # n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
+    # n_folds: 5         # fold = doc_idx % n_folds (deterministic, no shuffle)
+    n_folds: 2         # dev only
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -96,9 +98,10 @@ few_shot:
   enabled: true
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
-  pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
-  systematic: false      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "smallest"   
+  # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
+  pool_size: 3         # max training docs to load (null = full split); limits CoT generation cost
+  systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
+  selection: "random"   
                         # "random"     — resample every call for variance
                         # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
                         # "mentions"   — Jaccard similarity on event mention text sets
@@ -130,8 +133,7 @@ encoder:
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
 # active_dataset: "meci"
-# active_dataset: "causal_timebank"
-active_dataset: "causal_timebank_standard"
+active_dataset: "causal_timebank"
 
 # =============================================================================
 # DATASETS
@@ -140,24 +142,26 @@ active_dataset: "causal_timebank_standard"
 datasets:
   maven_ere:
     name: "MAVEN-ERE-Causal"
-    repo_id: "Nofing/MAVEN-ERE-Causal-Events"
+    repo_id: "Nofing/MAVEN-ERE-standard-eci"
     split: "test"
     text_field: "text"
     ann_field: "annots"
-    prompt: "maven_ere_eci_bin"
+    prompt: "maven_ere_standard_eci"
+    # prompt: "maven_ere_eci_bin"
     # prompt: "maven_ere_eci"
     # prompt: "maven_ere_1"
     # prompt: "maven_ere_enc_coh"
     # prompt: "maven_ere_enc_inc"
     rule_set: "maven-ere"
     constrain_to_pair_list: false  # no pair_list column — open-ended task
-    # max_examples: 714
-    max_examples: 50
+    # max_examples: 710
+    # max_examples: 50
+    max_examples: 5
 
   meci:
     name: "MECI-v0.1"
     # repo_id: "Nofing/MECI-v0.1-public-span"
-    repo_id: "Nofing/MECI-v0.1-public-standard"
+    repo_id: "Nofing/MECI-v0.1-public-standard-eci"
     split: "test"
     text_field: "text"
     ann_field: "annots"
@@ -166,59 +170,55 @@ datasets:
     # prompt: "meci_orig_conv_eci"
     # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
-    prompt: "meci_sort"
+    # prompt: "meci_sort"
+    prompt: "meci_standard_eci"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
-    # max_examples: 714
+    # max_examples: 716
     # max_examples: 50
     # max_examples: 10
-    # max_examples: 5
-    max_examples: 1
+    max_examples: 5
+    # max_examples: 1
 
 
   causal_timebank:
-    name: "CausalTimeBank-ECI"
-    repo_id: "Nofing/CausalTimeBank-causal"
-    split: "train"          # no fixed split; all 183 docs in one split
-    text_field: "text"
-    ann_field: "annots"     # all intra-sentence pairs with CLINK / NoRel labels
-    rule_set: "causal_timebank"
-    constrain_to_pair_list: true  # intra-sentence pairs only; set false to expose all pairs
-    # prompt: "causal_timebank_eci"
-    # max_examples: 183
-    max_examples: 50
-
-  causal_timebank_standard:
-    name: "CausalTimeBank-standard"
-    repo_id: "Nofing/CausalTimeBank-standard"
+    name: "CausalTimeBank-standard-eci"
+    repo_id: "Nofing/CausalTimeBank-standard-eci"
     split: "train"
     text_field: "text"
     ann_field: "annots"
     rule_set: "meci"
-    constrain_to_pair_list: true  # intra-sentence pairs only; set false to expose all pairs
+    constrain_to_pair_list: false  # intra-sentence pairs only; set false to expose all pairs
     # prompt: "meci_orig"
     # prompt: "causal_timebank_sort"
-    prompt: "meci_sort"
+    prompt: "causal_timebank_standard_eci"
+    # prompt: "meci_sort"
     # max_examples: 183
-    # max_examples: 20
-    max_examples: 1
+    # max_examples: 50
+    max_examples: 5
+    # max_examples: 1
 
   event_story_line:
-    name: "EventStoryLine-1.5"
-    repo_id: "Nofing/EventStoryLine-1.5-Causal"
-    split: "test"
+    name: "EventStoryLine-0.9"
+    repo_id: "Nofing/EventStoryLine-0.9-standard-eci"
+    split: "train"
     text_field: "text"
     ann_field: "annots"
     rule_set: "esl"
     constrain_to_pair_list: false  # no pair_list column — open-ended task
-    prompt: "event_story_line_binary_cot"
+    prompt: "esl_standard_eci"
+    # prompt: "event_story_line_binary_cot"
     # prompt: "event_story_line_binary"
     # prompt: "event_story_line_eci"
     # prompt: "event_story_line_v2"
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
-    max_examples: 24
+    # max_examples: 233
+    # max_examples: 50
+    max_examples: 5
+
+
 
 # =============================================================================
 # PROMPTS
