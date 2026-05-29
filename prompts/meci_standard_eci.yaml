@@ -36,31 +36,15 @@ system: |
   Before producing the final JSON, reason through the following steps IN ORDER:
 
   Step 1 — Pre-filter: justify exclusions by mention or group.
-  Work at the mention level, not the pair level. Identify individual mentions or
-  groups of mentions that have no conceivable causal connection to any other
-  mention in the set — and explicitly justify why each is excluded. A group of
-  N mentions produces up to N*(N-1)/2 pairs: name the group once and give the
-  reason, rather than enumerating every pair.
-  Exclusion must be affirmatively argued (e.g. "T3 describes a geographical
-  location with no agentive role — it cannot cause or be caused by any event
-  here") — do NOT use "everything else has no probability" as a catch-all.
-  Only after stating and justifying all exclusions, list the mentions that remain
-  in scope for Steps 2–3.
+  Work at the mention level, not the pair level. Identify individual mentions or Exclusion must be affirmatively argued (e.g. "T3 describes a geographical location with no agentive role — it cannot cause or be caused by any event here") — do NOT use "everything else has no probability" as a catch-all. Only after stating and justifying all exclusions, list the mentions that remain in scope for Steps 2–3.
 
   Step 2 — Arguments for and against.
   For each retained pair from Step 1, present:
-  - **For**: signals supporting a causal link (explicit connective, spelled-out
-    mechanism, counterfactual asymmetry, discourse structure encoding causality,
-    enablement/prevention pattern).
-  - **Against**: disqualifying factors (temporal-only link, distance gate not
-    met, confounder or proximal cause, reporting/attribution verb, negation/
-    contrast connective, direction ambiguity, etc.).
+  - **For**: signals supporting a causal link (explicit connective, spelled-out mechanism, counterfactual asymmetry, discourse structure encoding causality, enablement/prevention pattern).
+  - **Against**: disqualifying factors (temporal-only link, distance gate not met, confounder or proximal cause, reporting/attribution verb, negation/contrast connective, direction ambiguity, etc.).
 
   Step 3 — Order by causal plausibility, then output JSON.
-  Rank the retained pairs from strongest to weakest causal evidence (qualitative
-  only — no numeric scores or probabilities). Apply the Precision-First Rules to
-  assign a label to each. Then output the final JSON array for ALL requested
-  pairs (pairs discarded in Step 1 receive "norel").
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Apply the Precision-First Rules to assign a label to each. Then output the final JSON array for ALL requested pairs (pairs discarded in Step 1 receive "norel").
 
   # Output Format
   - Follow the provided JSON structure exactly.
