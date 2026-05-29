@@ -20,16 +20,17 @@ model:
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
   # default_model_id: "deepseek/deepseek-v4-pro"
+  # default_model_id: "deepseek/deepseek-v4-flash:nitro"
   # default_model_id: "deepseek/deepseek-v3.2-speciale"
   # default_model_id: "deepseek/deepseek-r1-distill-qwen-32b"
   # default_model_id: "deepseek/deepseek-v3.2:nitro"
-  default_model_id: "deepseek/deepseek-v3.2"
-  # default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
+  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
   # default_model_id: "qwen/qwen3-32b:nitro"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
-  # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
+  # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
   # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "inception/mercury-2:nitro"
   # default_model_id: "openai/gpt-oss-120b:nitro"
@@ -49,6 +50,7 @@ model:
 mlflow:
   enabled: true
   tracking_uri: "mlruns"
+  # tracking_uri: "sqlite:///mlflow.db"
   experiment_name: "agentere"
 
 data:
@@ -95,7 +97,7 @@ experiment:
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
 few_shot:
-  enabled: true
+  enabled: false
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
@@ -132,8 +134,8 @@ encoder:
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
 # active_dataset: "event_story_line"
-# active_dataset: "meci"
-active_dataset: "causal_timebank"
+active_dataset: "meci"
+# active_dataset: "causal_timebank"
 
 # =============================================================================
 # DATASETS
@@ -155,8 +157,8 @@ datasets:
     rule_set: "maven-ere"
     constrain_to_pair_list: false  # no pair_list column — open-ended task
     # max_examples: 710
-    # max_examples: 50
-    max_examples: 5
+    max_examples: 50
+    # max_examples: 5
 
   meci:
     name: "MECI-v0.1"
@@ -171,15 +173,16 @@ datasets:
     # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
     # prompt: "meci_sort"
-    prompt: "meci_standard_eci"
+    # prompt: "meci_standard_eci"
+    prompt: "meci_standard_eci_norule"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 716
     # max_examples: 50
     # max_examples: 10
-    max_examples: 5
-    # max_examples: 1
+    # max_examples: 5
+    max_examples: 1
 
 
   causal_timebank:
@@ -195,8 +198,8 @@ datasets:
     prompt: "causal_timebank_standard_eci"
     # prompt: "meci_sort"
     # max_examples: 183
-    # max_examples: 50
-    max_examples: 5
+    max_examples: 50
+    # max_examples: 5
     # max_examples: 1
 
   event_story_line:
@@ -215,8 +218,8 @@ datasets:
     # prompt: "event_story_line_coh_enc"
     # prompt: "esl_perpair"
     # max_examples: 233
-    # max_examples: 50
-    max_examples: 5
+    max_examples: 50
+    # max_examples: 5
 
 
 

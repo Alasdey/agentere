@@ -71,7 +71,6 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
             ToolMessage(content=reprompt_str, tool_call_id=call_id),
         ])
     state = await graph_ainvoke(messages)
-    _trace_id = mlflow.get_last_active_trace_id()
 
     trace_dump.trace_dump(state)
 
@@ -83,7 +82,6 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
 
     return {
         "triples": parsed_triples,
-        "_trace_request_id": _trace_id,
         "raw_response": raw_content
     }
 
@@ -177,19 +175,22 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             random.shuffle(ids)
             return _build_user_prompt(ids)
 
-        sampling_tasks = [
-            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
-            for _ in range(n_runs)
-        ]
+        _gold_preview = " | ".join(f"{s}→{l}→{t}" for s, l, t in doc["gold_triples"]) or "(none)"
+        _gold_json = json.dumps(doc["gold_triples"])
+        _doc_id = doc["id"]
+
+        @mlflow.trace(name="doc_sample")
+        async def _run_sample(prompt):
+            mlflow.update_current_trace(
+                tags={"gold_triples": _gold_json, "doc_id": _doc_id},
+                response_preview=f"[{_doc_id}] GOLD: {_gold_preview}",
+            )
+            return await run_inference_with_retry(graph_ainvoke, system_prompt, prompt, retries, few_shot_pairs, reprompt_str, doc_id=_doc_id, timeout=timeout)
+
+        sampling_tasks = [_run_sample(_prompt_for_run()) for _ in range(n_runs)]
 
         try:
             runs_results = await asyncio.gather(*sampling_tasks)
-
-            _gold_json = json.dumps(doc["gold_triples"])
-            for _r in runs_results:
-                if _req_id := _r.get("_trace_request_id"):
-                    mlflow.set_trace_tag(_req_id, "gold_triples", _gold_json)
-                    mlflow.set_trace_tag(_req_id, "doc_id", doc["id"])
 
             triples_only_lists = [r["triples"] for r in runs_results]
 
@@ -308,7 +309,7 @@ async def main():
 async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds: int = 0, git_state=None):
     """Normal single-split evaluation. kfold_n_folds > 0 adds it to the report."""
     _logs_path, _stem, _ = make_run_stem("logs/allatonce", "run")
-    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl.gz"
+    trace_dump.TRACE_PATH = _logs_path / f"{_stem}.traces.jsonl"
     trace_dump._sample_written = 0
 
     mlflow_enabled = config.get("mlflow", {}).get("enabled")
@@ -400,7 +401,7 @@ async def _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg,
     Fold assignment (doc_idx % n_folds) is used only to filter few-shot examples.
     Output is identical to _run_standard plus kfold_n_folds in the report."""
     n_folds = kfold_cfg["n_folds"]
-    print(f"K-fold mode: {n_folds} folds (doc_idx % {n_folds}) | dataset={ds_config['name']}")
+    print(f"K-fold mode: {n_folds} folds (doc_idx % {n_folds}) | dataset={ds_config['name']} | model={config['model']['default_model_id']}")
     await _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds=n_folds, git_state=git_state)
 
 if __name__ == "__main__":

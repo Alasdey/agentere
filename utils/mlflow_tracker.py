@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import gzip
 import json
 import os
 import urllib.request
@@ -59,7 +58,7 @@ def _get_model_price(
 def _parse_token_usage(trace_path: Path) -> Dict[str, int]:
     """Sum input/output/cache_read tokens across all AI messages in the trace file."""
     totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0}
-    with gzip.open(trace_path, "rb") as f:
+    with open(trace_path, encoding="utf-8") as f:
         for raw in f:
             raw = raw.strip()
             if not raw:
