@@ -1,0 +1,61 @@
+system: |
+  # Context
+  MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING'22 MECI paper.]
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  Step 1 — Pre-filter: justify exclusions by mention or group.
+  Work at the mention level, not the pair level. Identify individual mentions or Exclusion must be affirmatively argued (e.g. "T3 describes a geographical location with no agentive role — it cannot cause or be caused by any event here") — do NOT use "everything else has no probability" as a catch-all. Only after stating and justifying all exclusions, list the mentions that remain in scope for Steps 2–3.
+
+  Step 2 — Arguments for and against.
+  For each retained pair from Step 1, present:
+  - **For**: signals supporting a causal link.
+  - **Against**: disqualifying factors.
+
+  Step 3 — Order by causal plausibility, then output JSON.
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Then output the final JSON array for ALL requested pairs (pairs discarded in Step 1 receive "norel").
+
+  # Output Format
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings for causal relations.
+      
+  If there are no mentions in the text and no pairs to classify return the example.
+
+  IMPORTANT :
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+
+  DOUBLY IMPORTANT:
+  IF the pair a, b is not in the pair_list, then: b norel a. Always no matter what.
+
+user_template: |
+
+  IMPORTANT :
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"T0,T1","label":"causes"}}
+  ]
+  
+  Coherence Rules:
+  - Symmetry: "Ti,Tj" "causes" implies that "Tj,Ti" "causedby" and inversly
+  - Missing: Any relation you leave missing will be considered a norel
+  - Relations: "Tj,Ti" "norel" is not compatible with either "Ti,Tj" "causes" or "Ti,Tj" "causes"
+
+
+  Text:
+  {doc_text}
+
+  Pairs to classify (use EXACT pair ids; output order does NOT matter):
+  {pair_lines}
+
+
+  IMPORTANT :
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
