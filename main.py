@@ -71,6 +71,7 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
             ToolMessage(content=reprompt_str, tool_call_id=call_id),
         ])
     state = await graph_ainvoke(messages)
+    _trace_id = mlflow.get_last_active_trace_id()
 
     trace_dump.trace_dump(state)
 
@@ -82,6 +83,7 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_sh
 
     return {
         "triples": parsed_triples,
+        "_trace_request_id": _trace_id,
         "raw_response": raw_content
     }
 
@@ -175,22 +177,19 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             random.shuffle(ids)
             return _build_user_prompt(ids)
 
-        _gold_preview = " | ".join(f"{s}→{l}→{t}" for s, l, t in doc["gold_triples"]) or "(none)"
-        _gold_json = json.dumps(doc["gold_triples"])
-        _doc_id = doc["id"]
-
-        @mlflow.trace(name="doc_sample")
-        async def _run_sample(prompt):
-            mlflow.update_current_trace(
-                tags={"gold_triples": _gold_json, "doc_id": _doc_id},
-                response_preview=f"[{_doc_id}] GOLD: {_gold_preview}",
-            )
-            return await run_inference_with_retry(graph_ainvoke, system_prompt, prompt, retries, few_shot_pairs, reprompt_str, doc_id=_doc_id, timeout=timeout)
-
-        sampling_tasks = [_run_sample(_prompt_for_run()) for _ in range(n_runs)]
+        sampling_tasks = [
+            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
+            for _ in range(n_runs)
+        ]
 
         try:
             runs_results = await asyncio.gather(*sampling_tasks)
+
+            _gold_json = json.dumps(doc["gold_triples"])
+            for _r in runs_results:
+                if _req_id := _r.get("_trace_request_id"):
+                    mlflow.set_trace_tag(_req_id, "gold_triples", _gold_json)
+                    mlflow.set_trace_tag(_req_id, "doc_id", doc["id"])
 
             triples_only_lists = [r["triples"] for r in runs_results]
 
