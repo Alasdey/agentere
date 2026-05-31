@@ -263,9 +263,10 @@ async def run_docs_concurrent(docs: List[Dict], config: Dict, graph_ainvoke, lab
     return await asyncio.gather(*[sem_task(doc) for doc in docs])
 
 
-async def main():
+async def main(config=None):
     # 1. Load Config
-    config = load_config()
+    if config is None:
+        config = load_config()
 
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]

@@ -85,11 +85,11 @@ experiment:
   retries: 3          # How many times to retry a failed sample
   timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
-    enabled: true
+    enabled: false
     n_runs: 3         # Votes per document
     tie_breaking: "norel"
   kfold:
-    enabled: true
+    enabled: false
     # n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
     # n_folds: 5         # fold = doc_idx % n_folds (deterministic, no shuffle)
     n_folds: 2         # dev only
@@ -97,7 +97,7 @@ experiment:
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
 few_shot:
-  enabled: false
+  enabled: true
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
@@ -173,8 +173,8 @@ datasets:
     # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
     # prompt: "meci_sort"
-    # prompt: "meci_standard_eci"
-    prompt: "meci_standard_eci_norule"
+    prompt: "meci_standard_eci"
+    # prompt: "meci_standard_eci_norule"
     # prompt: "meci_autoprompt_mistral"
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
