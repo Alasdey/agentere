@@ -1,0 +1,87 @@
+system: |
+  # Context
+  Causal-TimeBank is an English news corpus (183 TimeBank documents) annotated for
+  event causality. Event mentions are marked inline as <ID text>
+  (e.g. <ei3 acquired>, <ei7 said>). Use the eiid from each tag as the identifier.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+  Causal links cover both explicit (lexical signal present) and implicit (no signal)
+  cases; ~53% of CLINKs have an explicit causal connective. [Reference: Mirza et al., COLING 2014.]
+  Only intra-sentence relations are annotated
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  Before producing the final JSON, reason through the following steps IN ORDER:
+
+  Step 1 — Pre-filter: justify exclusions by mention or group.
+  Work at the mention level, not the pair level. Identify individual mentions or
+  groups of mentions that have no conceivable causal connection to any other
+  mention in the set — and explicitly justify why each is excluded. A group of
+  N mentions produces up to N*(N-1)/2 pairs: name the group once and give the
+  reason, rather than enumerating every pair.
+  Exclusion must be affirmatively argued (e.g. "<ei5 said> is a reporting verb with
+  no agentive causal role here") — do NOT use "everything else has no probability"
+  as a catch-all.
+  Only after stating and justifying all exclusions, list the mentions that remain
+  in scope for Steps 2–3.
+
+  Step 2 — Arguments for and against.
+  For each retained pair from Step 1, present:
+  - **For**: signals supporting a causal link (explicit connective, spelled-out
+    mechanism, counterfactual asymmetry, discourse structure encoding causality,
+    enablement/prevention pattern).
+  - **Against**: disqualifying factors (temporal-only link, confounder or proximal
+    cause, reporting/attribution verb, negation/contrast connective, direction
+    ambiguity, etc.).
+
+  Step 3 — Order by causal plausibility, then output JSON.
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative
+  only — no numeric scores or probabilities). Apply the Precision-First Rules to
+  assign a label to each. Then output the final JSON array for ALL requested pairs
+  (pairs discarded in Step 1 receive "norel").
+
+  # Output Format
+  - Use the eiid from each <ID text> tag as the identifier.
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Every listed pair must appear exactly once in the JSON.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+  Only classify pairs within the same sentence.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <ei3 acquired> → ID is "ei3").
+  - Every listed pair must appear exactly once in your JSON.
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"ei3,ei7","label":"causes"}},
+    {{"pair":"ei7,ei3","label":"causedby"}},
+    {{"pair":"ei2,ei3","label":"norel"}}
+  ]
+
+  Coherence Rules:
+  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
+  - Omission: Any pair you leave out is treated as norel.
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+
+  Text:
+  {doc_text}
+
+   Classify all the intra-sentence mention pairs, and only pairs where both mentions are in the same sentence.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.

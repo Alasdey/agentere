@@ -1,0 +1,82 @@
+system: |
+  # Context
+  EventStoryLine (ESL) v0.9 is an English news corpus annotated for event causality.
+  Documents are newswire articles grouped into topics (real-world event clusters).
+  Event mentions are marked inline as <ID text> (e.g. <14 checks into>, <5 conviction>).
+  Use the numeric ID from each tag as the mention identifier in your output.
+  Causal annotation covers both intra- and inter-sentence pairs; relations were annotated
+  wherever the link was judged direct and clear. [Reference: Caselli & Vossen, ACL 2017.]
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  Before producing the final JSON, reason through the following steps IN ORDER:
+
+  Step 1 — Pre-filter: justify exclusions by mention or group.
+  Work at the mention level, not the pair level. Identify individual mentions or
+  groups of mentions that have no conceivable causal connection to any other
+  mention in the set — and explicitly justify why each is excluded. A group of
+  N mentions produces up to N*(N-1)/2 pairs: name the group once and give the
+  reason, rather than enumerating every pair.
+  Exclusion must be affirmatively argued (e.g. "<3 conviction> describes a legal
+  status with no agentive role — it cannot cause or be caused by any event here")
+  — do NOT use "everything else has no probability" as a catch-all.
+  Only after stating and justifying all exclusions, list the mentions that remain
+  in scope for Steps 2–3.
+
+  Step 2 — Arguments for and against.
+  For each retained pair from Step 1, present:
+  - **For**: signals supporting a causal link (explicit connective, spelled-out
+    mechanism, counterfactual asymmetry, discourse structure encoding causality,
+    enablement/prevention pattern).
+  - **Against**: disqualifying factors (temporal-only link, distance gate not
+    met, confounder or proximal cause, reporting/attribution verb, negation/
+    contrast connective, direction ambiguity, etc.).
+
+  Step 3 — Order by causal plausibility, then output JSON.
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative
+  only — no numeric scores or probabilities). Apply the Precision-First Rules to
+  assign a label to each. Then output the final JSON array for ALL causal pairs
+  found (omit a pair entirely to mark it norel).
+
+  # Output Format
+  - Use the numeric mention ID from each <ID text> tag as the identifier.
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Omitting a pair signals norel — only output pairs you label causes or causedby.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <14 checks into> → ID is "14").
+  - Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"14,44","label":"causes"}},
+    {{"pair":"44,14","label":"causedby"}}
+  ]
+
+  Coherence Rules:
+  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
+  - Omission: Any pair you leave out is treated as norel.
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+
+  Text:
+  {doc_text}
+
+  Predict all the pairs of mentions.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.

@@ -6,16 +6,19 @@ system: |
   Annotation is intra-sentence only: all pairs to classify are within the same sentence.
   Causal links cover both explicit (lexical signal present) and implicit (no signal)
   cases; ~53% of CLINKs have an explicit causal connective. [Reference: Mirza et al., COLING 2014.]
-  Only intra-sentence relations are annotated
+  Only intra-sentence relations are annotated.
+
+  This is a **binary undirected** task: decide whether any causal link exists between
+  two events, regardless of which direction. Each unordered pair appears exactly once.
 
   ## Label Set (Use these exact strings)
-  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
-  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"CAUSAL"**: A causal link exists between Ti and Tj — one enables, causes, leads to,
+    or prevents the absence of the other. Direction does not matter.
   - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
 
   # Precision-First Rules (Apply Silently)
   1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
-      - a. Counterfactual asymmetry (but-for)
+      - a. Counterfactual support (but-for test passes in at least one direction)
       - b. A concrete **mechanism** in the text (not just world knowledge)
       - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
       - d. Local lexical patterns of enablement/prevention
@@ -24,8 +27,8 @@ system: |
   2. **Default to norel when Uncertain:** If evidence is ambiguous, underspecified, or equally
      well explained by correlation, reporting, or chronology → **norel**.
 
-  3. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as
-     **norel**; do not "skip over" the proximal cause.
+  3. **Confounder & Chain Check:** If another event more directly explains the link between Ti and Tj,
+     label Ti,Tj as **norel**; do not "skip over" the proximal cause.
 
   4. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not
      causes of the content unless the **content event** is enabled/prevented by the speech act itself.
@@ -33,18 +36,11 @@ system: |
   5. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or
      "despite" do not justify causal labels unless the rules above are explicitly satisfied.
 
-  6. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is
-     necessary, or both seem plausible, → **norel**.
-
-  7. **Temporal Discourse is Not Causal:** Temporal connectives and markers — such as "then",
+  6. **Temporal Discourse is Not Causal:** Temporal connectives and markers — such as "then",
      "when", "after", "before", "as", "while", "next", "subsequently", "later" — indicate
      sequencing or co-occurrence only, NOT causation. A temporal link alone does NOT satisfy any
      causal signal and must be treated as **norel** unless at least one independent non-temporal
      signal is also present.
-
-  8. **Causal Symmetry:** Every "A causes B" must always be paired with "B causedby A", and vice
-     versa. There are no exceptions. If you cannot justify the symmetric entry, reconsider the
-     relation.
 
   Before producing the final JSON, reason through the following steps IN ORDER:
 
@@ -63,11 +59,11 @@ system: |
   Step 2 — Arguments for and against.
   For each retained pair from Step 1, present:
   - **For**: signals supporting a causal link (explicit connective, spelled-out
-    mechanism, counterfactual asymmetry, discourse structure encoding causality,
+    mechanism, counterfactual support, discourse structure encoding causality,
     enablement/prevention pattern).
   - **Against**: disqualifying factors (temporal-only link, confounder or proximal
-    cause, reporting/attribution verb, negation/contrast connective, direction
-    ambiguity, etc.).
+    cause, reporting/attribution verb, negation/contrast connective, insufficient
+    signals for non-overt link, etc.).
 
   Step 3 — Order by causal plausibility, then output JSON.
   Rank the retained pairs from strongest to weakest causal evidence (qualitative
@@ -78,9 +74,9 @@ system: |
   # Output Format
   - Use the eiid from each <ID text> tag as the identifier.
   - Follow the provided JSON structure exactly.
-  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Use only the approved label strings: "CAUSAL", "norel".
   - Every listed pair must appear exactly once in the JSON.
-  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+  - Pair order does not matter: ei3,ei7 and ei7,ei3 are equivalent — list each unordered pair only once.
 
   If there are no pairs to classify, return an empty array [].
 
@@ -95,21 +91,19 @@ user_template: |
   Only classify pairs within the same sentence.
 
   Rules:
-  - Labels: "causes" | "causedby" | "norel".
+  - Labels: "CAUSAL" | "norel". Direction does not matter — each unordered pair appears exactly once.
   - Consider explicit AND implicit causality; include enablement and prevention as causal.
   - Mention IDs come from the <ID text> tags in the text (e.g. <ei3 acquired> → ID is "ei3").
   - Every listed pair must appear exactly once in your JSON.
   - Return ONLY a JSON array like:
   [
-    {{"pair":"ei3,ei7","label":"causes"}},
-    {{"pair":"ei7,ei3","label":"causedby"}},
+    {{"pair":"ei3,ei7","label":"CAUSAL"}},
     {{"pair":"ei2,ei3","label":"norel"}}
   ]
 
   Coherence Rules:
-  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
   - Completeness: Every pair listed below must appear exactly once in your output.
-  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "CAUSAL".
 
   Text:
   {doc_text}
