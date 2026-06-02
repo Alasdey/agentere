@@ -139,8 +139,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     user_prompt = _build_user_prompt(doc["pair_list_ids"])
 
-    kfold_cfg = config["experiment"]["kfold"]
-    n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
+    active_ds = config["active_dataset"]
+    kfold_cfg = config["datasets"][active_ds]["kfold"]
+    n_folds = kfold_cfg["n_folds"] if kfold_cfg.get("enabled") else 1
     fold = doc["doc_idx"] % n_folds if n_folds > 1 else -1
 
     async with doc_context(
@@ -253,8 +254,8 @@ async def run_docs_concurrent(docs: List[Dict], config: Dict, graph_ainvoke, lab
         async with semaphore:
             result = await process_document_resampled(doc, config, graph_ainvoke)
         completed += 1
-        kfold_cfg_ = config["experiment"]["kfold"]
-        n_folds = kfold_cfg_["n_folds"] if kfold_cfg_["enabled"] else 1
+        kfold_cfg_ = config["datasets"][config["active_dataset"]]["kfold"]
+        n_folds = kfold_cfg_["n_folds"] if kfold_cfg_.get("enabled") else 1
         fold_label = f"[fold {doc['doc_idx'] % n_folds + 1}/{n_folds}] " if n_folds > 1 else ""
         prefix = f"[{label}] " if label else ""
         print(f"{fold_label}{prefix}[{completed}/{total}] Processed doc {doc['id']}", flush=True)
@@ -299,7 +300,7 @@ async def main(config=None):
         enable_tools=config["experiment"]["enable_tools"]
     )
 
-    kfold_cfg = config["experiment"].get("kfold", {})
+    kfold_cfg = config["datasets"][active_ds_key]["kfold"]
     if kfold_cfg.get("enabled", False):
         await _run_kfold(config, ds_config, active_labels, graph_ainvoke, kfold_cfg, git_state=git_state)
     else:
@@ -339,8 +340,8 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
 
     docs = list(dataset_iter)
 
-    fs_cfg = config.get("few_shot", {})
-    if fs_cfg.get("enabled") and fs_cfg.get("cot_generation", {}).get("enabled"):
+    fs_cfg = config["few_shot"]
+    if fs_cfg["enabled"] and fs_cfg["cot_generation"]["enabled"]:
         prompt_cfg = config["prompt"]
         await pregenerate_cot(
             test_docs=docs,
@@ -348,7 +349,7 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             active_ds=config["active_dataset"],
             system_prompt=prompt_cfg["system"],
             graph_ainvoke=graph_ainvoke,
-            concurrency=config["experiment"].get("concurrency", 10),
+            concurrency=config["experiment"]["concurrency"],
             cache_path=fs_cfg["cot_generation"].get("cache_path"),
         )
 

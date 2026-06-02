@@ -25,12 +25,14 @@ model:
   # default_model_id: "deepseek/deepseek-r1-distill-qwen-32b"
   # default_model_id: "deepseek/deepseek-v3.2:nitro"
   # default_model_id: "deepseek/deepseek-v3.2"
-  default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
+  # default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
+  # default_model_id: "qwen/qwen3-next-80b-a3b-thinking"
   # default_model_id: "qwen/qwen3-32b:nitro"
   # default_model_id: "nvidia/nemotron-3-super-120b-a12b"
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
-  # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
+  # default_model_id: "microsoft/phi-4-mini-instruct"
+  default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
   # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "inception/mercury-2:nitro"
   # default_model_id: "openai/gpt-oss-120b:nitro"
@@ -63,7 +65,6 @@ data:
     - "norel"
 
 
-
 experiment:
   tracing: "false"
   # tracing_name: "DeepseekV32_meci_714_test_coh_count_resamp"
@@ -88,11 +89,6 @@ experiment:
     enabled: false
     n_runs: 3         # Votes per document
     tie_breaking: "norel"
-  kfold:
-    enabled: false
-    # n_folds: 10        # fold = doc_idx % n_folds (deterministic, no shuffle)
-    # n_folds: 5         # fold = doc_idx % n_folds (deterministic, no shuffle)
-    n_folds: 2         # dev only
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -102,13 +98,13 @@ few_shot:
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
   pool_size: 3         # max training docs to load (null = full split); limits CoT generation cost
-  systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
+  systematic: false      # true: auto-inject before LLM call; false: agent calls the tool
   selection: "random"   
-                        # "random"     — resample every call for variance
-                        # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
-                        # "mentions"   — Jaccard similarity on event mention text sets
-                        # "bert"       — cosine similarity on sentence-transformer embeddings
-                        # "smallest"   — Gets the doc with the smallest non negative pair_list (mostly for debuging)
+    # "random"     — resample every call for variance
+    # "similarit y" — TF-IDF cosine against the current doc text (sklearn required)
+    # "mentions"   — Jaccard similarity on event mention text sets
+    # "bert"       — cosine similarity on sentence-transformer embeddings
+    # "smallest"   — Gets the doc with the smallest non negative pair_list (mostly for debuging)
   # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
@@ -156,6 +152,9 @@ datasets:
     # prompt: "maven_ere_enc_inc"
     rule_set: "maven-ere"
     constrain_to_pair_list: false  # no pair_list column — open-ended task
+    kfold:
+      enabled: false
+      n_folds: -1
     # max_examples: 710
     max_examples: 50
     # max_examples: 5
@@ -169,6 +168,9 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     constrain_to_pair_list: true  # show only annotated subset; set false to test free-form prompting
+    kfold:
+      enabled: false
+      n_folds: -1
     # prompt: "meci_orig_conv_eci"
     # prompt: "meci_orig_conv_bin"
     # prompt: "meci_orig"
@@ -179,10 +181,10 @@ datasets:
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 716
-    # max_examples: 50
+    max_examples: 50
     # max_examples: 10
     # max_examples: 5
-    max_examples: 1
+    # max_examples: 1
 
 
   causal_timebank:
@@ -193,9 +195,13 @@ datasets:
     ann_field: "annots"
     rule_set: "meci"
     constrain_to_pair_list: false  # intra-sentence pairs only; set false to expose all pairs
+    kfold:
+      enabled: true
+      n_folds: 10
     # prompt: "meci_orig"
     # prompt: "causal_timebank_sort"
-    prompt: "causal_timebank_standard_eci"
+    # prompt: "causal_timebank_standard_eci"
+    prompt: "causal_timebank_standard_eci_norule"
     # prompt: "meci_sort"
     # max_examples: 183
     max_examples: 50
@@ -210,6 +216,9 @@ datasets:
     ann_field: "annots"
     rule_set: "esl"
     constrain_to_pair_list: false  # no pair_list column — open-ended task
+    kfold:
+      enabled: true
+      n_folds: 5
     prompt: "esl_standard_eci"
     # prompt: "event_story_line_binary_cot"
     # prompt: "event_story_line_binary"
