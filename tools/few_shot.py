@@ -189,11 +189,11 @@ async def get_few_shot_message_pairs(
     if _TRAIN_CACHE is None:
         _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
 
-    n = _CFG.get("few_shot", {}).get("n_examples", 3)
+    n = _CFG["few_shot"]["n_examples"]
     docs = _select_examples(_TRAIN_CACHE, n)
 
     cot_enabled = (
-        _CFG.get("few_shot", {}).get("cot_generation", {}).get("enabled", False)
+        _CFG["few_shot"]["cot_generation"]["enabled"]
         and graph_ainvoke is not None
         and system_prompt
     )
@@ -231,7 +231,8 @@ def _select_examples(docs: list, n: int) -> list:
     # Exclude same-fold docs when running k-fold CV.
     # Keep track of original indices so similarity matrices can be sliced correctly.
     current_fold = CURRENT_DOC_FOLD.get()
-    n_folds = _CFG["experiment"]["kfold"]["n_folds"]
+    active_ds = _CFG["active_dataset"]
+    n_folds = _CFG["datasets"][active_ds]["kfold"]["n_folds"]
     if current_fold >= 0 and n_folds > 1:
         filtered = [(i, d) for i, d in enumerate(docs) if d["doc_idx"] % n_folds != current_fold]
         orig_indices, docs = zip(*filtered) if filtered else ([], [])
@@ -322,7 +323,8 @@ async def pregenerate_cot(
         _load_cot_disk_cache(cache_path)
 
     n = _CFG["few_shot"]["n_examples"]
-    kfold_cfg = _CFG["experiment"]["kfold"]
+    active_ds = _CFG["active_dataset"]
+    kfold_cfg = _CFG["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
 
     # Scan all test docs to collect the unique training docs that will be used as few-shots.
