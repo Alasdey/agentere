@@ -73,11 +73,6 @@ user_template: |
     {{"pair":"ei2,ei3","label":"norel"}}
   ]
 
-  Coherence Rules:
-  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
-  - Omission: Any pair you leave out is treated as norel.
-  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
-
   Text:
   {doc_text}
 
