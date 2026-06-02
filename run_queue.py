@@ -55,6 +55,7 @@ def main_sync():
         overrides = entry.get("overrides", {})
         print(f"{'='*60}")
         print(f"[{i}/{len(experiments)}] Starting: {name}")
+        print(yaml.dump(overrides, default_flow_style=False).rstrip())
         print(f"{'='*60}")
 
         try:

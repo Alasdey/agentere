@@ -1,47 +1,33 @@
 # queue.yaml
 # Each entry is a set of overrides deep-merged on top of config.yaml.
 # Only keys that differ from config.yaml need to appear.
+# active_dataset: "maven_ere"
+# active_dataset: "event_story_line"
+# active_dataset: "meci"
+# active_dataset: "causal_timebank"
 
 experiments:
+  #  - name: "1"
+  #    overrides:
+  #      active_dataset: "maven_ere"
+  #      datasets:
+  #        binary_undirected: true
+  #        maven_ere:
+  #          prompt: "maven_ere_standard_eci"
+  #     few_shot:
+  #       enabled: false
+  #       systematic: false
 
-  - name: "qwen-meci-full"
+  - name: "a"
     overrides:
-      model:
-        default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
       active_dataset: "meci"
       experiment:
-        tracing_name: "qwen-meci-full"
         resampling:
           enabled: true
-          n_runs: 3
-      datasets:
-        meci:
-          max_examples: 716
 
-  - name: "deepseek-maven-full"
+  - name: "b"
     overrides:
-      model:
-        default_model_id: "deepseek/deepseek-v3.2"
-      active_dataset: "maven_ere"
-      experiment:
-        tracing_name: "deepseek-maven-full"
-        resampling:
-          enabled: true
-          n_runs: 3
-      datasets:
-        maven_ere:
-          max_examples: 710
+      active_dataset: "meci"
 
-  - name: "qwen-esl-full"
-    overrides:
-      model:
-        default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
-      active_dataset: "event_story_line"
-      experiment:
-        tracing_name: "qwen-esl-full"
-        resampling:
-          enabled: true
-          n_runs: 3
-      datasets:
-        event_story_line:
-          max_examples: 233
+# run_2026-06-01T10-11-56.379397Z_1191c5c3  
+# run_2026-06-01T15-31-57.487201Z_97141b39
