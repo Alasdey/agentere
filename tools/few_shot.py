@@ -11,9 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import random
-import yaml
 from pathlib import Path
 from typing import FrozenSet, Optional
 
@@ -25,11 +23,7 @@ from utils.formatting import format_pair_lines, format_gold_output
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 import utils.trace_dump as trace_dump
 
-# ── Module-level config ───────────────────────────────────────────────────────
-
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
-with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
-    _CFG = yaml.safe_load(_f)
+from utils.runtime_config import get_cfg, register_reset
 
 # ── Lazy caches ───────────────────────────────────────────────────────────────
 
@@ -40,6 +34,21 @@ _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRA
 _BERT_MODEL = None
 _BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
 _COT_CACHE: dict = {}  # doc_id -> generated CoT string
+
+
+def _reset_caches() -> None:
+    global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
+    global _BERT_MODEL, _BERT_EMBEDDINGS, _COT_CACHE
+    _TRAIN_CACHE = None
+    _TFIDF_VECTORIZER = None
+    _TFIDF_MATRIX = None
+    _MENTION_SETS = None
+    _BERT_MODEL = None
+    _BERT_EMBEDDINGS = None
+    _COT_CACHE = {}
+
+
+register_reset(_reset_caches)
 
 _COT_STEP1_PROMPT = (
     "The correct label assignments for this document are:\n\n{gold_json}\n\n"
@@ -70,14 +79,15 @@ def preload() -> None:
 def _load_train_split() -> list:
     global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS
 
-    fs_cfg = _CFG.get("few_shot", {})
-    active_ds = _CFG["active_dataset"]
-    ds_cfg = _CFG["datasets"][active_ds]
+    cfg = get_cfg()
+    fs_cfg = cfg.get("few_shot", {})
+    active_ds = cfg["active_dataset"]
+    ds_cfg = cfg["datasets"][active_ds]
 
     split = fs_cfg.get("split", "train")
     repo_id = fs_cfg.get("repo_id") or ds_cfg["repo_id"]
 
-    data_cfg = _CFG["data"]
+    data_cfg = cfg["data"]
     docs = list(load_hf_dataset_parsed(
         repo_id=repo_id,
         split=split,
@@ -123,9 +133,10 @@ def _load_train_split() -> list:
 
 
 def _format_examples(docs: list) -> str:
-    active_ds = _CFG["active_dataset"]
-    binary_undirected = _CFG["data"]["binary_undirected"]
-    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
+    cfg = get_cfg()
+    active_ds = cfg["active_dataset"]
+    binary_undirected = cfg["data"]["binary_undirected"]
+    constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
     parts = []
     for i, doc in enumerate(docs, 1):
         pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
@@ -189,17 +200,18 @@ async def get_few_shot_message_pairs(
     if _TRAIN_CACHE is None:
         _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
 
-    n = _CFG["few_shot"]["n_examples"]
+    cfg = get_cfg()
+    n = cfg["few_shot"]["n_examples"]
     docs = _select_examples(_TRAIN_CACHE, n)
 
     cot_enabled = (
-        _CFG["few_shot"]["cot_generation"]["enabled"]
+        cfg["few_shot"]["cot_generation"]["enabled"]
         and graph_ainvoke is not None
         and system_prompt
     )
 
-    binary_undirected = _CFG["data"]["binary_undirected"]
-    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
+    binary_undirected = cfg["data"]["binary_undirected"]
+    constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
     pairs = []
     for doc in docs:
         pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
@@ -225,14 +237,15 @@ def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
 
 
 def _select_examples(docs: list, n: int) -> list:
-    fs_cfg = _CFG.get("few_shot", {})
+    cfg = get_cfg()
+    fs_cfg = cfg.get("few_shot", {})
     selection = fs_cfg.get("selection")
 
     # Exclude same-fold docs when running k-fold CV.
     # Keep track of original indices so similarity matrices can be sliced correctly.
     current_fold = CURRENT_DOC_FOLD.get()
-    active_ds = _CFG["active_dataset"]
-    n_folds = _CFG["datasets"][active_ds]["kfold"]["n_folds"]
+    active_ds = cfg["active_dataset"]
+    n_folds = cfg["datasets"][active_ds]["kfold"]["n_folds"]
     if current_fold >= 0 and n_folds > 1:
         filtered = [(i, d) for i, d in enumerate(docs) if d["doc_idx"] % n_folds != current_fold]
         orig_indices, docs = zip(*filtered) if filtered else ([], [])
@@ -322,9 +335,10 @@ async def pregenerate_cot(
     if cache_path:
         _load_cot_disk_cache(cache_path)
 
-    n = _CFG["few_shot"]["n_examples"]
-    active_ds = _CFG["active_dataset"]
-    kfold_cfg = _CFG["datasets"][active_ds]["kfold"]
+    cfg = get_cfg()
+    n = cfg["few_shot"]["n_examples"]
+    active_ds = cfg["active_dataset"]
+    kfold_cfg = cfg["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
 
     # Scan all test docs to collect the unique training docs that will be used as few-shots.
@@ -345,8 +359,8 @@ async def pregenerate_cot(
     print(f"[few_shot] Pre-generating CoT for {len(needed)} unique few-shot docs...")
     sem = asyncio.Semaphore(concurrency)
 
-    binary_undirected = _CFG["data"]["binary_undirected"]
-    constrain_to_pair_list = _CFG["datasets"][active_ds]["constrain_to_pair_list"]
+    binary_undirected = cfg["data"]["binary_undirected"]
+    constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
 
     async def _gen(doc):
         async with sem:
@@ -378,6 +392,6 @@ async def few_shot_examples(comment: str = "") -> str:
     if _TRAIN_CACHE is None:
         _TRAIN_CACHE = await asyncio.to_thread(_load_train_split)
 
-    n = _CFG.get("few_shot", {}).get("n_examples", 3)
+    n = get_cfg().get("few_shot", {}).get("n_examples", 3)
     sample = _select_examples(_TRAIN_CACHE, n)
     return _format_examples(sample)

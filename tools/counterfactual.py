@@ -4,7 +4,6 @@ from __future__ import annotations
 import os
 import json
 import re
-import yaml
 from functools import lru_cache
 from typing import Optional
 
@@ -12,24 +11,24 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from utils.runtime_config import get_cfg, register_reset
+
 # =============================================================================
 # UTILS & CONFIG
 # =============================================================================
 
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
-with open(_CONFIG_PATH, "r", encoding="utf-8") as _f:
-    _CFG = yaml.safe_load(_f)
-
-
 @lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
-    model_cfg = _CFG.get("model", {})
+    model_cfg = get_cfg().get("model", {})
     return ChatOpenAI(
         model=model_cfg.get("default_model_id"),
         temperature=0.0,
         api_key=os.environ.get("OPENROUTER_API_KEY"),
         base_url=model_cfg.get("base_url", "https://openrouter.ai/api/v1"),
     )
+
+
+register_reset(_make_llm.cache_clear)
 
 # =============================================================================
 # TOOL

@@ -18,16 +18,44 @@ experiments:
   #       enabled: false
   #       systematic: false
 
-  - name: "a"
+  - name: "f"
     overrides:
       active_dataset: "meci"
       experiment:
         resampling:
-          enabled: true
+          enabled: false
+          n_runs: 3
+      few_shot:
+        pool_size: 300
+        cot_generation:
+          enabled: false  
+      dataset:
+        binary_undirected: true
 
-  - name: "b"
+  - name: "g"
     overrides:
       active_dataset: "meci"
+      experiment:
+        resampling:
+          enabled: false
+          n_runs: 3
+      few_shot:
+        pool_size: 300
+        cot_generation:
+          enabled: false  
+      dataset:
+        binary_undirected: true
 
-# run_2026-06-01T10-11-56.379397Z_1191c5c3  
-# run_2026-06-01T15-31-57.487201Z_97141b39
+  # - name: "h"
+  #   overrides:
+  #     active_dataset: "meci"
+  #     experiment:
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #     few_shot:
+  #       pool_size: 300
+  #       cot_generation:
+  #         enabled: false  
+  #     dataset:
+  #       binary_undirected: true

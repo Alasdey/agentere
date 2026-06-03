@@ -1,20 +1,10 @@
 # tools/coherence.py
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple, Optional
-import os
-import yaml
 
 from langchain_core.tools import tool
 
-# =============================================================================
-# CONFIG LOADER
-# =============================================================================
-
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
-if not os.path.exists(_CONFIG_PATH):
-    raise FileNotFoundError(f"Configuration file not found at {_CONFIG_PATH}")
-with open(_CONFIG_PATH, "r") as _f:
-    _CFG = yaml.safe_load(_f)
+from utils.runtime_config import get_cfg, register_reset
 
 
 @lru_cache(maxsize=1)
@@ -23,7 +13,7 @@ def get_active_rules() -> tuple:
     Loads the rules specifically for the active dataset defined in config.yaml.
     This enforces hard-set configuration per dataset without exposing choices to the LLM.
     """
-    config = _CFG
+    config = get_cfg()
 
     # 1. Identify the active dataset key
     active_key = config.get("active_dataset")
@@ -53,6 +43,9 @@ def get_active_rules() -> tuple:
             raise ValueError(f"Rule set '{rule_set_name}' defined for dataset '{active_key}' not found in config.")
 
     return tuple(rules)
+
+
+register_reset(get_active_rules.cache_clear)
 
 # =============================================================================
 # TOOL

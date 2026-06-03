@@ -13,10 +13,10 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-import yaml
 from langchain_core.tools import tool
 
 from utils.context import CURRENT_DOC_ID
+from utils.runtime_config import get_cfg, register_reset
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODULE-LEVEL CACHE  (loaded once, reused across all calls)
@@ -25,9 +25,12 @@ from utils.context import CURRENT_DOC_ID
 _CACHE: Optional[Dict[str, Any]] = None
 
 
-_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "../config.yaml")
-with open(_CONFIG_PATH, "r") as _f:
-    _CFG = yaml.safe_load(_f)
+def _reset_cache() -> None:
+    global _CACHE
+    _CACHE = None
+
+
+register_reset(_reset_cache)
 
 
 def _load_predictions() -> Dict[str, Any]:
@@ -35,7 +38,7 @@ def _load_predictions() -> Dict[str, Any]:
     if _CACHE is not None:
         return _CACHE
 
-    config = _CFG
+    config = get_cfg()
     pred_path = config.get("encoder", {}).get("path", "")
 
     if not pred_path or not os.path.isfile(pred_path):
@@ -219,8 +222,7 @@ async def encoder(comment: str="") -> str:
     total_before_filter = len(doc_data)
 
     # ── Apply NoRel filter ──────────────────────────────────────────────
-    config = _CFG
-    filter_cfg = config.get("encoder", {}).get("filter_norel", {})
+    filter_cfg = get_cfg().get("encoder", {}).get("filter_norel", {})
     doc_data = _filter_norel(doc_data, label_list, threshold, filter_cfg)
 
     summary = _format_predictions(

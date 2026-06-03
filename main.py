@@ -16,6 +16,7 @@ from model.model import build_chat_graph
 from tools import get_enabled_tools
 from tools.few_shot import preload as few_shot_preload, get_few_shot_message_pairs, pregenerate_cot
 from utils.config import load_config
+from utils.runtime_config import set_cfg
 from utils.context import CURRENT_DOC_ID, doc_context
 from utils.formatting import format_pair_lines
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
@@ -268,6 +269,8 @@ async def main(config=None):
     # 1. Load Config
     if config is None:
         config = load_config()
+
+    set_cfg(config)
 
     os.environ["LANGCHAIN_TRACING_V2"] = config["experiment"]["tracing"]
     os.environ["LANGCHAIN_PROJECT"] = config["experiment"]["tracing_name"]
