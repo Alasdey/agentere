@@ -55,8 +55,8 @@ system: |
   IMPORTANT :
   No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
 
-  DOUBLY IMPORTANT:
-  IF the pair a, b is not in the pair_list, then: b norel a. Always no matter what.
+  TRIPLY IMPORTANT:
+  NEVER in ANY step treat 'all other mentions' or 'all other pairs' at once. Always go through all the mentions, or pairs explicitly. Never bag them, that diminishes the performances.
 
 user_template: |
 
@@ -86,3 +86,6 @@ user_template: |
 
   IMPORTANT :
   No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+
+  TRIPLY IMPORTANT:
+  NEVER in ANY step treat 'all other mentions' or 'all other pairs' at once. Always go through all the mentions, or pairs explicitly. Never bag them, that diminishes the performances.
