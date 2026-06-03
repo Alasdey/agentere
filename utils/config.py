@@ -6,12 +6,18 @@ from typing import Any, Dict
 import yaml
 
 
-def deep_merge(base: Dict, overrides: Dict) -> Dict:
-    """Recursively merge overrides into base, returning a new dict."""
+def deep_merge(base: Dict, overrides: Dict, _path: str = "") -> Dict:
+    """Recursively merge overrides into base, returning a new dict.
+
+    Raises KeyError if any override key does not already exist in base.
+    """
     result = dict(base)
     for k, v in overrides.items():
-        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-            result[k] = deep_merge(result[k], v)
+        full_key = f"{_path}.{k}" if _path else k
+        if k not in result:
+            raise KeyError(f"Override key '{full_key}' does not exist in config.yaml")
+        if isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = deep_merge(result[k], v, full_key)
         else:
             result[k] = v
     return result
