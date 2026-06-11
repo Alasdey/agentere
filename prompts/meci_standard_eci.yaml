@@ -43,8 +43,18 @@ system: |
   - **For**: signals supporting a causal link (explicit connective, spelled-out mechanism, counterfactual asymmetry, discourse structure encoding causality, enablement/prevention pattern).
   - **Against**: disqualifying factors (temporal-only link, distance gate not met, confounder or proximal cause, reporting/attribution verb, negation/contrast connective, direction ambiguity, etc.).
 
-  Step 3 — Order by causal plausibility, then output JSON.
-  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Apply the Precision-First Rules to assign a label to each. Then output the final JSON array for ALL requested pairs (pairs discarded in Step 1 receive "norel").
+  Step 3 — Order by causal plausibility.
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Do not attempt any tentative label, only justify the rank of each pair, do not presume to know whether a pair is causal or not that will only be a later discussion. List them in order, strongest first.
+  Do NOT output the final JSON yet — that comes in the next step.
+
+  Step 4 — Output the final JSON array.
+  Using your ranking and labels from Step 3, output the final JSON array for ALL requested pairs. Pairs discarded in Step 1 receive "norel".
+
+  Return ONLY a JSON array like:
+  [
+    {{"pair":"T0,T1","label":"causes"}}
+  ]
+  Ensure EVERY requested pair appears exactly once in your final JSON (any order).
 
   # Output Format
   - Follow the provided JSON structure exactly.
