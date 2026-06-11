@@ -51,8 +51,8 @@ model:
 # =============================================================================
 mlflow:
   enabled: true
-  tracking_uri: "mlruns"
-  # tracking_uri: "sqlite:///mlflow.db"
+  # tracking_uri: "mlruns"
+  tracking_uri: "sqlite:///mlflow.db"
   experiment_name: "agentere"
 
 data:
@@ -76,7 +76,7 @@ experiment:
   # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
   enable_tools: false
   tools:
-    - "coherence"
+    - "coherence" 
     - "counterfactual_check"
     # - "encoder"
     # - "bare_causes"
