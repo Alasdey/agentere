@@ -50,21 +50,25 @@ def _reset_caches() -> None:
 
 register_reset(_reset_caches)
 
-_COT_STEP1_PROMPT = (
+_COT_GOLD_HINT = (
     "The correct label assignments for this document are:\n\n{gold_json}\n\n"
-    "Write a complete response exactly as the system prompt requires — all steps followed by "
-    "the final JSON — as if you reasoned your way to these labels from the text alone. "
-    "Your reasoning must lead naturally to each label. "
-    "Do not mention or imply that you already know the answer."
+    "Write your response for this step exactly as required — reasoning that leads naturally "
+    "to these labels from the text alone. Do not mention or imply that you already know the answer."
 )
 
-_COT_STEP2_PROMPT = (
+_COT_GOLD_HINT_CONTINUE = (
+    "Continue. The correct labels are still:\n\n{gold_json}\n\n"
+    "Write your response for this step, consistent with the gold labels and your prior reasoning. "
+    "Do not reveal foreknowledge."
+)
+
+_COT_DECONTAM_PROMPT = (
     "Rewrite your response from scratch to remove all privileged knowledge. "
     "Replace any phrasing that reveals foreknowledge "
     "(e.g. \"we see in the JSON that X is NoRel\", \"the answer shows\", "
     "\"as indicated by the labels\", \"we know that\", \"the expected output\") "
     "with genuine reasoning grounded in the text and rules. "
-    "Every sentence in every step should read as if you discovered the label through analysis, "
+    "Every sentence should read as if you discovered the label through analysis, "
     "not confirmed it from a pre-known answer. Output only the rewritten response, nothing else."
 )
 
@@ -156,45 +160,97 @@ async def _generate_cot_for_doc(
     user_content: str,
     gold_output: str,
     graph_ainvoke,
-) -> str:
-    """Two-step LLM generation: produce a realistic CoT+answer using the gold labels, then
-    rewrite to strip any privileged-knowledge phrasing so the result looks like genuine reasoning."""
+    steps: list = None,
+) -> list:
+    """Generate a realistic CoT for each inference step using gold labels, then decontaminate.
+
+    Returns a list of clean AI responses — one per inference step (length 1 for single-call mode,
+    length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE[doc_id].
+    """
     doc_id = doc.get("id", "")
     if doc_id in _COT_CACHE:
         return _COT_CACHE[doc_id]
 
-    step1_messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content),
-        HumanMessage(content=_COT_STEP1_PROMPT.format(gold_json=gold_output)),
-    ]
-    state1 = await graph_ainvoke(step1_messages)
-    trace_dump.trace_dump(state1)
-    ai_step1 = state1["messages"][-1].content
+    gold_hint = _COT_GOLD_HINT.format(gold_json=gold_output)
+    gold_hint_cont = _COT_GOLD_HINT_CONTINUE.format(gold_json=gold_output)
 
-    step2_messages = step1_messages + [
-        AIMessage(content=ai_step1),
-        HumanMessage(content=_COT_STEP2_PROMPT),
-    ]
-    state2 = await graph_ainvoke(step2_messages)
-    trace_dump.trace_dump(state2)
-    ai_step2 = state2["messages"][-1].content
+    if not steps:
+        # ── Single-call mode ──────────────────────────────────────────────────
+        gen_messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_content),
+            HumanMessage(content=gold_hint),
+        ]
+        state = await graph_ainvoke(gen_messages)
+        trace_dump.trace_dump(state)
+        raw = state["messages"][-1].content
 
-    _COT_CACHE[doc_id] = ai_step2
-    return ai_step2
+        decontam_messages = gen_messages + [
+            AIMessage(content=raw),
+            HumanMessage(content=_COT_DECONTAM_PROMPT),
+        ]
+        state2 = await graph_ainvoke(decontam_messages)
+        trace_dump.trace_dump(state2)
+        clean = [state2["messages"][-1].content]
+    else:
+        # ── Multi-step mode ───────────────────────────────────────────────────
+        # Build guided generation conversation step by step, then decontaminate each.
+        # Conversation grows: [Sys, Human(user), Human(gold_hint)] → AI(step0_raw)
+        #   → Human(step1.prompt), Human(gold_hint_cont) → AI(step1_raw) → ...
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_content),
+            HumanMessage(content=gold_hint),
+        ]
+        raw_responses = []
+
+        # First step response (user_content already incorporates step 1 instruction)
+        state = await graph_ainvoke(messages)
+        trace_dump.trace_dump(state)
+        raw_responses.append(state["messages"][-1].content)
+        messages.append(AIMessage(content=raw_responses[-1]))
+
+        for step in steps:
+            messages.append(HumanMessage(content=step["prompt"]))
+            messages.append(HumanMessage(content=gold_hint_cont))
+            state = await graph_ainvoke(messages)
+            trace_dump.trace_dump(state)
+            raw_responses.append(state["messages"][-1].content)
+            messages.append(AIMessage(content=raw_responses[-1]))
+
+        # Decontaminate each raw response independently
+        clean = []
+        for raw in raw_responses:
+            decontam_messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=raw),
+                HumanMessage(content=_COT_DECONTAM_PROMPT),
+            ]
+            state = await graph_ainvoke(decontam_messages)
+            trace_dump.trace_dump(state)
+            clean.append(state["messages"][-1].content)
+
+    _COT_CACHE[doc_id] = clean
+    return clean
 
 
 async def get_few_shot_message_pairs(
     user_template: str,
     active_ds: str,
+    steps: list = None,
     system_prompt: str = "",
     graph_ainvoke=None,
 ) -> list:
-    """Returns [(human_content, ai_content), ...] for conversation-based few-shot injection.
+    """Returns a list of few-shot examples for conversation-based injection.
 
-    When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, the ai_content
-    is generated via two LLM calls that produce a realistic CoT+answer from the gold labels,
-    then rewrite it to remove any privileged-knowledge phrasing.
+    Return type: List[List[Tuple[str, str]]]
+      Outer list: one entry per few-shot example.
+      Inner list: (human, ai) exchange pairs for that example.
+        - Single-call mode (no steps): one (human, ai) pair per example.
+        - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
+
+    When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, AI content is
+    generated via guided generation from gold labels then decontaminated.
     """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
@@ -212,7 +268,7 @@ async def get_few_shot_message_pairs(
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
-    pairs = []
+    all_examples = []
     for doc in docs:
         pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
         human_content = user_template.format(
@@ -221,14 +277,28 @@ async def get_few_shot_message_pairs(
             doc_id=doc.get("id", ""),
         )
         gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
+
         if cot_enabled:
-            ai_content = await _generate_cot_for_doc(
-                doc, system_prompt, human_content, gold_output, graph_ainvoke
+            # Returns List[str]: one clean response per step (len=1 for single-call)
+            cot_responses = await _generate_cot_for_doc(
+                doc, system_prompt, human_content, gold_output, graph_ainvoke, steps=steps
             )
         else:
-            ai_content = gold_output
-        pairs.append((human_content, ai_content))
-    return pairs
+            # No CoT: first step gets gold output, continuation steps get empty string
+            n_steps = len(steps) + 1 if steps else 1
+            cot_responses = [gold_output] + [""] * (n_steps - 1)
+
+        if not steps:
+            # Single-call: one (human, ai) pair
+            example_exchanges = [(human_content, cot_responses[0])]
+        else:
+            # Multi-step: step 0 uses user_content, then continuation prompts for steps[1:]
+            example_exchanges = [(human_content, cot_responses[0])]
+            for step, ai_resp in zip(steps, cot_responses[1:]):
+                example_exchanges.append((step["prompt"], ai_resp))
+
+        all_examples.append(example_exchanges)
+    return all_examples
 
 
 def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
@@ -321,6 +391,7 @@ async def pregenerate_cot(
     graph_ainvoke,
     concurrency: int = 10,
     cache_path: Optional[str] = None,
+    steps: list = None,
 ) -> None:
     """Generate CoT for every unique few-shot training doc needed across all test_docs.
 
@@ -371,7 +442,7 @@ async def pregenerate_cot(
                 doc_id=doc.get("id", ""),
             )
             gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
-            await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke)
+            await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke, steps=steps)
 
     await asyncio.gather(*[_gen(doc) for doc in needed.values()])
     print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}")
