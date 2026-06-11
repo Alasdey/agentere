@@ -12,6 +12,7 @@ dependencies = [
     "mlflow>=3.11.1",
     "openpyxl>=3.1.5",
     "sentence-transformers>=5.4.1",
+    "tabulate>=0.10.0",
     "torch>=2.0.0",
 ]
 
