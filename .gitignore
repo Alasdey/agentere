@@ -22,7 +22,8 @@ cot_cache
 cot_cache/*
 refs/*
 refs
-mlflow.db
+mlflow*.*db*
+temp_res.json
 
 
 # C extensions
