@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import mlflow
+import mlflow.utils.validation as _mlflow_val
+
+# Remove MLflow's built-in truncation limits so large trace/tag values are stored in full.
+_mlflow_val.MAX_TAG_VAL_LENGTH = 10_000_000
+_mlflow_val.MAX_TRACE_TAG_VAL_LENGTH = 10_000_000
+_mlflow_val.MAX_PARAM_VAL_LENGTH = 10_000_000
 
 from utils.logger import capture_git_state
 

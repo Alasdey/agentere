@@ -88,7 +88,7 @@ The primary evaluation field is `results.per_pair_predictions`: a list of `{doc_
 
 To visualize the traces:
 ```bash
-uv run mlflow server --host 0.0.0.0 --port 5000 --allowed-hosts jupyterhub.pagoda.liris.cnrs.fr --cors-allowed-origins https://jupyterhub.pagoda.liris.cnrs.fr
+uv run mlflow server --host 0.0.0.0 --allowed-hosts jupyterhub.pagoda.liris.cnrs.fr --cors-allowed-origins https://jupyterhub.pagoda.liris.cnrs.fr --backend-store-uri sqlite:///mlflow.db --port 5000
 ```
 
 ---
