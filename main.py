@@ -58,43 +58,63 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
 # CORE EXECUTION LOGIC
 # =============================================================================
 
-async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_pairs: list = None, reprompt_str: str = "") -> Dict[str, Any]:
-    """Executes a single pass and returns parsed triples + raw content."""
+async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, steps: list = None, few_shot_pairs: list = None, reprompt_str: str = "") -> Dict[str, Any]:
+    """Executes a single pass (or multi-step if steps provided) and returns parsed triples + raw content.
+
+    few_shot_pairs: List[List[Tuple[str, str]]] — one inner list per few-shot example,
+                    each containing (human, ai) exchange pairs for that example.
+    steps: list of {"id": ..., "prompt": ...} dicts from the prompt YAML.
+           When provided, each step is a separate API call that continues the conversation.
+    """
     messages = [SystemMessage(content=system_prompt)]
-    for human_content, ai_content in (few_shot_pairs or []):
-        messages.append(HumanMessage(content=human_content))
-        messages.append(AIMessage(content=ai_content))
+    for example_exchanges in (few_shot_pairs or []):
+        for human_content, ai_content in example_exchanges:
+            messages.append(HumanMessage(content=human_content))
+            messages.append(AIMessage(content=ai_content))
     messages.append(HumanMessage(content=user_prompt))
-    if reprompt_str:
-        call_id = uuid.uuid4().hex[:8]
-        messages.extend([
-            AIMessage(content="", tool_calls=[{"id": call_id, "name": "reprompt", "args": {}}]),
-            ToolMessage(content=reprompt_str, tool_call_id=call_id),
-        ])
-    state = await graph_ainvoke(messages)
+
+    step_responses = []
+    if steps:
+        # Multi-step: one API call per step continuation, then a final call for the last step
+        for step in steps:
+            state = await graph_ainvoke(messages)
+            trace_dump.trace_dump(state)
+            ai_resp = state["messages"][-1].content
+            step_responses.append(ai_resp)
+            messages.append(AIMessage(content=ai_resp))
+            messages.append(HumanMessage(content=step["prompt"]))
+        # Final call: responds to the last step prompt
+        state = await graph_ainvoke(messages)
+        trace_dump.trace_dump(state)
+    else:
+        if reprompt_str:
+            call_id = uuid.uuid4().hex[:8]
+            messages.extend([
+                AIMessage(content="", tool_calls=[{"id": call_id, "name": "reprompt", "args": {}}]),
+                ToolMessage(content=reprompt_str, tool_call_id=call_id),
+            ])
+        state = await graph_ainvoke(messages)
+        trace_dump.trace_dump(state)
+
     _trace_id = mlflow.get_last_active_trace_id()
 
-    trace_dump.trace_dump(state)
-
-    # The last message contains the final answer
     raw_content = state["messages"][-1].content
-
-    # helper for internal logic
     parsed_triples = parse_llm_json(state["messages"][-1])
 
     return {
         "triples": parsed_triples,
         "_trace_request_id": _trace_id,
-        "raw_response": raw_content
+        "raw_response": raw_content,
+        "step_responses": step_responses,
     }
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, steps: list = None, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
             return await asyncio.wait_for(
-                run_single_inference(graph_ainvoke, system_prompt, user_prompt, few_shot_pairs, reprompt_str),
+                run_single_inference(graph_ainvoke, system_prompt, user_prompt, steps, few_shot_pairs, reprompt_str),
                 timeout=timeout,
             )
         except (ValueError, asyncio.TimeoutError) as e:
@@ -115,6 +135,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
+    steps = prompt_cfg.get("steps") or None  # list of {id, prompt} or None for single-call
     active_ds = config["active_dataset"]
 
     data_cfg = config["data"]
@@ -159,6 +180,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             few_shot_pairs = await get_few_shot_message_pairs(
                 prompt_cfg["user_template"],
                 active_ds,
+                steps=steps,
                 system_prompt=system_prompt,
                 graph_ainvoke=graph_ainvoke,
             )
@@ -180,7 +202,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             return _build_user_prompt(ids)
 
         sampling_tasks = [
-            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
+            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, steps, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
             for _ in range(n_runs)
         ]
 
@@ -224,6 +246,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                     "system_prompt": system_prompt,
                     "user_prompt": user_prompt,
                     "raw_responses": [r["raw_response"] for r in runs_results],
+                    "step_responses": [r.get("step_responses", []) for r in runs_results],
                 },
             }
         except Exception as e:
@@ -350,6 +373,7 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             test_docs=docs,
             user_template=prompt_cfg["user_template"],
             active_ds=config["active_dataset"],
+            steps=prompt_cfg.get("steps") or None,
             system_prompt=prompt_cfg["system"],
             graph_ainvoke=graph_ainvoke,
             concurrency=config["experiment"]["concurrency"],
