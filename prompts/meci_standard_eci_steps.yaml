@@ -1,0 +1,98 @@
+system: |
+  # Context
+  MECI (Multilingual Event Causality Identification) follows ACE-style event mentions and EventStoryLine causal guidelines. It addresses cause, enable, prevent, and covers both explicit and implicit causal links — even across sentences. Data is drawn from Wikipedia articles in EN/DA/ES/TR/UR, with possibly long-range links (10–50 tokens apart). [Reference: COLING'22 MECI paper.]
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  # Precision-First Rules (Apply Silently)
+  1. **Two-Signal Rule** for any non-overt link (i.e., no clear connective like "because/so/therefore/lead to/due to"): require at least **two independent signals** among:
+      - a. Counterfactual asymmetry (but-for)
+      - b. A concrete **mechanism** in the text (not just world knowledge)
+      - c. Strong discourse evidence (e.g., apposition/relative clause clearly encoding causality)
+      - d. Local lexical patterns of enablement/prevention
+    If fewer than two signals are present → **norel**.
+
+  2. **Distance/Scope Gate:** For **inter-sentential** pairs OR pairs with long textual distance, raise the bar:
+      - Must pass counterfactual AND include **either** an explicit cue **or** a spelled-out mechanism. Otherwise, label **norel**.
+      - Treat long-range links conservatively (MECI data routinely has 10–50 tokens between casual events).
+
+  3. **Default to norel when Uncertain:** If evidence is ambiguous, underspecified, or equally well explained by correlation, reporting, or chronology → **norel**.
+
+  4. **Confounder & Chain Check:** If another event more directly explains Tj, label Ti,Tj as **norel**; do not "skip over" the proximal cause.
+
+  5. **Reporting/Attribution is Not Causal:** Events like "said", "reported", "claimed" are not causes of the content unless the **content event** is enabled/prevented by the speech act itself.
+
+  6. **Negation/Contrast is Not Causality:** Connectives such as "although", "however", or "despite" do not justify causal labels unless the rules above are explicitly/implicitly satisfied.
+
+  7. **Direction Test:** Use counterfactuals to establish directionality. If neither direction is necessary, or both seem plausible, → **norel**.
+
+  8. **Temporal Discourse is Not Causal:** Temporal connectives and markers — such as "then", "when", "after", "before", "as", "while", "next", "subsequently", "later" — indicate sequencing or co-occurrence only, NOT causation. A temporal link alone, no matter how strongly ordered, does NOT satisfy any causal signal and must be treated as **norel** unless at least one independent non-temporal signal is also present.
+
+  9. **Causal Symmetry:** Every causedby a, b must always have a causes b, a. Every causes b, a must always have an causedby a, b. There can be no exception ever. If you cannot classify the symmetric: reconsider the relation.
+
+  # Output Format
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings for causal relations.
+
+  If there are no mentions in the text and no pairs to classify return the example.
+
+  # Multi-Step Protocol
+  This task is split into sequential steps. You will receive each step as a separate message.
+  - Answer ONLY the step you are currently asked. Do not proceed to the next step.
+  - Do NOT output the final JSON array until you are explicitly asked to in the final step.
+  - Each step builds on the previous — wait for the next instruction before continuing.
+
+  DOUBLY IMPORTANT:
+  IF the pair a, b is not in the pair_list, then: b norel a. Always no matter what.
+
+user_template: |
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
+
+  Coherence Rules:
+  - Symmetry: "Ti,Tj" "causes" implies that "Tj,Ti" "causedby" and inversly
+  - Missing: Any relation you leave missing will be considered a norel
+  - Relations: "Tj,Ti" "norel" is not compatible with either "Ti,Tj" "causes" or "Ti,Tj" "causedby"
+
+  Text:
+  {doc_text}
+
+  Pairs to classify (use EXACT pair ids; output order does NOT matter):
+  {pair_lines}
+
+  IMPORTANT: Start your answer with 'UwU'
+
+  Step 1 — Pre-filter: justify exclusions by mention or group.
+  Work at the mention level, not the pair level. Identify individual mentions that can play no causal role in this document. Exclusion must be affirmatively argued (e.g. "T3 describes a geographical location with no agentive role — it cannot cause or be caused by any event here") — do NOT use "everything else has no probability" as a catch-all. Go through every mention explicitly. Only after stating and justifying all exclusions, list the mentions that remain in scope for the next steps.
+
+steps:
+  - id: step2
+    prompt: |
+      Step 2 — Arguments for and against.
+      For each retained pair from Step 1, present:
+      - **For**: signals supporting a causal link (explicit connective, spelled-out mechanism, counterfactual asymmetry, discourse structure encoding causality, enablement/prevention pattern).
+      - **Against**: disqualifying factors (temporal-only link, distance gate not met, confounder or proximal cause, reporting/attribution verb, negation/contrast connective, direction ambiguity, etc.).
+
+      Go through every retained pair explicitly — never bag them.
+
+  - id: step3
+    prompt: |
+      Step 3 — Order by causal plausibility.
+      Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Do not attempt any tentative label, only justify the rank of each pair, do not presume to know whether a pair is causal or not that will only be a later discussion. List them in order, strongest first.
+      Do NOT output the final JSON yet — that comes in the next step.
+
+  - id: step4
+    prompt: |
+      Step 4 — Output the final JSON array.
+      Using your ranking and labels from Step 3, output the final JSON array for ALL requested pairs. Pairs discarded in Step 1 receive "norel".
+
+      Return ONLY a JSON array like:
+      [
+        {{"pair":"T0,T1","label":"causes"}}
+      ]
+      Ensure EVERY requested pair appears exactly once in your final JSON (any order).
