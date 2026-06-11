@@ -11,7 +11,14 @@ For every document we return
     • tokens     : list[str]
     • mentions   : list[event_id]
     • spans      : list[list[int]]         (token indices)
+    • sentences  : list[[int, int]]        sentence token boundary pairs [start, end)
     • relations  : dict[str, list[[src, tgt]]]
+
+Note on sentence boundaries
+----------------------------
+The `Text` field in .ann.tsvx stores sentences as tab-delimited segments:
+    Text\t<sentence1>\t<sentence2>\t...
+`sentences` is derived directly from these tab boundaries.
 
 CLI usage
 ---------
@@ -41,13 +48,29 @@ def _parse_ann_file(path: str) -> Dict:
     if not lines or not lines[0].startswith("Text\t"):
         raise ValueError(f"Malformed file (no Text line): {path}")
 
-    # ── 1. tokenise text ────────────────────────────────────────────────────
+    # ── 1. tokenise text + derive sentence boundaries ───────────────────────
     raw_text = lines[0].split("\t", 1)[1]
 
     # Use regex to grab every non-whitespace span:
     token_matches = list(re.finditer(r"\S+", raw_text))
     tokens: List[str]  = [m.group(0) for m in token_matches]
     starts: List[int]  = [m.start()   for m in token_matches]   # char → token idx
+
+    # Sentences are tab-delimited within the Text field.  Map each tab position
+    # to the corresponding token boundary so sentences[i] = [start_tok, end_tok).
+    tab_positions = [m.start() for m in re.finditer(r"\t", raw_text)]
+    sentences: List[List[int]] = []
+    sent_start = 0
+    for tab_pos in tab_positions:
+        sent_end = next(
+            (i for i in range(sent_start, len(tokens)) if starts[i] >= tab_pos),
+            len(tokens),
+        )
+        if sent_end > sent_start:
+            sentences.append([sent_start, sent_end])
+        sent_start = sent_end
+    if sent_start < len(tokens):
+        sentences.append([sent_start, len(tokens)])
 
     # Helper: char-offset  ➜  token-index
     def char_to_tok(char_idx: int) -> int:
@@ -101,6 +124,7 @@ def _parse_ann_file(path: str) -> Dict:
         "tokens":    tokens,
         "mentions":  mentions,
         "spans":     spans,
+        "sentences": sentences,
         "relations": dict(relations),
         "pair_list": pair_list,
     }
