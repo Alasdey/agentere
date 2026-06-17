@@ -24,7 +24,7 @@ refs/*
 refs
 mlflow*.*db*
 temp_res.json
-
+scripts/analysis/out/*
 
 # C extensions
 *.so
