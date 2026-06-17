@@ -5,7 +5,6 @@ based) and by the per-document mlflow logging in main.py (triple-set based).
 """
 from __future__ import annotations
 
-import io
 import os
 import re
 import shutil
@@ -85,21 +84,19 @@ def safe_filename(doc_id: str) -> str:
 
 def log_to_mlflow(
     doc_id: str,
-    doc_idx: int,
     mentions_map: dict[str, str],
     gold_triples,
     pred_triples,
     trace_ids: list[str],
 ) -> None:
-    """Renders the TP/FP/FN graph for one document and logs it to the active mlflow run:
-    - an SVG artifact under causal_graphs/<doc_id>.svg (small, vector, previewable in the UI)
-    - a PNG via mlflow.log_image (populates the run's Images gallery, scrubbable by doc_idx)
-    Also tags each of the document's trace ids with the artifact path for cross-reference.
+    """Renders the TP/FP/FN graph for one document and logs it as an SVG artifact
+    under causal_graphs/<doc_id>.svg on the active mlflow run (small, vector,
+    previewable directly in the Run's Artifacts tab). Also tags each of the
+    document's trace ids with the artifact path for cross-reference.
     Never raises — a rendering/logging failure must not fail the document's actual result.
     """
     try:
         import mlflow
-        from PIL import Image
 
         edges = build_edges_from_triples(gold_triples, pred_triples)
         safe_id = safe_filename(doc_id)
@@ -110,10 +107,6 @@ def log_to_mlflow(
         try:
             svg_path = g.render(os.path.join(tmp_dir, safe_id), format="svg", cleanup=True)
             mlflow.log_artifact(svg_path, artifact_path="causal_graphs")
-
-            png_bytes = g.pipe(format="png")
-            img = Image.open(io.BytesIO(png_bytes))
-            mlflow.log_image(img, key="causal_graph", step=doc_idx)
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 

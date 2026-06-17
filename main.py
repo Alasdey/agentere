@@ -29,6 +29,7 @@ from utils.mlflow_tracker import log_run as mlflow_log_run, setup as mlflow_setu
 from utils.reporting import generate_run_report
 from utils.resample import aggregate_run_triples
 import utils.trace_dump as trace_dump
+from scripts.analysis.distance_histogram import generate_run_histograms
 
 
 # =============================================================================
@@ -235,10 +236,11 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
             metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
 
-            if config.get("mlflow", {}).get("enabled", False):
+            mlflow_cfg = config.get("mlflow", {})
+            if mlflow_cfg.get("enabled", False) and mlflow_cfg.get("log_causal_graphs", False):
                 trace_ids = [r["_trace_request_id"] for r in runs_results if r.get("_trace_request_id")]
                 causal_graph.log_to_mlflow(
-                    doc["id"], doc["doc_idx"], doc.get("mentions_map", {}),
+                    doc["id"], doc.get("mentions_map", {}),
                     doc["gold_triples"], final_preds, trace_ids,
                 )
 
@@ -413,6 +415,12 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
         git_state=git_state,
     )
     print(f"Results logged to: {outfile}")
+
+    try:
+        generate_run_histograms(Path(outfile), _logs_path, _stem)
+    except Exception as exc:
+        print(f"Histogram artifact generation failed (non-fatal): {exc}", file=sys.stderr)
+
     for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]:
         print(key, ":", final_report[key])
     if final_report.get("per_lang_metrics"):

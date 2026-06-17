@@ -51,6 +51,7 @@ model:
 # =============================================================================
 mlflow:
   enabled: true
+  log_causal_graphs: true  # render + upload a TP/FP/FN causal graph per document (requires mlflow.enabled)
   # tracking_uri: "mlruns"
   tracking_uri: "sqlite:///mlflow.db"
   experiment_name: "agentere"
@@ -74,13 +75,13 @@ experiment:
   # tracing_name: "Mistral-MECI-714-6"
   # tracing_name: "Autoprompt-meci-deepseek"
   # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
-  enable_tools: false
+  enable_tools: true
   tools:
-    - "coherence" 
-    - "counterfactual_check"
+    # - "coherence" 
+    # - "counterfactual_check"
     # - "encoder"
     # - "bare_causes"
-    # - "eci"
+    - "eci"
     # - "reprompt"
   concurrency: 100
   retries: 3          # How many times to retry a failed sample
@@ -144,6 +145,7 @@ datasets:
     split: "test"
     text_field: "text"
     ann_field: "annots"
+    # prompt: "common_eci_tool"    
     prompt: "maven_ere_standard_eci"
     # prompt: "maven_ere_eci_bin"
     # prompt: "maven_ere_eci"
@@ -219,6 +221,7 @@ datasets:
     kfold:
       enabled: true
       n_folds: 5
+    # prompt: "common_eci_tool"    
     prompt: "esl_standard_eci"
     # prompt: "event_story_line_binary_cot"
     # prompt: "event_story_line_binary"

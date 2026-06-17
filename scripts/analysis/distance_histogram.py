@@ -166,7 +166,7 @@ def main() -> None:
     parser.add_argument("--logs", default=str(LOGS_DIR), help="Log directory (default: logs/allatonce)")
     parser.add_argument("--since-days", type=int, default=7, help="Only include runs from the last N days (default: 7)")
     parser.add_argument("--dataset", help="Restrict to one dataset key (e.g. meci, maven_ere)")
-    parser.add_argument("--out-dir", default=str(PROJECT_ROOT / "scripts" / "analysis" / "out"), help="Directory to save PNG figures")
+    parser.add_argument("--out-dir", default=str(PROJECT_ROOT / "scripts" / "analysis" / "out" / "histogram"), help="Directory to save PNG figures")
     args = parser.parse_args()
 
     log_dir = Path(args.logs)
@@ -208,11 +208,13 @@ def main() -> None:
 
     report(df, "all datasets", out_dir)
     report_density(df, "all datasets", out_dir)
+    report_num_mentions(df, "all datasets", out_dir)
     for dataset_name, sub_df in df.groupby("dataset"):
         ds_dir = out_dir / dataset_name
         ds_dir.mkdir(parents=True, exist_ok=True)
         report(sub_df, dataset_name, ds_dir)
         report_density(sub_df, dataset_name, ds_dir)
+        report_num_mentions(sub_df, dataset_name, ds_dir)
 
 
 CONFUSION_COLORS = [("TP", "limegreen"), ("FP", "red"), ("FN", "dodgerblue")]
@@ -260,8 +262,8 @@ def plot_grouped_bar_histogram(
     return max_val
 
 
-def report_density(df: pd.DataFrame, label: str, out_dir: Path) -> None:
-    """Density of positive relations (TP/FP/FN) per document, normalized by mention count."""
+def per_doc_confusion_counts(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per (dataset, doc_id) with TP/FP/FN relation counts and num_mentions."""
     doc_counts = (
         df.groupby(["dataset", "doc_id", "confusion"], observed=True)
         .size()
@@ -272,7 +274,12 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path) -> None:
             doc_counts[c] = 0
     num_mentions = df.groupby(["dataset", "doc_id"], observed=True)["num_mentions"].first()
     doc_counts = doc_counts.join(num_mentions)
-    doc_counts = doc_counts[doc_counts["num_mentions"] > 0]
+    return doc_counts[doc_counts["num_mentions"] > 0]
+
+
+def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """Density of positive relations (TP/FP/FN) per document, normalized by mention count."""
+    doc_counts = per_doc_confusion_counts(df)
 
     density_rows = []
     for confusion in ["TP", "FP", "FN"]:
@@ -284,8 +291,9 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path) -> None:
         }))
     density_df = pd.concat(density_rows, ignore_index=True)
 
-    print(f"\n=== Density of positive relations per document (per mention) — {label} ===")
-    print(density_df.groupby("confusion")["density"].describe().to_string())
+    if verbose:
+        print(f"\n=== Density of positive relations per document (per mention) — {label} ===")
+        print(density_df.groupby("confusion")["density"].describe().to_string())
 
     import matplotlib
     matplotlib.use("Agg")
@@ -302,14 +310,52 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path) -> None:
     ax.set_xlabel("positive relations / num. mentions in document")
     fig.suptitle(f"Density of positive relations per document — {label}")
     fig.tight_layout()
-    out_path = out_dir / "density_per_document_histogram.png"
+    out_path = out_dir / f"{file_prefix}density_per_document_histogram.png"
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
-    print(f"\nSaved figure → {out_path}")
+    if verbose:
+        print(f"\nSaved figure → {out_path}")
 
 
-def report(df: pd.DataFrame, label: str, out_dir: Path) -> None:
-    print(f"\n############ Dataset: {label} ############")
+def report_num_mentions(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """TP/FP/FN relation counts by number of mentions in the document."""
+    doc_counts = per_doc_confusion_counts(df)
+
+    rows = []
+    for confusion in ["TP", "FP", "FN"]:
+        rows.append(pd.DataFrame({
+            "num_mentions": doc_counts["num_mentions"],
+            "confusion": confusion,
+            "relation_count": doc_counts[confusion],
+        }))
+    mentions_df = pd.concat(rows, ignore_index=True)
+
+    if verbose:
+        print(f"\n=== Relations by number of mentions in document — {label} ===")
+        print(mentions_df.groupby("confusion")["num_mentions"].describe().to_string())
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    plot_grouped_bar_histogram(
+        ax, mentions_df, "num_mentions", "Relations by document mention count",
+        integer_valued=True, weight_col="relation_count",
+    )
+    ax.set_xlabel("number of mentions in document")
+    fig.suptitle(f"Relations by number of mentions in document — {label}")
+    fig.tight_layout()
+    out_path = out_dir / f"{file_prefix}num_mentions_per_document_histogram.png"
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    if verbose:
+        print(f"\nSaved figure → {out_path}")
+
+
+def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    if verbose:
+        print(f"\n############ Dataset: {label} ############")
 
     # ------------------------------------------------------------------
     # Printed bucketed counts
@@ -326,15 +372,16 @@ def report(df: pd.DataFrame, label: str, out_dir: Path) -> None:
     pd.set_option("display.max_columns", None)
     pd.set_option("display.width", 200)
 
-    for dist_col, dist_label in [("word_bucket", "Word distance"), ("sent_bucket", "Sentence distance")]:
-        print(f"\n=== {dist_label} histogram (counts) ===")
-        table = (
-            df.groupby(["kind", dist_col, "confusion"], observed=True)
-            .size()
-            .unstack("confusion", fill_value=0)
-        )
-        table = table[[c for c in ["TP", "FP", "FN"] if c in table.columns]]
-        print(table.to_string())
+    if verbose:
+        for dist_col, dist_label in [("word_bucket", "Word distance"), ("sent_bucket", "Sentence distance")]:
+            print(f"\n=== {dist_label} histogram (counts) ===")
+            table = (
+                df.groupby(["kind", dist_col, "confusion"], observed=True)
+                .size()
+                .unstack("confusion", fill_value=0)
+            )
+            table = table[[c for c in ["TP", "FP", "FN"] if c in table.columns]]
+            print(table.to_string())
 
     # ------------------------------------------------------------------
     # Plots
@@ -363,10 +410,37 @@ def report(df: pd.DataFrame, label: str, out_dir: Path) -> None:
             ax.set_xlabel(title)
         fig.suptitle(f"{title} — {label}")
         fig.tight_layout()
-        out_path = out_dir / fname
+        out_path = out_dir / f"{file_prefix}{fname}"
         fig.savefig(out_path, dpi=150)
         plt.close(fig)
-        print(f"\nSaved figure → {out_path}")
+        if verbose:
+            print(f"\nSaved figure → {out_path}")
+
+
+def generate_run_histograms(run_json_path: Path, out_dir: Path, stem: str) -> None:
+    """Generates all histogram artifacts for a single completed run, as sibling files
+    next to its other logged artifacts (named '{stem}.<histogram_name>.png')."""
+    try:
+        rows = extract_run(run_json_path)
+    except Exception as exc:
+        print(f"  Histogram generation skipped: could not extract run data — {exc}", file=sys.stderr)
+        return
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return
+    df = df[df["confusion"] != "TN"]
+    if df.empty:
+        return
+
+    label = df["dataset"].iloc[0]
+    file_prefix = f"{stem}."
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    report(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    report_density(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    report_num_mentions(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    print(f"Histogram artifacts saved alongside run log (prefix: {file_prefix})")
 
 
 if __name__ == "__main__":
