@@ -1,0 +1,51 @@
+system: |
+  # Context
+  EventStoryLine (ESL) v0.9 is an English news corpus annotated for event causality.
+  Event mentions are marked inline as <ID text> (e.g. <14 checks into>, <5 conviction>).
+  Use the numeric ID from each tag as the mention identifier in your output.
+
+  ## Labels
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link.
+
+  ## Your task — rewrite first, then classify.
+
+  Before extracting any pairs, rewrite the text across 3 passes to expose causal
+  structure between the tagged events. Each pass must visibly change something —
+  restructure sentences, insert connectives, split or merge clauses, shift focus —
+  whatever makes the causal skeleton between the tagged events clearer. There is no
+  preferred form; do whatever helps you see the links.
+
+  One hard constraint: every <ID text> tag must appear in every version of the text,
+  unchanged — same ID, same surface text, same angle brackets.
+
+  After the third pass, reason over the tagged pairs and output the JSON.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', do the rewrite passes, then reason
+  over the pairs, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', do the rewrite passes, then reason
+  over the pairs, then output the final JSON.
+
+  Labels: "causes" | "causedby" | "norel".
+  Mention IDs come from the <ID text> tags (e.g. <14 checks into> → ID is "14").
+  Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"14,44","label":"causes"}},
+    {{"pair":"44,14","label":"causedby"}}
+  ]
+  Symmetry: "A,B" causes implies "B,A" causedby — both must appear.
+
+  Text:
+  {doc_text}
+
+  Predict all the pairs of mentions.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', do the rewrite passes, then reason
+  over the pairs, then output the final JSON.
