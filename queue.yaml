@@ -34,11 +34,63 @@ experiments:
   #         prompt: "causal_timebank_explicit_marker"
 
 
+  # - name: "h"
+  #   overrides:
+  #     model:
+  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
+  #     active_dataset: "causal_timebank"
+  #     experiment:
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #       retries: 3
+  #     few_shot:
+  #       enabled: false
+  #       pool_size: 3
+  #       cot_generation:
+  #         enabled: true
+  #     data:
+  #       binary_undirected: false
+  #     datasets:
+  #       meci:
+  #         prompt: "meci_standard_eci"
+  #         max_examples: 50
+  #       causal_timebank:
+  #         name: "CausalTimeBank-standard-eci"
+  #         prompt: "causal_timebank_explicit_marker"
+
+
+
+  # - name: "h"
+  #   overrides:
+  #     model:
+  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
+  #     active_dataset: "meci"
+  #     experiment:
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #       retries: 3
+  #     few_shot:
+  #       enabled: false
+  #       pool_size: 20
+  #       cot_generation:
+  #         enabled: true
+  #     data:
+  #       binary_undirected: false
+  #     datasets:
+  #       meci:
+  #         prompt: "meci_standard_eci"
+  #         max_examples: 50
+  #       causal_timebank:
+  #         name: "CausalTimeBank-standard-eci"
+  #         prompt: "causal_timebank_explicit_marker"
+
   - name: "h"
     overrides:
       model:
           default_model_id: "deepseek/deepseek-v3.2:nitro"
-      active_dataset: "causal_timebank"
+      active_dataset: "event_story_line"
       experiment:
         resampling:
           enabled: false
@@ -46,12 +98,14 @@ experiments:
         retries: 3
       few_shot:
         enabled: true
-        pool_size: 3
+        pool_size: 5
         cot_generation:
           enabled: true
       data:
         binary_undirected: false
       datasets:
+        event_story_line:
+          prompt: "esl_standard_eci_rewrite"
         meci:
           prompt: "meci_standard_eci"
           max_examples: 50
@@ -59,29 +113,27 @@ experiments:
           name: "CausalTimeBank-standard-eci"
           prompt: "causal_timebank_explicit_marker"
 
-
-
-  - name: "h"
-    overrides:
-      model:
-          default_model_id: "deepseek/deepseek-v3.2:nitro"
-      active_dataset: "causal_timebank"
-      experiment:
-        resampling:
-          enabled: false
-          n_runs: 3
-        retries: 1
-      few_shot:
-        enabled: true
-        pool_size: 3
-        cot_generation:
-          enabled: true
-      data:
-        binary_undirected: false
-      datasets:
-        meci:
-          prompt: "meci_standard_eci"
-          max_examples: 50
-        causal_timebank:
-          name: "CausalTimeBank-standard-eci"
-          prompt: "causal_timebank_explicit_marker"
+  # - name: "h"
+  #   overrides:
+  #     model:
+  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
+  #     active_dataset: "maven_ere"
+  #     experiment:
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #       retries: 3
+  #     few_shot:
+  #       enabled: false
+  #       pool_size: 20
+  #       cot_generation:
+  #         enabled: true
+  #     data:
+  #       binary_undirected: false
+  #     datasets:
+  #       meci:
+  #         prompt: "meci_standard_eci"
+  #         max_examples: 50
+  #       causal_timebank:
+  #         name: "CausalTimeBank-standard-eci"
+  #         prompt: "causal_timebank_explicit_marker"

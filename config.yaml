@@ -97,11 +97,11 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
-  pool_size: 3         # max training docs to load (null = full split); limits CoT generation cost
+  pool_size: 20         # max training docs to load (null = full split); limits CoT generation cost
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "random"   
+  selection: "similarity"   
     # "random"     — resample every call for variance
-    # "similarit y" — TF-IDF cosine against the current doc text (sklearn required)
+    # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
     # "mentions"   — Jaccard similarity on event mention text sets
     # "bert"       — cosine similarity on sentence-transformer embeddings
     # "smallest"   — Gets the doc with the smallest non negative pair_list (mostly for debuging)
