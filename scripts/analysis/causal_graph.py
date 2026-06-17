@@ -27,21 +27,12 @@ import os
 import sys
 from collections import defaultdict
 
-import graphviz
-
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, PROJECT_ROOT)
 
 import json
-from utils.labels import CAUSES, CAUSED_BY, NOREL_VARIANTS  # noqa: E402
-
-TP_COLOR = "#1a9850"  # green
-FP_COLOR = "#d73027"  # red
-FN_COLOR = "#4575b4"  # blue
-
-
-def is_causal(label: str) -> bool:
-    return str(label).lower() not in NOREL_VARIANTS
+from utils.labels import CAUSES, CAUSED_BY  # noqa: E402
+from utils.causal_graph import is_causal, render_graph  # noqa: E402
 
 
 def build_mentions_map(row: dict) -> dict[str, str]:
@@ -130,35 +121,6 @@ def build_edges(pairs: dict[tuple[str, str], dict]) -> list[dict]:
             # else: true negative, dropped
 
     return edges
-
-
-def render_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], out_path: str, fmt: str):
-    g = graphviz.Digraph("causal_graph", format=fmt)
-    g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16")
-    g.attr("node", shape="box", style="rounded,filled", fillcolor="#fffde7", fontname="Helvetica", fontsize="11")
-    g.attr("edge", fontname="Helvetica", fontsize="10")
-
-    used_mentions = {m for e in edges for m in (e["src"], e["tgt"])}
-    nodes_to_draw = used_mentions if used_mentions else set(mentions_map)
-    for mention_id in sorted(nodes_to_draw, key=lambda m: (len(m), m)):
-        text = mentions_map.get(mention_id, mention_id)
-        g.node(mention_id, label=f"{mention_id}\n{text}")
-
-    color_by_status = {"TP": TP_COLOR, "FP": FP_COLOR, "FN": FN_COLOR}
-    for e in edges:
-        g.edge(e["src"], e["tgt"], color=color_by_status[e["status"]],
-               penwidth="2", label=e["label"])
-
-    with g.subgraph(name="legend") as lg:
-        lg.attr(rank="sink")
-        lg.attr("node", shape="plaintext", style="", fontsize="10")
-        lg.node("legend_label", label="Legend:")
-        lg.node("legend_tp", label="TP (correct causal)", fontcolor=TP_COLOR)
-        lg.node("legend_fp", label="FP (hallucinated causal)", fontcolor=FP_COLOR)
-        lg.node("legend_fn", label="FN (missed causal)", fontcolor=FN_COLOR)
-
-    rendered_path = g.render(out_path, cleanup=True)
-    return rendered_path
 
 
 def main():

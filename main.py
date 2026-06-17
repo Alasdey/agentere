@@ -18,6 +18,7 @@ from tools.few_shot import preload as few_shot_preload, get_few_shot_message_pai
 from utils.config import load_config
 from utils.runtime_config import set_cfg
 from utils.context import CURRENT_DOC_ID, doc_context
+from utils import causal_graph
 from utils.formatting import format_pair_lines
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
@@ -233,6 +234,13 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 final_preds = [(min(s, t), lbl, max(s, t)) for s, lbl, t in final_preds]
 
             metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
+
+            if config.get("mlflow", {}).get("enabled", False):
+                trace_ids = [r["_trace_request_id"] for r in runs_results if r.get("_trace_request_id")]
+                causal_graph.log_to_mlflow(
+                    doc["id"], doc["doc_idx"], doc.get("mentions_map", {}),
+                    doc["gold_triples"], final_preds, trace_ids,
+                )
 
             return {
                 "id": doc["id"],
