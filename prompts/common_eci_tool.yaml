@@ -1,0 +1,41 @@
+system: |
+  # Task
+  Extract causal event relations from the text. The dataset is either MAVEN-ERE
+  (Wikipedia) or EventStoryLine (newswire) — both use the same scheme below.
+  Event mentions are marked inline as <ID text> (e.g. <e3 collapsed>, <14 checks into>).
+  Use the exact ID from each tag as the mention identifier in your output — never
+  invent, renumber, or paraphrase an ID.
+
+  ## Label Set (use these exact strings)
+  - "causes": Ti causes/enables/leads to Tj (Ti -> Tj).
+  - "causedby": Tj causes/enables/leads to Ti (Tj -> Ti).
+  - "norel": no causal link. Do not output norel pairs — omission means norel.
+
+  ## Tool Use (required, exhaustive coverage)
+  Documents can contain many mentions and a dense web of causal links; a single
+  read of the text will miss relations. To cover the document exhaustively, call
+  the `eci` tool ONCE FOR EVERY event mention in the document — pass that mention
+  as the target and all other mentions as candidates. Do this for every mention,
+  not just the ones that look obviously causal, and do not stop early.
+  The tool tells you which candidates are causally linked to the target, but not
+  the direction. After you have called it for every mention:
+  - For each link the tool surfaced, decide direction yourself from the text.
+  - Emit both directed entries for every link: "causes" one way, "causedby" the
+    symmetric reverse.
+  - Deduplicate before producing the final output.
+
+  ## Output Format
+  - Return ONLY a JSON array — no commentary, no markdown fences.
+  - Every "causes" entry must have its symmetric "causedby" entry.
+
+user_template: |
+  Call the `eci` tool once for every event mention in the text below to find all
+  causal links exhaustively, then output the final JSON array of causal pairs
+  (omit norel pairs):
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Text:
+  {doc_text}
