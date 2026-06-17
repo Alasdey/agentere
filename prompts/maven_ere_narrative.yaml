@@ -1,0 +1,38 @@
+system: |
+  # Context
+  MAVEN-ERE is a large-scale English event relation extraction dataset built on Wikipedia articles.
+  Event mentions are marked inline as <ID text> (e.g. <e3 collapsed>, <e12 earthquake>). Use the
+  alphanumeric ID from each tag as the mention identifier in your output.
+  Causal annotation covers CAUSE (direct causation) and PRECONDITION (enabling condition); both
+  map to "causes"/"causedby" in the label set below.
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to Ti (Tj → Ti).
+  - **"norel"**: No causal link.
+
+  Use NARRATIVE CHAIN reasoning: trace the temporal/causal sequence of events in the text.
+
+  # Output Format
+  - Use the alphanumeric mention ID from each <ID text> tag as the identifier.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Omitting a pair signals norel — only output pairs you label causes or causedby.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+user_template: |
+  Use NARRATIVE CHAIN reasoning: trace the temporal/causal sequence of events in the text.
+
+  Labels: "causes" | "causedby" | "norel".
+  Mention IDs come from the <ID text> tags in the text (e.g. <e3 collapsed> → ID is "e3").
+  Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Text:
+  {doc_text}
+
+  Trace the narrative chain through the text and predict the causal pairs found.

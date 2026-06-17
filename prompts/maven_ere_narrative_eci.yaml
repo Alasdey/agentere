@@ -1,0 +1,108 @@
+system: |
+  # Context
+  MAVEN-ERE is a large-scale English event relation extraction dataset built on Wikipedia articles
+  covering diverse real-world topics. Event mentions are marked inline as <ID text>
+  (e.g. <e3 collapsed>, <e12 earthquake>). Use the alphanumeric ID from each tag as the
+  mention identifier in your output.
+  Causal annotation covers CAUSE (direct causation) and PRECONDITION (enabling condition);
+  both map to "causes"/"causedby" in the label set below.
+  Relations are both intra- and inter-sentence; Wikipedia prose frequently has long-range causal
+  links spanning several sentences. [Reference: Wang et al., ACL 2022.]
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  # Method: Narrative Chain (NOT exhaustive pairwise comparison)
+  Do **not** evaluate every possible pair of mentions against every other pair — that combinatorial
+  approach over-generates on dense documents (many superficially related events get linked by
+  proximity or topic alone). Instead, reconstruct the document as a single causal storyline and only
+  emit pairs that are genuine **links in that chain**.
+
+  1. **Build the timeline.** List every event mention in the order it occurs in the *narrative*
+     (which may differ from textual order — e.g. a flashback). Give each a one-line gloss of what
+     happened. Group mentions that refer to the same real-world occurrence (coreferent events) —
+     they do not cause each other.
+
+  2. **Walk the chain, one link at a time.** Starting from the earliest event, ask: "what directly
+     led to this happening, and what did this directly lead to?" Only follow the chain to events that
+     are genuinely and directly downstream/upstream — do not jump ahead to a distant consequence
+     just because it is *also* true (e.g. if A causes B and B causes C, do not also separately assert
+     A causes C unless the text independently and directly supports that specific link; emit the
+     direct links A→B and B→C, and let symmetry/coherence rules — not your own inference — be the
+     only source of any transitive closure downstream).
+
+  3. **Branches and convergence.** The chain need not be linear: one event may have several direct
+     causes (convergence) or several direct effects (branching). Capture all of these, but each
+     branch must be independently justified by the text — do not add a branch just to make the
+     graph denser.
+
+  4. **Off-chain mentions.** Any mention that does not sit on the reconstructed causal storyline
+     (background description, attribution/reporting verbs, scene-setting, unconnected asides) is
+     excluded entirely — do not force it onto the chain. Name these mentions and state briefly why
+     they're off-chain.
+
+  5. **Signal check per link.** Before emitting a link, confirm it has real support: an explicit
+     connective ("because", "due to", "led to", "as a result"), OR a concrete mechanism stated in the
+     text, OR strong discourse structure (apposition/relative clause encoding causality). A purely
+     temporal connective ("then", "after", "later") is never sufficient on its own.
+
+  6. **Causal Symmetry:** Every "A causes B" must always be paired with "B causedby A", and vice
+     versa. There are no exceptions.
+
+  Before producing the final JSON, reason through the following steps IN ORDER:
+
+  Step 1 — Timeline. List mentions in narrative order with a one-line gloss each. Group coreferent
+  mentions. Name and justify any mentions excluded as off-chain (Rule 4).
+
+  Step 2 — Walk the chain. For each remaining mention, state its direct upstream cause(s) and direct
+  downstream effect(s) per Rules 2–3, with the signal supporting each link (Rule 5). Do not list
+  indirect/transitive links.
+
+  Step 3 — Output the final JSON array of every direct link found, applying Causal Symmetry
+  (Rule 6). Omit a pair entirely to mark it norel — do not output norel pairs.
+
+  # Output Format
+  - Use the alphanumeric mention ID from each <ID text> tag as the identifier.
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Omitting a pair signals norel — only output pairs you label causes or causedby.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no mentions in the text and no chain to trace, return an empty array [].
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Use NARRATIVE CHAIN reasoning: reconstruct the document as a single causal storyline (Step 1:
+    timeline + off-chain exclusions; Step 2: walk the chain link by link) and only emit pairs that
+    are direct links on that chain. Do NOT exhaustively compare every pair of mentions, and do NOT
+    add transitive links (if A causes B and B causes C, do not also assert A causes C unless the
+    text directly supports it).
+  - Mention IDs come from the <ID text> tags in the text (e.g. <e3 collapsed> → ID is "e3").
+  - Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Coherence Rules:
+  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
+  - Omission: Any pair you leave out is treated as norel.
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+
+  Text:
+  {doc_text}
+
+  Trace the narrative chain through the text and predict only the direct causal links on it.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
