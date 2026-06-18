@@ -242,6 +242,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 causal_graph.log_to_mlflow(
                     doc["id"], doc.get("mentions_map", {}),
                     doc["gold_triples"], final_preds, trace_ids,
+                    doc_text=doc["doc_text"],
                 )
 
             return {

@@ -46,13 +46,13 @@ def build_mentions_map(row: dict) -> dict[str, str]:
     return result
 
 
-def get_ds_key(log_path: str) -> tuple[str, str]:
+def get_ds_key(log_path: str) -> tuple[str, str, str]:
     with open(log_path, encoding="utf-8") as f:
         data = json.load(f)
     cfg = data["config"]
     active_ds = cfg["active_dataset"]
     ds_cfg = cfg["datasets"][active_ds]
-    return (ds_cfg["repo_id"], ds_cfg["split"])
+    return (ds_cfg["repo_id"], ds_cfg["split"], ds_cfg["text_field"])
 
 
 def load_doc_rows(repo_id: str, split: str) -> dict[str, dict]:
@@ -165,13 +165,14 @@ def main():
         print("Error: --doc-id is required (use --list-docs to see options)", file=sys.stderr)
         sys.exit(1)
 
-    repo_id, split = get_ds_key(paths[0])
+    repo_id, split, text_field = get_ds_key(paths[0])
     print(f"Loading dataset {repo_id} ({split})...")
     doc_rows = load_doc_rows(repo_id, split)
     if args.doc_id not in doc_rows:
         print(f"Error: doc_id '{args.doc_id}' not found in dataset.", file=sys.stderr)
         sys.exit(1)
     mentions_map = build_mentions_map(doc_rows[args.doc_id])
+    doc_text = doc_rows[args.doc_id].get(text_field)
 
     pairs = collect_pairs(paths, args.doc_id)
     if not pairs:
@@ -186,7 +187,7 @@ def main():
 
     out_path = args.out or os.path.join("figs", f"causal_graph_{args.doc_id}")
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-    rendered = render_graph(args.doc_id, mentions_map, edges, out_path, args.format)
+    rendered = render_graph(args.doc_id, mentions_map, edges, out_path, args.format, doc_text=doc_text)
     print(f"  Written to: {rendered}")
 
 

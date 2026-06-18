@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import tempfile
+import textwrap
 
 import graphviz
 
@@ -45,12 +46,18 @@ def build_edges_from_triples(gold_triples, pred_triples) -> list[dict]:
     return edges
 
 
-def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fmt: str = "png") -> graphviz.Digraph:
+def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fmt: str = "png", doc_text: str | None = None) -> graphviz.Digraph:
     """Builds the Graphviz Digraph object (nodes = mentions, edges = TP/FP/FN) without rendering."""
     g = graphviz.Digraph("causal_graph", format=fmt)
     g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16")
     g.attr("node", shape="box", style="rounded,filled", fillcolor="#fffde7", fontname="Helvetica", fontsize="11")
     g.attr("edge", fontname="Helvetica", fontsize="10")
+
+    if doc_text:
+        with g.subgraph(name="doc_text") as dt:
+            dt.attr(rank="source")
+            dt.node("doc_text", shape="note", style="filled", fillcolor="white", fontsize="10",
+                     label=textwrap.fill(doc_text, width=100))
 
     used_mentions = {m for e in edges for m in (e["src"], e["tgt"])}
     nodes_to_draw = used_mentions if used_mentions else set(mentions_map)
@@ -72,9 +79,9 @@ def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fm
     return g
 
 
-def render_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], out_path: str, fmt: str = "png") -> str:
+def render_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], out_path: str, fmt: str = "png", doc_text: str | None = None) -> str:
     """Renders nodes (mention id + text) and TP/FP/FN edges to out_path.<fmt>. Returns the rendered file path."""
-    g = build_graph(doc_id, mentions_map, edges, fmt=fmt)
+    g = build_graph(doc_id, mentions_map, edges, fmt=fmt, doc_text=doc_text)
     return g.render(out_path, cleanup=True)
 
 
@@ -88,6 +95,7 @@ def log_to_mlflow(
     gold_triples,
     pred_triples,
     trace_ids: list[str],
+    doc_text: str | None = None,
 ) -> None:
     """Renders the TP/FP/FN graph for one document and logs it as an SVG artifact
     under causal_graphs/<doc_id>.svg on the active mlflow run (small, vector,
@@ -101,7 +109,7 @@ def log_to_mlflow(
         edges = build_edges_from_triples(gold_triples, pred_triples)
         safe_id = safe_filename(doc_id)
 
-        g = build_graph(doc_id, mentions_map, edges)
+        g = build_graph(doc_id, mentions_map, edges, doc_text=doc_text)
 
         tmp_dir = tempfile.mkdtemp(prefix="causal_graph_")
         try:
