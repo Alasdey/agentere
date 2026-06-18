@@ -5,6 +5,7 @@ from .counterfactual import counterfactual_check
 from .encoder import encoder
 from .bare_causes import bare_causes
 from .eci import eci
+from .eci_extractor import eci_extractor
 from .few_shot import few_shot_examples
 from .placeholder import placeholder
 from .reprompt import reprompt
@@ -15,6 +16,7 @@ TOOL_REGISTRY = {
     "encoder": encoder,
     "bare_causes": bare_causes,
     "eci": eci,
+    "eci_extractor": eci_extractor,
     "few_shot_examples": few_shot_examples,
     "placeholder": placeholder,
     "reprompt": reprompt,

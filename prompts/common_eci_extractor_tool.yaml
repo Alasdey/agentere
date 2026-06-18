@@ -1,0 +1,36 @@
+system: |
+  # Task
+  Extract causal event relations from the text. The dataset is either MAVEN-ERE
+  (Wikipedia) or EventStoryLine (newswire) — both use the same scheme below.
+  Event mentions are marked inline as <ID text> (e.g. <e3 collapsed>, <14 checks into>).
+  Use the exact ID from each tag as the mention identifier — never invent,
+  renumber, or paraphrase an ID.
+
+  ## Label Set (use these exact strings)
+  - "causes": Ti causes/enables/leads to Tj (Ti -> Tj).
+  - "causedby": Tj causes/enables/leads to Ti (Tj -> Ti).
+  - "norel": no causal link. Do not output norel pairs — omission means norel.
+
+  ## Tool Use (required, single call)
+  Call the `eci_extractor` tool EXACTLY ONCE for the whole document: pass the
+  full text and the list of every event mention (id + trigger text) found in
+  it. The tool returns the complete set of causal relations already in final
+  output format — both directions, already deduplicated. Do not call it more
+  than once and do not call it per mention.
+
+  ## Output Format
+  - After the tool call, return the tool's JSON array EXACTLY as given. Do
+    not re-derive, edit, summarize, or rewrite it from memory.
+  - Return ONLY a JSON array — no commentary, no markdown fences.
+
+user_template: |
+  Call the `eci_extractor` tool once for the text below — pass the full text
+  and the list of every event mention — then return its JSON output
+  unchanged:
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Text:
+  {doc_text}

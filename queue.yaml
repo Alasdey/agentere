@@ -67,6 +67,8 @@ experiments:
           default_model_id: "deepseek/deepseek-v3.2:nitro"
       active_dataset: "event_story_line"
       experiment:
+        tools:
+          - "eci_extractor"
         resampling:
           enabled: false
           n_runs: 3
@@ -81,7 +83,7 @@ experiments:
       datasets:
         event_story_line:
           max_examples: 5
-          prompt: "common_eci_tool"
+          prompt: "common_eci_extractor_tool"
         meci:
           prompt: "meci_standard_eci"
           max_examples: 50
@@ -95,12 +97,14 @@ experiments:
           default_model_id: "deepseek/deepseek-v3.2:nitro"
       active_dataset: "maven_ere"
       experiment:
+        tools:
+          - "eci_extractor"
         resampling:
           enabled: false
           n_runs: 3
         retries: 3
       few_shot:
-        enabled: true
+        enabled: false
         pool_size: 3
         cot_generation:
           enabled: true
@@ -109,7 +113,7 @@ experiments:
       datasets:
         maven_ere:
           max_examples: 5
-          prompt: "common_eci_tool"
+          prompt: "common_eci_extractor_tool"
         meci:
           prompt: "meci_standard_eci"
         causal_timebank:
