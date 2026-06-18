@@ -239,4 +239,11 @@ def log_run(
         if trace_path and trace_path.exists():
             mlflow.log_artifact(str(trace_path))
 
+        # Histogram PNGs are written by generate_run_histograms() as siblings of
+        # outfile, named "{stem}.<histogram_name>.png" — pick them up by glob
+        # rather than threading individual paths through every caller.
+        stem = Path(outfile).stem
+        for png_path in sorted(Path(outfile).parent.glob(f"{stem}.*histogram*.png")):
+            mlflow.log_artifact(str(png_path))
+
         return run.info.run_id
