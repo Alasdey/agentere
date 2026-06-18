@@ -61,9 +61,18 @@ def _get_model_price(
     return _PRICING_LIVE.get(model_id) or _PRICING_LIVE.get(model_id.split(":")[0])
 
 
-def _parse_token_usage(trace_path: Path) -> Dict[str, int]:
-    """Sum input/output/cache_read tokens across all AI messages in the trace file."""
-    totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0}
+def _parse_token_usage(trace_path: Path) -> Dict[str, float]:
+    """Sum input/output/cache_read tokens, plus provider-reported cost, across all
+    AI messages in the trace file.
+
+    Tool-internal sub-calls (e.g. eci_extractor's per-mention calls) are logged
+    into this same trace file, often on a different model than
+    config["model"]["default_model_id"] — so reported_cost_usd (summed directly
+    from each message's own response_metadata.token_usage.cost, as billed by
+    OpenRouter for whatever model actually served that call) is the only way to
+    get a correct total across a trace that may mix models.
+    """
+    totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "reported_cost_usd": 0.0}
     with open(trace_path, encoding="utf-8") as f:
         for raw in f:
             raw = raw.strip()
@@ -73,12 +82,15 @@ def _parse_token_usage(trace_path: Path) -> Dict[str, int]:
             for msg in messages:
                 if msg.get("id", [""])[-1] != "AIMessage":
                     continue
-                usage = msg.get("kwargs", {}).get("usage_metadata")
-                if not usage:
-                    continue
-                totals["input_tokens"]       += usage.get("input_tokens", 0)
-                totals["output_tokens"]      += usage.get("output_tokens", 0)
-                totals["cache_read_tokens"]  += usage.get("input_token_details", {}).get("cache_read", 0)
+                kwargs = msg.get("kwargs", {})
+                usage = kwargs.get("usage_metadata")
+                if usage:
+                    totals["input_tokens"]       += usage.get("input_tokens", 0)
+                    totals["output_tokens"]      += usage.get("output_tokens", 0)
+                    totals["cache_read_tokens"]  += usage.get("input_token_details", {}).get("cache_read", 0)
+                cost = kwargs.get("response_metadata", {}).get("token_usage", {}).get("cost")
+                if cost is not None:
+                    totals["reported_cost_usd"] += cost
     return totals
 
 
@@ -193,16 +205,23 @@ def log_run(
             metrics["tokens_output"]      = usage["output_tokens"]
             metrics["tokens_cache_read"]  = usage["cache_read_tokens"]
 
-            price = _get_model_price(model_id, base_url, api_key)
-            if price:
-                price_in, price_out = price
-                # cache_read is billed at ~10% of input price on most providers
-                cost = (
-                    (usage["input_tokens"] - usage["cache_read_tokens"]) * price_in
-                    + usage["cache_read_tokens"] * price_in * 0.1
-                    + usage["output_tokens"] * price_out
-                )
-                metrics["cost_usd"] = round(cost, 6)
+            if usage["reported_cost_usd"] > 0:
+                # Exact, per-message provider-billed cost — correct even when the
+                # trace mixes models (e.g. orchestrator + eci_extractor sub-calls
+                # on a different model), since each message is priced at whatever
+                # actually served it rather than one blanket model_id price.
+                metrics["cost_usd"] = round(usage["reported_cost_usd"], 6)
+            else:
+                price = _get_model_price(model_id, base_url, api_key)
+                if price:
+                    price_in, price_out = price
+                    # cache_read is billed at ~10% of input price on most providers
+                    cost = (
+                        (usage["input_tokens"] - usage["cache_read_tokens"]) * price_in
+                        + usage["cache_read_tokens"] * price_in * 0.1
+                        + usage["output_tokens"] * price_out
+                    )
+                    metrics["cost_usd"] = round(cost, 6)
 
         mlflow.log_metrics(metrics)
 
