@@ -37,6 +37,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from utils.runtime_config import get_cfg, register_reset
 from utils import trace_dump
+from utils import trace_dump
 
 # Deliberately a different (and smaller) model than the orchestrator's
 # default_model_id — each sub-call is a focused binary-plus-direction
@@ -124,6 +125,11 @@ async def _evaluate_target(
             SystemMessage(content=SUB_CALL_SYSTEM_PROMPT),
             HumanMessage(content=_sub_call_user_prompt(document_text, target, candidates)),
         ])
+        # Logged the same way the orchestrator's own calls are (one line per
+        # call, appended to the run's shared trace file) so this sub-call's
+        # tokens/cost are picked up by the existing trace-based accounting in
+        # mlflow_tracker.py instead of being invisible to it.
+        trace_dump.trace_dump({"messages": [response]})
         raw = response.content
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         json_str = match.group(0) if match else raw
