@@ -3,9 +3,9 @@
 Histogram of document counts by causal-relation density for Event StoryLine.
 
 Density per document = (number of causal relations) / (number of event mentions).
-One histogram bar per density bin, stacked by theme (ESL topic_id), each theme
-with its own color. Loads both the train and dev splits of
-Nofing/EventStoryLine-0.9-standard-eci.
+One histogram per theme (ESL topic_id), each theme rendered in its own color,
+sharing a common x-axis (density) range across all themes for comparability.
+Loads both the train and dev splits of Nofing/EventStoryLine-0.9-standard-eci.
 
 Usage:
     uv run scripts/analysis/theme_density_histogram.py
@@ -50,38 +50,35 @@ def load_doc_densities() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def plot_stacked_histogram(df: pd.DataFrame, out_path: Path, n_bins: int) -> None:
+def plot_per_theme_histograms(df: pd.DataFrame, out_dir: Path, n_bins: int) -> None:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
     themes = sorted(df["theme"].unique())
     cmap = plt.get_cmap("tab20", len(themes))
     colors = {theme: cmap(i) for i, theme in enumerate(themes)}
 
     max_density = df["density"].max()
     bin_edges = np.linspace(0, max_density, n_bins + 1)
+    bin_width = bin_edges[1] - bin_edges[0]
+    centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    per_theme_counts = []
     for theme in themes:
         sub = df[df["theme"] == theme]
         counts, _ = np.histogram(sub["density"], bins=bin_edges)
-        per_theme_counts.append(counts)
 
-    bottoms = np.zeros(n_bins)
-    centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-    bin_width = bin_edges[1] - bin_edges[0]
-    for theme, counts in zip(themes, per_theme_counts):
-        ax.bar(centers, counts, width=bin_width, bottom=bottoms, color=colors[theme], label=f"theme {theme}")
-        bottoms += counts
-
-    ax.set_xlabel("density (relations / mentions) per document")
-    ax.set_ylabel("number of documents")
-    ax.set_title("EventStoryLine: document density by theme (train + dev)")
-    ax.legend(title="theme (topic_id)", ncol=2, fontsize="small", bbox_to_anchor=(1.02, 1), loc="upper left")
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=150)
-    plt.close(fig)
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        ax.bar(centers, counts, width=bin_width, color=colors[theme])
+        ax.set_xlim(0, max_density)
+        ax.set_xlabel("density (relations / mentions) per document")
+        ax.set_ylabel("number of documents")
+        ax.set_title(f"EventStoryLine theme {theme} (n={len(sub)} docs)")
+        fig.tight_layout()
+        out_path = out_dir / f"esl_theme_{theme}_density_histogram.png"
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+        print(f"Saved figure -> {out_path}")
 
 
 def main() -> None:
@@ -103,9 +100,7 @@ def main() -> None:
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "esl_theme_density_histogram.png"
-    plot_stacked_histogram(df, out_path, args.bins)
-    print(f"\nSaved figure -> {out_path}")
+    plot_per_theme_histograms(df, out_dir, args.bins)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ Extracted columns (all optional / robust to missing keys):
   - micro_precision, micro_recall, micro_f1, macro_f1, total_pairs
   - binary_precision, binary_recall, binary_f1, binary_support_pos
   - per-label metrics (e.g. CAUSE_precision, CAUSE_recall, …)
+  - per-language metrics, incl. binary (e.g. en_binary_f1, de_binary_precision, …)
   - skipped_docs
 
 Usage:
@@ -79,6 +80,12 @@ def flatten_per_lang(results: Dict[str, Any]) -> Dict[str, Any]:
         out[f"{lang}_micro_precision"] = mc.get("micro_precision")
         out[f"{lang}_micro_recall"]    = mc.get("micro_recall")
         out[f"{lang}_total_pairs"]     = lm.get("total_pairs")
+
+        binary = lm.get("binary") or {}
+        out[f"{lang}_binary_precision"]   = binary.get("precision")
+        out[f"{lang}_binary_recall"]      = binary.get("recall")
+        out[f"{lang}_binary_f1"]          = binary.get("f1")
+        out[f"{lang}_binary_support_pos"] = binary.get("support_pos")
     return out
 
 
