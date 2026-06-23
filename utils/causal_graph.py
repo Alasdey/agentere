@@ -15,11 +15,12 @@ import graphviz
 
 from utils.labels import CAUSED_BY, NOREL_VARIANTS
 
-TP_COLOR = "#1a9850"  # green: gold causal, predicted causal
-FP_COLOR = "#d73027"  # red:   gold norel,  predicted causal
-FN_COLOR = "#4575b4"  # blue:  gold causal, predicted norel
+TP_COLOR = "#009E73"  # green:  gold causal, predicted causal (Okabe-Ito)
+FP_COLOR = "#E69F00"  # orange: gold norel,  predicted causal (Okabe-Ito)
+FN_COLOR = "#0072B2"  # blue:   gold causal, predicted norel  (Okabe-Ito)
 
 _COLOR_BY_STATUS = {"TP": TP_COLOR, "FP": FP_COLOR, "FN": FN_COLOR}
+_STYLE_BY_STATUS = {"TP": "solid", "FP": "dotted", "FN": "dashed"}
 
 
 def is_causal(label: str) -> bool:
@@ -49,7 +50,7 @@ def build_edges_from_triples(gold_triples, pred_triples) -> list[dict]:
 def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fmt: str = "png", doc_text: str | None = None) -> graphviz.Digraph:
     """Builds the Graphviz Digraph object (nodes = mentions, edges = TP/FP/FN) without rendering."""
     g = graphviz.Digraph("causal_graph", format=fmt)
-    g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16")
+    g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16", pad="0.4,0.2")
     g.attr("node", shape="box", style="rounded,filled", fillcolor="#fffde7", fontname="Helvetica", fontsize="11")
     g.attr("edge", fontname="Helvetica", fontsize="10")
 
@@ -66,15 +67,20 @@ def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fm
         g.node(mention_id, label=f"{mention_id}\n{text}")
 
     for e in edges:
-        g.edge(e["src"], e["tgt"], color=_COLOR_BY_STATUS[e["status"]], penwidth="2", label=e["label"])
+        g.edge(e["src"], e["tgt"], color=_COLOR_BY_STATUS[e["status"]],
+               style=_STYLE_BY_STATUS[e["status"]], penwidth="2", label=e["label"])
 
     with g.subgraph(name="legend") as lg:
         lg.attr(rank="sink")
-        lg.attr("node", shape="plaintext", style="", fontsize="10")
-        lg.node("legend_label", label="Legend:")
-        lg.node("legend_tp", label="TP (correct causal)", fontcolor=TP_COLOR)
-        lg.node("legend_fp", label="FP (hallucinated causal)", fontcolor=FP_COLOR)
-        lg.node("legend_fn", label="FN (missed causal)", fontcolor=FN_COLOR)
+        lg.attr("node", shape="point", style="invis")
+        lg.attr("edge", fontname="Helvetica", fontsize="10", penwidth="2")
+        lg.node("legend_label", shape="plaintext", style="", label="Legend:")
+        for status, text in (("TP", "correct causal"), ("FP", "hallucinated causal"), ("FN", "missed causal")):
+            lg.node(f"legend_{status}_a")
+            lg.node(f"legend_{status}_b")
+            lg.edge(f"legend_{status}_a", f"legend_{status}_b",
+                    color=_COLOR_BY_STATUS[status], style=_STYLE_BY_STATUS[status],
+                    label=f"{status} ({text})", fontcolor=_COLOR_BY_STATUS[status])
 
     return g
 
