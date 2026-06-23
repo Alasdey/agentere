@@ -208,12 +208,14 @@ def main() -> None:
 
     report(df, "all datasets", out_dir)
     report_density(df, "all datasets", out_dir)
+    report_density_pairs(df, "all datasets", out_dir)
     report_num_mentions(df, "all datasets", out_dir)
     for dataset_name, sub_df in df.groupby("dataset"):
         ds_dir = out_dir / dataset_name
         ds_dir.mkdir(parents=True, exist_ok=True)
         report(sub_df, dataset_name, ds_dir)
         report_density(sub_df, dataset_name, ds_dir)
+        report_density_pairs(sub_df, dataset_name, ds_dir)
         report_num_mentions(sub_df, dataset_name, ds_dir)
 
 
@@ -277,22 +279,23 @@ def per_doc_confusion_counts(df: pd.DataFrame) -> pd.DataFrame:
     return doc_counts[doc_counts["num_mentions"] > 0]
 
 
-def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
-    """Density of positive relations (TP/FP/FN) per document, normalized by mention count."""
-    doc_counts = per_doc_confusion_counts(df)
-
+def _report_density_generic(
+    doc_counts: pd.DataFrame, denominator: pd.Series, label: str, out_dir: Path,
+    file_prefix: str, verbose: bool, print_label: str, xlabel: str, fname: str,
+) -> None:
     density_rows = []
     for confusion in ["TP", "FP", "FN"]:
-        density = doc_counts[confusion] / doc_counts["num_mentions"]
+        density = doc_counts[confusion] / denominator
         density_rows.append(pd.DataFrame({
             "density": density,
             "confusion": confusion,
             "relation_count": doc_counts[confusion],
         }))
     density_df = pd.concat(density_rows, ignore_index=True)
+    density_df = density_df[density_df["density"].notna()]
 
     if verbose:
-        print(f"\n=== Density of positive relations per document (per mention) — {label} ===")
+        print(f"\n=== {print_label} — {label} ===")
         print(density_df.groupby("confusion")["density"].describe().to_string())
 
     import matplotlib
@@ -304,17 +307,42 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str
     # TP/FP/FN relations to the bar height, not just 1 — keeps the total comparable
     # to the pair-level word/sentence distance histograms.
     plot_grouped_bar_histogram(
-        ax, density_df, "density", "Relations per mention, per document",
+        ax, density_df, "density", print_label,
         integer_valued=False, weight_col="relation_count",
     )
-    ax.set_xlabel("positive relations / num. mentions in document")
-    fig.suptitle(f"Density of positive relations per document — {label}")
+    ax.set_xlabel(xlabel)
+    fig.suptitle(f"{print_label} — {label}")
     fig.tight_layout()
-    out_path = out_dir / f"{file_prefix}density_per_document_histogram.png"
+    out_path = out_dir / f"{file_prefix}{fname}"
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
     if verbose:
         print(f"\nSaved figure → {out_path}")
+
+
+def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """Density of positive relations (TP/FP/FN) per document, normalized by mention count."""
+    doc_counts = per_doc_confusion_counts(df)
+    _report_density_generic(
+        doc_counts, doc_counts["num_mentions"], label, out_dir, file_prefix, verbose,
+        print_label="Density of positive relations per document (per mention)",
+        xlabel="positive relations / num. mentions in document",
+        fname="density_per_document_histogram.png",
+    )
+
+
+def report_density_pairs(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """Density of positive relations (TP/FP/FN) per document, normalized by the number
+    of ordered mention pairs (n * (n-1)) — i.e. relation count over candidate-pair count."""
+    doc_counts = per_doc_confusion_counts(df)
+    doc_counts = doc_counts[doc_counts["num_mentions"] >= 2]
+    denominator = doc_counts["num_mentions"] * (doc_counts["num_mentions"] - 1)
+    _report_density_generic(
+        doc_counts, denominator, label, out_dir, file_prefix, verbose,
+        print_label="Density of positive relations per document (per ordered mention pair)",
+        xlabel="positive relations / (num. mentions * (num. mentions - 1))",
+        fname="density_per_pair_histogram.png",
+    )
 
 
 def report_num_mentions(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
@@ -439,6 +467,7 @@ def generate_run_histograms(run_json_path: Path, out_dir: Path, stem: str) -> No
 
     report(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     report_density(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    report_density_pairs(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     report_num_mentions(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     print(f"Histogram artifacts saved alongside run log (prefix: {file_prefix})")
 
