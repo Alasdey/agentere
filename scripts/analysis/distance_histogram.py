@@ -209,6 +209,8 @@ def main() -> None:
     report(df, "all datasets", out_dir)
     report_density(df, "all datasets", out_dir)
     report_density_pairs(df, "all datasets", out_dir)
+    report_density_by_gold(df, "all datasets", out_dir)
+    report_density_pairs_by_gold(df, "all datasets", out_dir)
     report_num_mentions(df, "all datasets", out_dir)
     for dataset_name, sub_df in df.groupby("dataset"):
         ds_dir = out_dir / dataset_name
@@ -216,6 +218,8 @@ def main() -> None:
         report(sub_df, dataset_name, ds_dir)
         report_density(sub_df, dataset_name, ds_dir)
         report_density_pairs(sub_df, dataset_name, ds_dir)
+        report_density_by_gold(sub_df, dataset_name, ds_dir)
+        report_density_pairs_by_gold(sub_df, dataset_name, ds_dir)
         report_num_mentions(sub_df, dataset_name, ds_dir)
 
 
@@ -347,6 +351,76 @@ def report_density_pairs(df: pd.DataFrame, label: str, out_dir: Path, file_prefi
     )
 
 
+def _report_density_by_gold_generic(
+    doc_counts: pd.DataFrame, denominator: pd.Series, label: str, out_dir: Path,
+    file_prefix: str, verbose: bool, print_label: str, xlabel: str, fname: str, short_title: str,
+) -> None:
+    """Like _report_density_generic, but buckets documents by their *gold* density
+    (TP+FN over the denominator) instead of each confusion class computing its own
+    density. This keeps the x-axis bounded by the actual gold relation density —
+    matching the per-theme gold histograms — and shows how TP/FP/FN counts distribute
+    across documents at a given gold density level, rather than letting FP-heavy
+    documents (which have no gold-density ceiling) blow out the x-axis."""
+    gold_density = (doc_counts["TP"] + doc_counts["FN"]) / denominator
+    density_rows = []
+    for confusion in ["TP", "FP", "FN"]:
+        density_rows.append(pd.DataFrame({
+            "density": gold_density,
+            "confusion": confusion,
+            "relation_count": doc_counts[confusion],
+        }))
+    density_df = pd.concat(density_rows, ignore_index=True)
+    density_df = density_df[density_df["density"].notna()]
+
+    if verbose:
+        print(f"\n=== {print_label} — {label} ===")
+        print(density_df.groupby("confusion")["density"].describe().to_string())
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    plot_grouped_bar_histogram(
+        ax, density_df, "density", short_title,
+        integer_valued=False, weight_col="relation_count",
+    )
+    ax.set_xlabel(xlabel)
+    fig.suptitle(f"{short_title} — {label}")
+    fig.tight_layout()
+    out_path = out_dir / f"{file_prefix}{fname}"
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    if verbose:
+        print(f"\nSaved figure → {out_path}")
+
+
+def report_density_by_gold(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """TP/FP/FN relation counts per document, bucketed by gold density (per mention)."""
+    doc_counts = per_doc_confusion_counts(df)
+    _report_density_by_gold_generic(
+        doc_counts, doc_counts["num_mentions"], label, out_dir, file_prefix, verbose,
+        print_label="Gold density of positive relations per document (per mention)",
+        xlabel="gold positive relations / num. mentions in document",
+        fname="density_per_document_by_gold_density_histogram.png",
+        short_title="TP/FP/FN by gold relation density per mention",
+    )
+
+
+def report_density_pairs_by_gold(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+    """TP/FP/FN relation counts per document, bucketed by gold density (per ordered pair)."""
+    doc_counts = per_doc_confusion_counts(df)
+    doc_counts = doc_counts[doc_counts["num_mentions"] >= 2]
+    denominator = doc_counts["num_mentions"] * (doc_counts["num_mentions"] - 1)
+    _report_density_by_gold_generic(
+        doc_counts, denominator, label, out_dir, file_prefix, verbose,
+        print_label="Gold density of positive relations per document (per ordered mention pair)",
+        xlabel="gold positive relations / (num. mentions * (num. mentions - 1))",
+        fname="density_per_pair_by_gold_density_histogram.png",
+        short_title="TP/FP/FN by gold relation density per ordered pair",
+    )
+
+
 def report_num_mentions(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
     """TP/FP/FN relation counts by number of mentions in the document."""
     doc_counts = per_doc_confusion_counts(df)
@@ -470,6 +544,8 @@ def generate_run_histograms(run_json_path: Path, out_dir: Path, stem: str) -> No
     report(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     report_density(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     report_density_pairs(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    report_density_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=False)
+    report_density_pairs_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     report_num_mentions(df, label, out_dir, file_prefix=file_prefix, verbose=False)
     print(f"Histogram artifacts saved alongside run log (prefix: {file_prefix})")
 
