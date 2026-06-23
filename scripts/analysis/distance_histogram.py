@@ -281,7 +281,7 @@ def per_doc_confusion_counts(df: pd.DataFrame) -> pd.DataFrame:
 
 def _report_density_generic(
     doc_counts: pd.DataFrame, denominator: pd.Series, label: str, out_dir: Path,
-    file_prefix: str, verbose: bool, print_label: str, xlabel: str, fname: str,
+    file_prefix: str, verbose: bool, print_label: str, xlabel: str, fname: str, short_title: str,
 ) -> None:
     density_rows = []
     for confusion in ["TP", "FP", "FN"]:
@@ -307,11 +307,11 @@ def _report_density_generic(
     # TP/FP/FN relations to the bar height, not just 1 — keeps the total comparable
     # to the pair-level word/sentence distance histograms.
     plot_grouped_bar_histogram(
-        ax, density_df, "density", print_label,
+        ax, density_df, "density", short_title,
         integer_valued=False, weight_col="relation_count",
     )
     ax.set_xlabel(xlabel)
-    fig.suptitle(f"{print_label} — {label}")
+    fig.suptitle(f"{short_title} — {label}")
     fig.tight_layout()
     out_path = out_dir / f"{file_prefix}{fname}"
     fig.savefig(out_path, dpi=150)
@@ -328,6 +328,7 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str
         print_label="Density of positive relations per document (per mention)",
         xlabel="positive relations / num. mentions in document",
         fname="density_per_document_histogram.png",
+        short_title="Relations per mention, per document",
     )
 
 
@@ -342,6 +343,7 @@ def report_density_pairs(df: pd.DataFrame, label: str, out_dir: Path, file_prefi
         print_label="Density of positive relations per document (per ordered mention pair)",
         xlabel="positive relations / (num. mentions * (num. mentions - 1))",
         fname="density_per_pair_histogram.png",
+        short_title="Relations per ordered pair, per document",
     )
 
 
