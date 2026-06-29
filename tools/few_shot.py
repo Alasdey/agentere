@@ -19,7 +19,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
-from utils.formatting import format_pair_lines, format_gold_output
+from utils.formatting import format_pair_lines, format_gold_output, relation_budget_suffix
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 import utils.trace_dump as trace_dump
 
@@ -171,6 +171,11 @@ async def _generate_cot_for_doc(
     if doc_id in _COT_CACHE:
         return _COT_CACHE[doc_id]
 
+    cfg = get_cfg()
+    if cfg["experiment"]["relation_budget"]["enabled"] and cfg["few_shot"]["cot_generation"]["same_relation_budget"]:
+        binary_undirected = cfg["data"]["binary_undirected"]
+        system_prompt = system_prompt.rstrip() + relation_budget_suffix(doc, binary_undirected=binary_undirected)
+
     gold_hint = _COT_GOLD_HINT.format(gold_json=gold_output)
     gold_hint_cont = _COT_GOLD_HINT_CONTINUE.format(gold_json=gold_output)
 
@@ -276,6 +281,8 @@ async def get_few_shot_message_pairs(
             pair_lines=pair_lines,
             doc_id=doc.get("id", ""),
         )
+        if cfg["experiment"]["relation_budget"]["enabled"] and cfg["few_shot"]["cot_generation"]["same_relation_budget"]:
+            human_content = human_content.rstrip() + relation_budget_suffix(doc, binary_undirected=binary_undirected)
         gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
 
         if cot_enabled:
@@ -441,6 +448,8 @@ async def pregenerate_cot(
                 pair_lines=pair_lines,
                 doc_id=doc.get("id", ""),
             )
+            if cfg["experiment"]["relation_budget"]["enabled"] and cfg["few_shot"]["cot_generation"]["same_relation_budget"]:
+                human_content = human_content.rstrip() + relation_budget_suffix(doc, binary_undirected=binary_undirected)
             gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
             await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke, steps=steps)
 

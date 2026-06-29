@@ -21,6 +21,47 @@ def convert_to_binary_undirected(triples: List[Tuple[str, str, str]]) -> List[Tu
     return result
 
 
+# Oracle relation-budget addon: tells the model in advance how many gold-positive
+# causal relations it must find, so it can calibrate against over/under-predicting.
+# Worded as a hard constraint with an explicit self-check/redo instruction, and meant
+# to be injected into the system prompt AND the human/CoT-generation prompt for emphasis.
+RELATION_BUDGET_SUFFIX_DIRECTED = (
+    "\n\n## RELATION BUDGET — HARD CONSTRAINT\n"
+    "This document has EXACTLY {n} positive causal relation(s) in total, counting \"causes\" and "
+    "\"causedby\" together (each causal pair contributes one \"causes\" entry AND one mirrored "
+    "\"causedby\" entry). This count is authoritative ground truth — it is not a hint or an estimate, "
+    "it is a requirement your final answer MUST satisfy exactly.\n\n"
+    "Before you output the final JSON, COUNT how many \"causes\"/\"causedby\" labels appear in your "
+    "draft answer. If that count is not EXACTLY {n}, you have made an error: go back, re-examine every "
+    "pair, and REDO the extraction — add the causal link(s) you missed, or remove/downgrade to \"norel\" "
+    "the one(s) you wrongly added — until your final answer contains EXACTLY {n} positive relations. "
+    "Never submit a final answer whose positive-relation count does not equal {n}."
+)
+RELATION_BUDGET_SUFFIX_BINARY = (
+    "\n\n## RELATION BUDGET — HARD CONSTRAINT\n"
+    "This document has EXACTLY {n} positive causal relation(s) in total. This count is authoritative "
+    "ground truth — it is not a hint or an estimate, it is a requirement your final answer MUST satisfy "
+    "exactly.\n\n"
+    "Before you output the final JSON, COUNT how many positive (\"causal\") labels appear in your draft "
+    "answer. If that count is not EXACTLY {n}, you have made an error: go back, re-examine every pair, "
+    "and REDO the extraction — add the relation(s) you missed, or remove/downgrade to \"norel\" the "
+    "one(s) you wrongly added — until your final answer contains EXACTLY {n} positive relations. "
+    "Never submit a final answer whose positive-relation count does not equal {n}."
+)
+
+
+def count_positive_relations(doc: dict) -> int:
+    """Counts gold positive (non-norel) relations for this document — the oracle relation budget."""
+    return sum(1 for _, lbl, _ in doc["gold_triples"] if lbl.lower() not in NOREL_VARIANTS)
+
+
+def relation_budget_suffix(doc: dict, binary_undirected: bool = False) -> str:
+    """Returns the oracle relation-budget block to append to a system or human prompt."""
+    n = count_positive_relations(doc)
+    template = RELATION_BUDGET_SUFFIX_BINARY if binary_undirected else RELATION_BUDGET_SUFFIX_DIRECTED
+    return template.format(n=n)
+
+
 def format_pair_lines(
     doc: dict,
     binary_undirected: bool = False,

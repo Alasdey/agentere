@@ -19,7 +19,7 @@ from utils.config import load_config
 from utils.runtime_config import set_cfg
 from utils.context import CURRENT_DOC_ID, doc_context
 from utils import causal_graph
-from utils.formatting import format_pair_lines
+from utils.formatting import format_pair_lines, relation_budget_suffix
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
@@ -136,7 +136,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     timeout = config["experiment"].get("timeout", 3600)
 
     prompt_cfg = config["prompt"]
-    system_prompt = prompt_cfg["system"]
+    base_system_prompt = prompt_cfg["system"]
     steps = prompt_cfg.get("steps") or None  # list of {id, prompt} or None for single-call
     active_ds = config["active_dataset"]
 
@@ -144,6 +144,13 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     binary_undirected = data_cfg["binary_undirected"]
     reshuffle_per_resample = data_cfg["reshuffle_per_resample"]
     constrain_to_pair_list = config["datasets"][active_ds]["constrain_to_pair_list"]
+
+    # The live system prompt gets this doc's relation budget appended. The base
+    # (unaugmented) prompt is what's passed to few-shot/CoT generation below, so the
+    # live document's count never leaks into the synthetic generation for a different doc.
+    system_prompt = base_system_prompt
+    if config["experiment"]["relation_budget"]["enabled"]:
+        system_prompt = base_system_prompt.rstrip() + relation_budget_suffix(doc, binary_undirected=binary_undirected)
 
     def _build_user_prompt(pair_list_ids):
         doc_view = {**doc, "pair_list_ids": pair_list_ids}
@@ -159,6 +166,8 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         )
         if suffix := prompt_cfg.get("user_suffix", "").strip():
             prompt = prompt.rstrip() + "\n\n" + suffix
+        if config["experiment"]["relation_budget"]["enabled"]:
+            prompt = prompt.rstrip() + relation_budget_suffix(doc_view, binary_undirected=binary_undirected)
         return prompt
 
     user_prompt = _build_user_prompt(doc["pair_list_ids"])
@@ -183,7 +192,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 prompt_cfg["user_template"],
                 active_ds,
                 steps=steps,
-                system_prompt=system_prompt,
+                system_prompt=base_system_prompt,
                 graph_ainvoke=graph_ainvoke,
             )
 

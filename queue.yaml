@@ -9,110 +9,73 @@
 experiments:
 
 
-  # - name: "h"
-  #   overrides:
-  #     model:
-  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
-  #     active_dataset: "causal_timebank"
-  #     experiment:
-  #       resampling:
-  #         enabled: false
-  #         n_runs: 3
-  #       retries: 3
-  #     few_shot:
-  #       enabled: false
-  #       pool_size: 3
-  #       cot_generation:
-  #         enabled: true
-  #     data:
-  #       binary_undirected: false
-  #     datasets:
-  #       meci:
-  #         prompt: "meci_standard_eci"
-  #         max_examples: 50
-  #       causal_timebank:
-  #         name: "CausalTimeBank-standard-eci"
-  #         prompt: "causal_timebank_explicit_marker"
-
-
 
   # - name: "h"
   #   overrides:
   #     model:
+  #         # default_model_id: "z-ai/glm-5.2"
+  #         # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
   #         default_model_id: "deepseek/deepseek-v3.2:nitro"
-  #     active_dataset: "meci"
-  #     experiment:
-  #       resampling:
-  #         enabled: false
-  #         n_runs: 3
-  #       retries: 3
-  #     few_shot:
-  #       enabled: false
-  #       pool_size: 20
-  #       cot_generation:
-  #         enabled: true
-  #     data:
-  #       binary_undirected: false
-  #     datasets:
-  #       meci:
-  #         prompt: "meci_standard_eci"
-  #         max_examples: 50
-  #       causal_timebank:
-  #         name: "CausalTimeBank-standard-eci"
-  #         prompt: "causal_timebank_explicit_marker"
-
-  # - name: "h"
-  #   overrides:
-  #     model:
-  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
-  #     active_dataset: "event_story_line"
+  #     active_dataset: "maven_ere"
   #     experiment:
   #       tools:
+  #         # - "coherence" 
+  #         # - "counterfactual_check"
   #         - "eci_extractor"
+  #       enable_tools: false
   #       resampling:
   #         enabled: false
   #         n_runs: 3
   #       retries: 3
+  #       relation_budget:
+  #         enabled: true
   #     few_shot:
-  #       enabled: false
+  #       enabled: true
   #       pool_size: 3
   #       cot_generation:
   #         enabled: true
+  #         same_relation_budget: true
   #     data:
   #       binary_undirected: false
   #     datasets:
-  #       event_story_line:
-  #         max_examples: 5
-  #         prompt: "common_eci_extractor_tool"
-  #       meci:
-  #         prompt: "meci_standard_eci"
+  #       maven_ere:
   #         max_examples: 50
+  #         # prompt: "common_eci_extractor_tool"
+  #       meci:
+  #         max_examples: 50
+  #         # prompt: "meci_standard_eci"
+  #         # prompt: "meci_standard_eci_tools"
   #       causal_timebank:
-  #         name: "CausalTimeBank-standard-eci"
   #         prompt: "causal_timebank_explicit_marker"
+  #       event_story_line:
+  #         max_examples: 50
 
   - name: "h"
     overrides:
       model:
           # default_model_id: "z-ai/glm-5.2"
           # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
-          default_model_id: "deepseek/deepseek-v3.2:nitro"
-      active_dataset: "event_story_line"
+          # default_model_id: "deepseek/deepseek-v3.2:nitro"
+          default_model_id: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+      active_dataset: "meci"
       experiment:
         tools:
           # - "coherence" 
           # - "counterfactual_check"
           - "eci_extractor"
-        enable_tools: true
+        enable_tools: false
         resampling:
           enabled: false
           n_runs: 3
         retries: 3
+        relation_budget:
+          enabled: true
       few_shot:
-        enabled: false
+        enabled: true
         pool_size: 3
         cot_generation:
-          enabled: false
+          enabled: true
+          same_relation_budget: true
       data:
         binary_undirected: false
       datasets:
@@ -126,6 +89,85 @@ experiments:
         causal_timebank:
           prompt: "causal_timebank_explicit_marker"
         event_story_line:
-          max_examples: 10
-          prompt: "common_eci_extractor_tool"
+          max_examples: 50
+
+  # - name: "h"
+  #   overrides:
+  #     model:
+  #         # default_model_id: "z-ai/glm-5.2"
+  #         # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
+  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
+  #     active_dataset: "causal_timebank"
+  #     experiment:
+  #       tools:
+  #         # - "coherence" 
+  #         # - "counterfactual_check"
+  #         - "eci_extractor"
+  #       enable_tools: false
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #       retries: 3
+  #       relation_budget:
+  #         enabled: true
+  #     few_shot:
+  #       enabled: true
+  #       pool_size: 3
+  #       cot_generation:
+  #         enabled: true
+  #         same_relation_budget: true
+  #     data:
+  #       binary_undirected: false
+  #     datasets:
+  #       maven_ere:
+  #         max_examples: 50
+  #         # prompt: "common_eci_extractor_tool"
+  #       meci:
+  #         max_examples: 50
+  #         # prompt: "meci_standard_eci"
+  #         # prompt: "meci_standard_eci_tools"
+  #       causal_timebank:
+  #         prompt: "causal_timebank_explicit_marker"
+  #       event_story_line:
+  #         max_examples: 50
+
+  # - name: "h"
+  #   overrides:
+  #     model:
+  #         # default_model_id: "z-ai/glm-5.2"
+  #         # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
+  #         default_model_id: "deepseek/deepseek-v3.2:nitro"
+  #     active_dataset: "event_story_line"
+  #     experiment:
+  #       tools:
+  #         # - "coherence" 
+  #         # - "counterfactual_check"
+  #         - "eci_extractor"
+  #       enable_tools: false
+  #       resampling:
+  #         enabled: false
+  #         n_runs: 3
+  #       retries: 3
+  #       relation_budget:
+  #         enabled: true
+  #     few_shot:
+  #       enabled: true
+  #       pool_size: 3
+  #       cot_generation:
+  #         enabled: true
+  #         same_relation_budget: true
+  #     data:
+  #       binary_undirected: false
+  #     datasets:
+  #       maven_ere:
+  #         max_examples: 50
+  #         # prompt: "common_eci_extractor_tool"
+  #       meci:
+  #         max_examples: 50
+  #         # prompt: "meci_standard_eci"
+  #         # prompt: "meci_standard_eci_tools"
+  #       causal_timebank:
+  #         prompt: "causal_timebank_explicit_marker"
+  #       event_story_line:
+  #         max_examples: 50
 

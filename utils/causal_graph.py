@@ -27,9 +27,11 @@ def is_causal(label: str) -> bool:
     return str(label).lower() not in NOREL_VARIANTS
 
 
-def build_edges_from_triples(gold_triples, pred_triples) -> list[dict]:
+def build_edges_from_triples(gold_triples, pred_triples, include_norel: bool = False) -> list[dict]:
     """Classify (src, label, tgt) relation triples into TP / FP / FN edges,
-    directed cause -> effect. Mirrors the set logic of compute_ere_metrics."""
+    directed cause -> effect. Mirrors the set logic of compute_ere_metrics.
+    """
+
     gold_set = set(gold_triples)
     pred_set = set(pred_triples)
 

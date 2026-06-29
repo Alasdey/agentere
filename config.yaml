@@ -91,6 +91,8 @@ experiment:
     enabled: true
     n_runs: 3         # Votes per document
     tie_breaking: "norel"
+  relation_budget:
+    enabled: false   # append "There are exactly N relation(s) to predict" to the human prompt
 
 
 # ── Few-shot examples (used by the few_shot_examples tool) ──
@@ -112,6 +114,7 @@ few_shot:
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
   cot_generation:
     enabled: true      # true: generate realistic CoT few-shots via 2-step LLM call
+    same_relation_budget: false  # also append the relation-count addon (experiment.relation_budget) when generating synthetic CoT few-shot examples
     # cache_path: "logs/cot_cache.json"  # uncomment to persist generated CoTs across runs
 
 # ── Reprompt tool ──
