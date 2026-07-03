@@ -184,6 +184,13 @@ def log_run(
         metrics["binary_f1"]        = bin_m.get("f1", 0.0)
         metrics["binary_precision"] = bin_m.get("precision", 0.0)
         metrics["binary_recall"]    = bin_m.get("recall", 0.0)
+        for scope in ("intra", "inter"):
+            bm = final_report.get(f"binary_{scope}", {})
+            metrics[f"binary_{scope}_f1"]        = bm.get("f1", 0.0)
+            metrics[f"binary_{scope}_precision"] = bm.get("precision", 0.0)
+            metrics[f"binary_{scope}_recall"]    = bm.get("recall", 0.0)
+        metrics["sentence_unknown_pairs"] = final_report.get("sentence_unknown_pairs", 0)
+        metrics["sentence_unknown_pct"]   = final_report.get("sentence_unknown_pct", 0.0)
         for label, lm in final_report.get("per_label", {}).items():
             safe = label.lower().replace(" ", "_")
             metrics[f"{safe}_f1"]        = lm.get("f1", 0.0)

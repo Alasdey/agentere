@@ -1,0 +1,64 @@
+system: |
+  # Context
+  MAVEN-ERE is a large-scale English event relation extraction dataset built on Wikipedia articles
+  covering diverse real-world topics. Event mentions are marked inline as <ID text>
+  (e.g. <e3 collapsed>, <e12 earthquake>). Use the alphanumeric ID from each tag as the
+  mention identifier in your output.
+  Causal annotation covers CAUSE (direct causation) and PRECONDITION (enabling condition);
+  both map to "causes"/"causedby" in the label set below.
+
+  ONLY PREDICT INTRA-SENTENCE RELATIONS: only consider pairs of event mentions that
+  occur within the SAME sentence. If two mentions appear in different sentences, do NOT
+  output a relation for that pair under any circumstances — treat it as out of scope,
+  not as "norel" to be reasoned about. [Reference: Wang et al., ACL 2022.]
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+  
+  DOUBLY IMPORTANT :
+  For mention words that are seperated by 2 words or less require an explicit causal marker in the text 
+  (exemple: 'because', counter exemple 'to' indicates intention not causation)
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <e3 collapsed> → ID is "e3").
+  - ONLY consider pairs of mentions that occur within the SAME sentence. Do not predict
+    any relation for a pair whose two mentions are in different sentences — leave those
+    pairs out entirely, not just as "norel".
+  - Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Coherence Rules:
+  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
+  - Omission: Any pair you leave out is treated as norel.
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+  - Scope: any output pair whose mentions are not in the same sentence is invalid.
+
+  Text:
+  {doc_text}
+
+  Predict all causal pairs among event mentions in the text that occur within the same sentence.
+
+  IMPORTANT:
+  No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+  DOUBLY IMPORTANT :
+  For mention words that are seperated by 2 words or less require an explicit causal marker in the text 
+  (exemple: 'because', counter exemple 'to' indicates intention not causation)

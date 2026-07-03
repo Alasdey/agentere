@@ -109,6 +109,7 @@ def load_hf_dataset_parsed(
         tokens = row.get("tokens", [])
         spans = row.get("spans", [])
         mentions = row.get("mentions", [])
+        sentences = row["sentences"]
 
         gold_triples = parse_annotations(ann_text, valid_labels=None)
         if binary_undirected:
@@ -118,6 +119,7 @@ def load_hf_dataset_parsed(
             gold_triples = [(s, l, t) for s, l, t in gold_triples if l in valid_labels]
         
         mentions_map = {}
+        mention_sentence: Dict[str, int] = {}
         if tokens and spans and mentions and len(spans) == len(mentions):
             for j, mention_id in enumerate(mentions):
                 token_indices = spans[j]
@@ -126,9 +128,16 @@ def load_hf_dataset_parsed(
                 for idx in token_indices:
                     if 0 <= idx < len(tokens):
                         text_parts.append(tokens[idx])
-                
+
                 if text_parts:
                     mentions_map[mention_id] = " ".join(text_parts)
+
+                if token_indices:
+                    first_tok = token_indices[0]
+                    for sent_idx, (start, end) in enumerate(sentences):
+                        if start <= first_tok < end:
+                            mention_sentence[mention_id] = sent_idx
+                            break
 
         pair_list_raw = row.get("pair_list")
         pair_list_ids: List[Tuple[str, str]] = []
@@ -159,6 +168,7 @@ def load_hf_dataset_parsed(
             "gold_triples": gold_triples,
             "lang": lang,
             "mentions_map": mentions_map,
+            "mention_sentence": mention_sentence,
             "pair_list_ids": pair_list_ids,
         }
         

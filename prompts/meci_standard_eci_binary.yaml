@@ -6,7 +6,7 @@ system: |
   two events, regardless of which direction. Each unordered pair appears exactly once.
 
   ## Label Set (Use these exact strings)
-  - **"CAUSAL"**: A causal link exists between Ti and Tj — one enables, causes, leads to,
+  - **"causal"**: A causal link exists between Ti and Tj — one enables, causes, leads to,
     or prevents the absence of the other. Direction does not matter.
   - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
 
@@ -42,39 +42,44 @@ system: |
   - **For**: signals supporting a causal link (explicit connective, spelled-out mechanism, counterfactual support, discourse structure encoding causality, enablement/prevention pattern).
   - **Against**: disqualifying factors (temporal-only link, distance gate not met, confounder or proximal cause, reporting/attribution verb, negation/contrast connective, insufficient signals for non-overt link, etc.).
 
-  Step 3 — Order by causal plausibility, then output JSON.
-  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Apply the Precision-First Rules to assign a label to each. Then output the final JSON array for ALL requested pairs (pairs discarded in Step 1 receive "norel").
+  Step 3 — Order by causal plausibility.
+  Rank the retained pairs from strongest to weakest causal evidence (qualitative only — no numeric scores or probabilities). Do not attempt any tentative label, only justify the rank of each pair, do not presume to know whether a pair is causal or not — that will only be a later discussion. List them in order, strongest first.
+  Do NOT output the final JSON yet — that comes in the next step.
+
+  Step 4 — Output the final JSON array.
+  Using your ranking from Step 3, apply the Precision-First Rules to assign a label to each pair, then output the final JSON array for ALL requested pairs (pairs discarded in Step 1 receive "norel").
 
   # Output Format
   - Follow the provided JSON structure exactly.
-  - Use only the approved label strings: "CAUSAL", "norel".
+  - Use only the approved label strings: "causal", "norel".
   - Pair order does not matter: T0,T1 and T1,T0 are equivalent — list each unordered pair only once.
 
   If there are no mentions in the text and no pairs to classify return the example.
 
   IMPORTANT :
-  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 4 and then the final json output
 
   TRIPLY IMPORTANT:
   NEVER in ANY step treat 'all other mentions' or 'all other pairs' at once. Always go through all the mentions, or pairs explicitly. Never bag them, that diminishes the performances.
 
+
 user_template: |
 
   IMPORTANT :
-  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 4 and then the final json output
 
   Rules:
-  - Labels: "CAUSAL" | "norel". Direction does not matter — each unordered pair appears exactly once.
+  - Labels: "causal" | "norel". Direction does not matter — each unordered pair appears exactly once.
   - Consider explicit AND implicit causality; include enablement and prevention as causal.
   - Ensure EVERY requested pair appears exactly once in your final JSON (any order).
   - Return ONLY a JSON array like:
   [
-    {{"pair":"T0,T1","label":"CAUSAL"}}
+    {{"pair":"T0,T1","label":"causal"}}
   ]
 
   Coherence Rules:
   - Completeness: Every pair listed below must appear exactly once in your output.
-  - Contradiction: "Ti,Tj" "norel" is not compatible with "Ti,Tj" "CAUSAL".
+  - Contradiction: "Ti,Tj" "norel" is not compatible with "Ti,Tj" "causal".
 
 
   Text:
@@ -85,7 +90,7 @@ user_template: |
 
 
   IMPORTANT :
-  No matter what start your answer by 'UwU' and then go through the steps 1 to 3 and then the final json output
+  No matter what start your answer by 'UwU' and then go through the steps 1 to 4 and then the final json output
 
   TRIPLY IMPORTANT:
   NEVER in ANY step treat 'all other mentions' or 'all other pairs' at once. Always go through all the mentions, or pairs explicitly. Never bag them, that diminishes the performances.
