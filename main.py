@@ -19,7 +19,7 @@ from utils.config import load_config
 from utils.runtime_config import set_cfg
 from utils.context import CURRENT_DOC_ID, doc_context
 from utils import causal_graph
-from utils.formatting import format_pair_lines
+from utils.formatting import format_pair_lines, convert_to_binary_undirected
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
@@ -27,7 +27,7 @@ import contextlib
 import mlflow
 from utils.mlflow_tracker import log_run as mlflow_log_run, setup as mlflow_setup
 from utils.reporting import generate_run_report
-from utils.resample import aggregate_run_triples
+from utils.resample import aggregate_run_triples, aggregate_votes_to_binary
 import utils.trace_dump as trace_dump
 from scripts.analysis.distance_histogram import generate_run_histograms
 
@@ -142,6 +142,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
     data_cfg = config["data"]
     binary_undirected = data_cfg["binary_undirected"]
+    vote_to_binary = data_cfg.get("vote_to_binary", False)
+    binary_default = data_cfg.get("binary_default", "norel")
+    novote_norel = data_cfg.get("novote_norel", True)
     reshuffle_per_resample = data_cfg["reshuffle_per_resample"]
     constrain_to_pair_list = config["datasets"][active_ds]["constrain_to_pair_list"]
 
@@ -234,7 +237,19 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             if binary_undirected:
                 final_preds = [(min(s, t), lbl, max(s, t)) for s, lbl, t in final_preds]
 
-            metrics = compute_ere_metrics(doc["gold_triples"], final_preds)
+            # Recombine directed causes/causedby votes into a binary causal/norel decision
+            # before metrics, independently of binary_undirected (which acts at load time).
+            gold_for_eval = doc["gold_triples"]
+            if vote_to_binary:
+                final_preds = aggregate_votes_to_binary(
+                    pair_stats, binary_default=binary_default, novote_norel=novote_norel
+                )
+                gold_for_eval = [
+                    (s, l, t) for s, l, t in convert_to_binary_undirected(doc["gold_triples"])
+                    if l != NOREL
+                ]
+
+            metrics = compute_ere_metrics(gold_for_eval, final_preds)
 
             mlflow_cfg = config.get("mlflow", {})
             if mlflow_cfg.get("enabled", False) and mlflow_cfg.get("log_causal_graphs", False):
@@ -249,9 +264,10 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 "id": doc["id"],
                 "doc_idx": doc["doc_idx"],
                 "lang": doc.get("lang", "unknown"),
-                "gold_triples": doc["gold_triples"],
+                "gold_triples": gold_for_eval,
                 "pred_triples": final_preds,
                 "pair_stats": pair_stats,
+                "mention_sentence": doc["mention_sentence"],
                 "metrics": metrics,
                 "context": {
                     "system_prompt": system_prompt,
@@ -269,6 +285,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 "gold_triples": doc["gold_triples"],
                 "pred_triples": [],
                 "pair_stats": {},
+                "mention_sentence": doc["mention_sentence"],
                 "metrics": compute_ere_metrics(doc["gold_triples"], []),
                 "context": {"system_prompt": "", "user_prompt": "", "raw_responses": [], "retry_failure": True},
             }
@@ -394,11 +411,14 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
     results = await run_docs_concurrent(docs, config, graph_ainvoke)
 
     print("Aggregating results and computing metrics...")
+    # vote_to_binary reports gold/pred as causal/norel even though dataset loading
+    # (active_labels above) stays in directed 3-way space.
+    report_labels = BINARY_LABELS if (config["data"]["binary_undirected"] or config["data"].get("vote_to_binary", False)) else active_labels
     final_report = generate_run_report(
         results=results,
         total_processed_count=len(docs),
         config=config,
-        valid_labels=set(active_labels),
+        valid_labels=set(report_labels),
     )
 
     if kfold_n_folds > 0:
@@ -422,13 +442,21 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
     except Exception as exc:
         print(f"Histogram artifact generation failed (non-fatal): {exc}", file=sys.stderr)
 
-    for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary"]:
+    for key in ["per_label", "macro_f1", "micro_precision", "micro_recall", "micro_f1", "total_pairs", "binary", "binary_intra", "binary_inter", "sentence_unknown_pairs", "sentence_unknown_pct"]:
         print(key, ":", final_report[key])
+    if final_report.get("sentence_unknown_pct", 0.0) > 0.01:
+        print(
+            f"WARNING: {final_report['sentence_unknown_pairs']} pairs "
+            f"({final_report['sentence_unknown_pct']:.1%}) had unresolved sentence "
+            f"boundaries and are excluded from both binary_intra and binary_inter."
+        )
     if final_report.get("per_lang_metrics"):
         print("\nPer-language metrics:")
         for lang, lm in final_report["per_lang_metrics"].items():
             mc = lm["multiclass"]
+            b = lm["binary"]
             print(f"  [{lang}] pairs={lm['total_pairs']}  micro_f1={mc['micro_f1']:.4f}  macro_f1={mc['macro_f1']:.4f}  p={mc['micro_precision']:.4f}  r={mc['micro_recall']:.4f}")
+            print(f"           binary: f1={b['f1']:.4f}  p={b['precision']:.4f}  r={b['recall']:.4f}  support_pos={b['support_pos']}")
 
     if config.get("mlflow", {}).get("enabled", False):
         mlflow_run_id = mlflow_log_run(
