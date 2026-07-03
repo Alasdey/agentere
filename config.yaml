@@ -25,7 +25,7 @@ model:
   # default_model_id: "deepseek/deepseek-v3.2-speciale"
   # default_model_id: "deepseek/deepseek-r1-distill-qwen-32b"
   # default_model_id: "deepseek/deepseek-v3.2:nitro"
-  # default_model_id: "deepseek/deepseek-v3.2"
+  default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
   # default_model_id: "qwen/qwen3-next-80b-a3b-thinking"
   # default_model_id: "qwen/qwen3-32b:nitro"
@@ -33,7 +33,7 @@ model:
   # default_model_id: "nvidia/nemotron-3-nano-30b-a3b"
   # default_model_id: "google/gemini-2.5-flash-lite" # Doesn't work, not looked why
   # default_model_id: "microsoft/phi-4-mini-instruct"
-  default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
+  # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507:nitro"
   # default_model_id: "qwen/qwen3-30b-a3b-instruct-2507"
   # default_model_id: "inception/mercury-2:nitro"
   # default_model_id: "openai/gpt-oss-120b:nitro"
@@ -61,6 +61,15 @@ data:
   shuffle_pair_list: true         # randomise pair order within each document at load time
   reshuffle_per_resample: true   # re-randomise pair order independently for each resample run
   binary_undirected: false        # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
+  vote_to_binary: false            # post-hoc: recombine directed causes/causedby vote_counts into a binary
+                                   # causal/norel decision before metrics; model still predicts/loads gold
+                                   # in directed 3-way space. Alternative to binary_undirected — don't set both true.
+  binary_default: "norel"         # "norel" | "causal" — tie-break when causal vote count == norel vote count
+                                   # under vote_to_binary
+  novote_norel: true               # under vote_to_binary: when a pair's reverse direction was never
+                                   # queried/voted on at all, count that missing slot as an implicit norel
+                                   # vote (so a lone causal vote with no opposing direction is a tie too,
+                                   # not an outright win). false = missing direction contributes no vote.
   labels:                         # uniform label set for all HF datasets
     - "causes"
     - "causedby"
@@ -76,19 +85,19 @@ experiment:
   # tracing_name: "Mistral-MECI-714-6"
   # tracing_name: "Autoprompt-meci-deepseek"
   # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
-  enable_tools: true
+  enable_tools: false
   tools:
-    # - "coherence" 
+    - "coherence" 
     # - "counterfactual_check"
     # - "encoder"
     # - "bare_causes"
-    - "eci"
+    # - "eci"
     # - "reprompt"
   concurrency: 100
   retries: 3          # How many times to retry a failed sample
   timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
-    enabled: true
+    enabled: fakse
     n_runs: 3         # Votes per document
     tie_breaking: "norel"
 
@@ -117,6 +126,12 @@ few_shot:
 # ── Reprompt tool ──
 reprompt:
   systematic: false     # true: auto-inject reprompt just after few_shot; false: agent calls the tool
+
+# ── Per-tool model overrides ──
+tools_config:
+  eci_extractor:
+    model_id: "deepseek/deepseek-v3.2"
+    concurrency: 10
 
 # ── Encoder baseline predictions (used by the encoder tool) ──
 encoder:
