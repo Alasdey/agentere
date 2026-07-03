@@ -39,18 +39,8 @@ from utils.runtime_config import get_cfg, register_reset
 from utils import trace_dump
 from utils import trace_dump
 
-# Deliberately a different (and smaller) model than the orchestrator's
-# default_model_id — each sub-call is a focused binary-plus-direction
-# judgement, not multi-step agentic reasoning, so a 30B instruct model is
-# plenty and much cheaper to run per mention than the orchestrator's model.
-# DEFAULT_EXTRACTOR_MODEL_ID = "qwen/qwen3-30b-a3b-instruct-2507"
-# DEFAULT_EXTRACTOR_MODEL_ID = "deepseek/deepseek-v3.2:nitro"
-DEFAULT_EXTRACTOR_MODEL_ID = "openai/gpt-5.5"
-DEFAULT_CONCURRENCY = 10
-
-
 def _extractor_cfg() -> dict:
-    return get_cfg().get("tools_config", {}).get("eci_extractor", {})
+    return get_cfg()["tools_config"]["eci_extractor"]
 
 
 # =============================================================================
@@ -59,13 +49,13 @@ def _extractor_cfg() -> dict:
 
 @lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
-    model_cfg = get_cfg().get("model", {})
+    model_cfg = get_cfg()["model"]
     extractor_cfg = _extractor_cfg()
     return ChatOpenAI(
-        model=extractor_cfg.get("model_id", DEFAULT_EXTRACTOR_MODEL_ID),
+        model=extractor_cfg["model_id"],
         temperature=0.0,
         api_key=os.environ.get("OPENROUTER_API_KEY"),
-        base_url=model_cfg.get("base_url", "https://openrouter.ai/api/v1"),
+        base_url=model_cfg["base_url"],
     )
 
 
@@ -134,7 +124,8 @@ async def _evaluate_target(
         match = re.search(r"\[.*\]", raw, re.DOTALL)
         json_str = match.group(0) if match else raw
         judgements = json.loads(json_str)
-    except Exception:
+    except Exception as e:
+        print(f"[eci_extractor] sub-call FAILED for target {target.get('id')}: {type(e).__name__}: {e}")
         return []
 
     facts: List[Tuple[str, str]] = []
@@ -182,7 +173,7 @@ async def eci_extractor(document_text: str, mentions: List[Dict[str, str]]) -> s
         return json.dumps([])
 
     llm = _make_llm()
-    concurrency = _extractor_cfg().get("concurrency", DEFAULT_CONCURRENCY)
+    concurrency = _extractor_cfg()["concurrency"]
     semaphore = asyncio.Semaphore(concurrency)
 
     async def _bounded_evaluate(target: Dict[str, str], candidates: List[Dict[str, str]]):
