@@ -50,9 +50,10 @@ def build_edges_from_triples(gold_triples, pred_triples) -> list[dict]:
 def build_graph(doc_id: str, mentions_map: dict[str, str], edges: list[dict], fmt: str = "png", doc_text: str | None = None) -> graphviz.Digraph:
     """Builds the Graphviz Digraph object (nodes = mentions, edges = TP/FP/FN) without rendering."""
     g = graphviz.Digraph("causal_graph", format=fmt)
-    g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16", pad="0.4,0.2")
+    g.attr(rankdir="LR", label=doc_id, labelloc="t", fontsize="16", pad="0.4,0.2",
+           ranksep="0.4", nodesep="0.3", concentrate="true")
     g.attr("node", shape="box", style="rounded,filled", fillcolor="#fffde7", fontname="Helvetica", fontsize="11")
-    g.attr("edge", fontname="Helvetica", fontsize="10")
+    g.attr("edge", fontname="Helvetica", fontsize="10", minlen="1")
 
     if doc_text:
         with g.subgraph(name="doc_text") as dt:
