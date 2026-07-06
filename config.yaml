@@ -120,7 +120,11 @@ few_shot:
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
   cot_generation:
-    enabled: true      # true: generate realistic CoT few-shots via 2-step LLM call
+    enabled: true      # true: generate realistic CoT few-shots via LLM
+    num_steps: 2        # 2 (default): gold-guided generation -> decontaminate
+                         # 3: blind generation (no golds) -> correct with golds -> decontaminate
+                         # num_steps=3 only applies to single-call prompts (no `steps:` in the
+                         # active prompt YAML); multi-step task prompts always use the 2-step protocol.
     # cache_path: "logs/cot_cache.json"  # uncomment to persist generated CoTs across runs
 
 # ── Reprompt tool ──

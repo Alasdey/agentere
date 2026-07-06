@@ -72,6 +72,16 @@ _COT_DECONTAM_PROMPT = (
     "not confirmed it from a pre-known answer. Output only the rewritten response, nothing else."
 )
 
+_COT_CORRECT_HINT = (
+    "The correct label assignments for this document are:\n\n{gold_json}\n\n"
+    "Your response above was written without access to these labels. Revise it so the "
+    "reasoning leads naturally to the correct labels — fix any wrong conclusions, add "
+    "missing evidence, and correct the final answer. Keep anything that already agrees "
+    "with the correct labels. Do not mention or imply that you were given the answer; "
+    "write as though this is a refined version of your own analysis. "
+    "Output the full revised response, nothing else."
+)
+
 
 def preload() -> None:
     """Eagerly load and fit the training cache. Call once before concurrent inference."""
@@ -161,37 +171,68 @@ async def _generate_cot_for_doc(
     gold_output: str,
     graph_ainvoke,
     steps: list = None,
+    num_steps: int = 2,
 ) -> list:
-    """Generate a realistic CoT for each inference step using gold labels, then decontaminate.
+    """Generate a realistic CoT for each inference step, then decontaminate.
+
+    Single-call mode (no `steps`) supports two protocols, selected by `num_steps`:
+      2 (default): gold-guided generation -> decontaminate.
+      3: blind generation (no golds) -> correct with golds -> decontaminate.
+    Multi-step mode (task-level `steps` list) always uses the 2-step gold-guided protocol,
+    regardless of `num_steps`.
 
     Returns a list of clean AI responses — one per inference step (length 1 for single-call mode,
-    length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE[doc_id].
+    length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    if doc_id in _COT_CACHE:
-        return _COT_CACHE[doc_id]
+    cache_key = f"{doc_id}::n{num_steps}"
+    if cache_key in _COT_CACHE:
+        return _COT_CACHE[cache_key]
 
     gold_hint = _COT_GOLD_HINT.format(gold_json=gold_output)
     gold_hint_cont = _COT_GOLD_HINT_CONTINUE.format(gold_json=gold_output)
 
     if not steps:
         # ── Single-call mode ──────────────────────────────────────────────────
-        gen_messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_content),
-            HumanMessage(content=gold_hint),
-        ]
-        state = await graph_ainvoke(gen_messages)
-        trace_dump.trace_dump(state)
-        raw = state["messages"][-1].content
+        if num_steps == 3:
+            # Step 1: blind generation, no gold visibility.
+            gen_messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_content),
+            ]
+            state = await graph_ainvoke(gen_messages)
+            trace_dump.trace_dump(state)
+            blind_raw = state["messages"][-1].content
 
-        decontam_messages = gen_messages + [
-            AIMessage(content=raw),
+            # Step 2: correct the blind reasoning using the golds.
+            correct_hint = _COT_CORRECT_HINT.format(gold_json=gold_output)
+            correct_messages = gen_messages + [
+                AIMessage(content=blind_raw),
+                HumanMessage(content=correct_hint),
+            ]
+            state2 = await graph_ainvoke(correct_messages)
+            trace_dump.trace_dump(state2)
+            raw = state2["messages"][-1].content
+            pre_decontam_messages = correct_messages + [AIMessage(content=raw)]
+        else:
+            # Step 1 (2-step protocol): gold-guided generation.
+            gen_messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_content),
+                HumanMessage(content=gold_hint),
+            ]
+            state = await graph_ainvoke(gen_messages)
+            trace_dump.trace_dump(state)
+            raw = state["messages"][-1].content
+            pre_decontam_messages = gen_messages + [AIMessage(content=raw)]
+
+        # Final step: decontaminate.
+        decontam_messages = pre_decontam_messages + [
             HumanMessage(content=_COT_DECONTAM_PROMPT),
         ]
-        state2 = await graph_ainvoke(decontam_messages)
-        trace_dump.trace_dump(state2)
-        clean = [state2["messages"][-1].content]
+        state_final = await graph_ainvoke(decontam_messages)
+        trace_dump.trace_dump(state_final)
+        clean = [state_final["messages"][-1].content]
     else:
         # ── Multi-step mode ───────────────────────────────────────────────────
         # Build guided generation conversation step by step, then decontaminate each.
@@ -230,7 +271,7 @@ async def _generate_cot_for_doc(
             trace_dump.trace_dump(state)
             clean.append(state["messages"][-1].content)
 
-    _COT_CACHE[doc_id] = clean
+    _COT_CACHE[cache_key] = clean
     return clean
 
 
@@ -265,6 +306,7 @@ async def get_few_shot_message_pairs(
         and graph_ainvoke is not None
         and system_prompt
     )
+    num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -281,7 +323,8 @@ async def get_few_shot_message_pairs(
         if cot_enabled:
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
-                doc, system_prompt, human_content, gold_output, graph_ainvoke, steps=steps
+                doc, system_prompt, human_content, gold_output, graph_ainvoke,
+                steps=steps, num_steps=num_steps,
             )
         else:
             # No CoT: first step gets gold output, continuation steps get empty string
@@ -392,6 +435,7 @@ async def pregenerate_cot(
     concurrency: int = 10,
     cache_path: Optional[str] = None,
     steps: list = None,
+    num_steps: int = 2,
 ) -> None:
     """Generate CoT for every unique few-shot training doc needed across all test_docs.
 
@@ -420,7 +464,8 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            if doc_id not in _COT_CACHE and doc_id not in needed:
+            cache_key = f"{doc_id}::n{num_steps}"
+            if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
     if not needed:
@@ -442,7 +487,10 @@ async def pregenerate_cot(
                 doc_id=doc.get("id", ""),
             )
             gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
-            await _generate_cot_for_doc(doc, system_prompt, human_content, gold_output, graph_ainvoke, steps=steps)
+            await _generate_cot_for_doc(
+                doc, system_prompt, human_content, gold_output, graph_ainvoke,
+                steps=steps, num_steps=num_steps,
+            )
 
     await asyncio.gather(*[_gen(doc) for doc in needed.values()])
     print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}")
