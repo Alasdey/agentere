@@ -436,12 +436,17 @@ async def pregenerate_cot(
     cache_path: Optional[str] = None,
     steps: list = None,
     num_steps: int = 2,
+    retries: int = 3,
 ) -> None:
     """Generate CoT for every unique few-shot training doc needed across all test_docs.
 
     Runs before the main inference loop so each training doc is processed exactly once.
     Results land in _COT_CACHE; inference calls to _generate_cot_for_doc then just hit
     the cache. Optionally persists the cache to disk to avoid re-generating across runs.
+
+    Each doc's generation is retried on failure (transient provider errors, e.g. malformed
+    API responses) like the main inference loop, and the disk cache is saved incrementally
+    after each success so a late failure doesn't discard already-generated CoTs.
     """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
@@ -474,6 +479,7 @@ async def pregenerate_cot(
 
     print(f"[few_shot] Pre-generating CoT for {len(needed)} unique few-shot docs...")
     sem = asyncio.Semaphore(concurrency)
+    save_lock = asyncio.Lock()
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -487,16 +493,28 @@ async def pregenerate_cot(
                 doc_id=doc.get("id", ""),
             )
             gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
-            await _generate_cot_for_doc(
-                doc, system_prompt, human_content, gold_output, graph_ainvoke,
-                steps=steps, num_steps=num_steps,
-            )
+
+            last_error = None
+            for attempt in range(retries + 1):
+                try:
+                    await _generate_cot_for_doc(
+                        doc, system_prompt, human_content, gold_output, graph_ainvoke,
+                        steps=steps, num_steps=num_steps,
+                    )
+                    break
+                except Exception as e:
+                    last_error = e
+                    print(f"[few_shot] CoT generation failed for doc {doc.get('id', '')} (attempt {attempt}): {e}")
+                    await asyncio.sleep(1)
+            else:
+                raise ValueError(f"[few_shot] CoT generation for doc {doc.get('id', '')} failed after {retries} retries: {last_error}")
+
+            if cache_path:
+                async with save_lock:
+                    _save_cot_disk_cache(cache_path)
 
     await asyncio.gather(*[_gen(doc) for doc in needed.values()])
     print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}")
-
-    if cache_path:
-        _save_cot_disk_cache(cache_path)
 
 
 # ── Tool ─────────────────────────────────────────────────────────────────────
