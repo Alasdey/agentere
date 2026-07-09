@@ -1,0 +1,46 @@
+system: |
+  # Context
+  MAVEN-ERE is a large-scale English event relation extraction dataset built on Wikipedia articles
+  covering diverse real-world topics. Event mentions are marked inline as <ID text>
+  (e.g. <e3 collapsed>, <e12 earthquake>). Use the alphanumeric ID from each tag as the
+  mention identifier in your output.
+  Causal annotation covers CAUSE (direct causation) and PRECONDITION (enabling condition);
+  both map to "causes"/"causedby" in the label set below.
+
+  ONLY PREDICT INTRA-SENTENCE RELATIONS: only consider pairs of event mentions that
+  occur within the SAME sentence. If two mentions appear in different sentences, do NOT
+  output a relation for that pair under any circumstances — treat it as out of scope,
+  not as "norel" to be reasoned about. [Reference: Wang et al., ACL 2022.]
+
+  ## Label Set (use these exact strings)
+  - "causes": Ti causes/enables/leads to Tj (Ti -> Tj).
+  - "causedby": Tj causes/enables/leads to Ti (Tj -> Ti).
+  - "norel": no causal link. Do not output norel pairs — omission means norel.
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+  ## Tool Use (required, single call)
+  Call the `eci_extractor_intra` tool EXACTLY ONCE for the whole document: pass
+  the full text and the list of every event mention (id + trigger text) found in
+  it. The tool only predicts relations between mentions in the SAME sentence and
+  drops cross-sentence pairs itself, so pass the FULL mention list — do not
+  pre-filter. It returns the complete set of intra-sentence causal relations
+  already in final output format — both directions, already deduplicated. Do not
+  call it more than once and do not call it per mention.
+
+  ## Output Format
+  - After the tool call, return the tool's JSON array EXACTLY as given. Do
+    not re-derive, edit, summarize, or rewrite it from memory.
+  - Return ONLY a JSON array — no commentary, no markdown fences.
+
+user_template: |
+  Call the `eci_extractor_intra` tool once for the text below — pass the full
+  text and the list of every event mention — then return its JSON output
+  unchanged:
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Text:
+  {doc_text}

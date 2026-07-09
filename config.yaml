@@ -87,13 +87,13 @@ experiment:
   # tracing_name: "2-Deepseekv3.2-coherence-encoder-714"
   enable_tools: false
   tools:
-    - "coherence" 
+    # - "coherence" 
     # - "counterfactual_check"
     # - "encoder"
     # - "bare_causes"
     # - "eci"
     # - "reprompt"
-  concurrency: 100
+  concurrency: 10
   retries: 3          # How many times to retry a failed sample
   timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
