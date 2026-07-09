@@ -3,7 +3,6 @@ import asyncio
 import json
 import os
 import random
-import re
 import sys
 import uuid
 from pathlib import Path
@@ -36,16 +35,66 @@ from scripts.analysis.distance_histogram import generate_run_histograms
 # HELPER FUNCTIONS
 # =============================================================================
 
+def _iter_json_arrays(text: str):
+    """Yield every balanced, top-level ``[...]`` block in ``text``, in order.
+
+    String-aware, so a ``]`` inside a JSON string value does not close a block,
+    and depth-aware, so nested brackets are handled. This lets us enumerate every
+    candidate array (empty or populated) instead of relying on a regex that can
+    only see one shape.
+    """
+    depth = 0
+    in_str = False
+    escaped = False
+    start = None
+    for i, ch in enumerate(text):
+        if in_str:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "[":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "]" and depth > 0:
+            depth -= 1
+            if depth == 0 and start is not None:
+                yield text[start : i + 1]
+                start = None
+
+
 def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
-    """Parses the LLM response message into a list of (src, label, tgt) triples."""
+    """Parses the LLM response message into a list of (src, label, tgt) triples.
+
+    Robust to conversational filler and reasoning. An answer of ``[]`` (no causal
+    relations) parses to an empty list instead of raising. A bare ``[]`` that
+    appears in the model's reasoning never overrides a populated final answer:
+    the last populated array wins, and ``[]`` is used only when no populated
+    array exists anywhere in the response.
+    """
     content = message.content
     try:
-        # Regex to find JSON array in case of conversational filler
-        match = re.search(r"\[\s*\{.*\}\s*\]", content, re.DOTALL)
-        if not match:
+        arrays = []
+        for block in _iter_json_arrays(content):
+            try:
+                arrays.append(json.loads(block))
+            except json.JSONDecodeError:
+                continue  # not JSON (e.g. prose "[see below]") — skip it
+        if not arrays:
             raise ValueError("No JSON array found in output")
-        
-        data = json.loads(match.group(0))
+
+        # The real answer is the final populated array; a stray `[]` in the
+        # reasoning must not win over it. Fall back to `[]` only when every
+        # array found is empty — that is a legitimate "no relations" result.
+        populated = [a for a in arrays if a]
+        data = populated[-1] if populated else []
+
         triples = []
         for item in data:
             pair = item.get("pair", "")
@@ -177,6 +226,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         mentions=frozenset(doc.get("mentions_map", {}).values()),
         user_prompt=user_prompt,
         fold=fold,
+        mention_sentence=doc.get("mention_sentence", {}),
     ):
         # ── Few-shot systematic injection ─────────────────────────────────────
         fs_cfg = config.get("few_shot", {})
