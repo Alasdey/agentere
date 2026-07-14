@@ -41,6 +41,7 @@ experiments:
       few_shot:
         enabled: true
         pool_size: 3
+        selection: "bert"
         cot_generation:
           enabled: true
           num_steps: 3
@@ -51,7 +52,7 @@ experiments:
         novote_norel: true
       datasets:
         maven_ere:
-          max_examples: 50
+          max_examples: 10 #710
           # prompt: "maven_ere_standard_eci_intra_tool"
           # prompt: "common_eci_extractor_tool"
           prompt: "maven_ere_standard_eci_intra"
@@ -59,10 +60,11 @@ experiments:
         meci:
           max_examples: 50
           # prompt: "meci_standard_eci_binary"
-          prompt: "meci_standard_eci"
+          prompt: "esl_standard_eci_intra"
           # prompt: "meci_standard_eci_tools"
         causal_timebank:
           prompt: "causal_timebank_explicit_marker"
         event_story_line:
-          max_examples: 50
+          max_examples: 233 # 233
           # prompt: "common_eci_extractor_tool"
+          prompt: "esl_standard_eci_intra"
