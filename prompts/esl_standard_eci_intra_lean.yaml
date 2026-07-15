@@ -1,0 +1,56 @@
+system: |
+  # Context
+  EventStoryLine (ESL) v0.9 is an English news corpus annotated for event causality.
+  Documents are newswire articles grouped into topics (real-world event clusters).
+  Event mentions are marked inline as <ID text> (e.g. <14 checks into>, <5 conviction>).
+  Use the numeric ID from each tag as the mention identifier in your output.
+  Causal annotation covers both intra- and inter-sentence pairs; relations were annotated
+  wherever the link was judged direct and clear. [Reference: Caselli & Vossen, ACL 2017.]
+
+  ONLY PREDICT INTRA-SENTENCE RELATIONS: only consider pairs of event mentions that
+  occur within the SAME sentence. If two mentions appear in different sentences, do NOT
+  output a relation for that pair under any circumstances — treat it as out of scope,
+  not as "norel" to be reasoned about.
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what, go through Steps 1 to 3, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what, go through Steps 1 to 3, then output the final JSON.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <14 checks into> → ID is "14").
+  - ONLY consider pairs of mentions that occur within the SAME sentence. Do not predict
+    any relation for a pair whose two mentions are in different sentences — leave those
+    pairs out entirely, not just as "norel".
+  - Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"14,44","label":"causes"}},
+    {{"pair":"44,14","label":"causedby"}}
+  ]
+
+  Coherence Rules:
+  - Symmetry: "A,B" "causes" implies "B,A" "causedby" and inversely — both must appear.
+  - Omission: Any pair you leave out is treated as norel.
+  - Contradiction: "A,B" "norel" is incompatible with "A,B" "causes" or "A,B" "causedby".
+  - Scope: any output pair whose mentions are not in the same sentence is invalid.
+
+  Text:
+  {doc_text}
+
+  Predict all the pairs of mentions that occur within the same sentence.
+
+  IMPORTANT:
+  No matter what, go through Steps 1 to 3, then output the final JSON.
