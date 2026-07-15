@@ -35,12 +35,14 @@ experiments:
           # - "eci_extractor_intra"
         enable_tools: false
         resampling:
-          enabled: false
+          enabled: true
+          distinct_fewshots: true
           n_runs: 3
         retries: 3
       few_shot:
         enabled: true
-        pool_size: 3
+        n_examples: 3
+        pool_size: 9
         selection: "bert"
         cot_generation:
           enabled: true
@@ -52,10 +54,11 @@ experiments:
         novote_norel: true
       datasets:
         maven_ere:
-          max_examples: 10 #710
+          max_examples: 50 #710
           # prompt: "maven_ere_standard_eci_intra_tool"
-          # prompt: "common_eci_extractor_tool"
-          prompt: "maven_ere_standard_eci_intra"
+          # prompt: "common_eci_extractor_tool" 
+          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
+          prompt: "maven_ere_standard_eci_intra_lean"
           # prompt: "maven_ere_standard_eci_norule_coref"
         meci:
           max_examples: 50
@@ -65,6 +68,7 @@ experiments:
         causal_timebank:
           prompt: "causal_timebank_explicit_marker"
         event_story_line:
-          max_examples: 233 # 233
+          max_examples: 50 # 233
           # prompt: "common_eci_extractor_tool"
-          prompt: "esl_standard_eci_intra"
+          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
+          prompt: "esl_standard_eci_intra_lean"

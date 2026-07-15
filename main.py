@@ -229,10 +229,12 @@ async def process_document_resampled(doc, config, graph_ainvoke):
         mention_sentence=doc.get("mention_sentence", {}),
     ):
         # ── Few-shot systematic injection ─────────────────────────────────────
+        # few_shot_sets: one example set per resample run when
+        # resampling.distinct_fewshots is enabled, else a single shared set.
         fs_cfg = config.get("few_shot", {})
-        few_shot_pairs = None
+        few_shot_sets = None
         if fs_cfg.get("enabled") and fs_cfg.get("systematic", True):
-            few_shot_pairs = await get_few_shot_message_pairs(
+            few_shot_sets = await get_few_shot_message_pairs(
                 prompt_cfg["user_template"],
                 active_ds,
                 steps=steps,
@@ -247,18 +249,24 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             reprompt_str = await reprompt_tool.ainvoke({})
 
         # 1. Run inference N times
-        def _prompt_for_run():
+        def _prompt_for_run(run_idx):
             # Reshuffling only has an effect when the prompt enumerates an explicit pair list.
             # In open-ended mode (no pair_list_ids or constrain=False) the prompt is constant.
             if not reshuffle_per_resample or not (doc.get("pair_list_ids") and constrain_to_pair_list):
                 return user_prompt
             ids = list(doc["pair_list_ids"])
-            random.shuffle(ids)
+            # Seeded per (doc, run): each resample sees a different order, but
+            # identical runs of the experiment reproduce the same orders.
+            random.Random(f"{doc['id']}::{run_idx}").shuffle(ids)
             return _build_user_prompt(ids)
 
         sampling_tasks = [
-            run_inference_with_retry(graph_ainvoke, system_prompt, _prompt_for_run(), retries, steps, few_shot_pairs, reprompt_str, doc_id=doc["id"], timeout=timeout)
-            for _ in range(n_runs)
+            run_inference_with_retry(
+                graph_ainvoke, system_prompt, _prompt_for_run(run_idx), retries, steps,
+                few_shot_sets[run_idx % len(few_shot_sets)] if few_shot_sets else None,
+                reprompt_str, doc_id=doc["id"], timeout=timeout,
+            )
+            for run_idx in range(n_runs)
         ]
 
         try:

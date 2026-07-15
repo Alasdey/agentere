@@ -275,6 +275,15 @@ async def _generate_cot_for_doc(
     return clean
 
 
+def _n_fewshot_sets(cfg) -> int:
+    """One distinct few-shot set per resample run when resampling.distinct_fewshots
+    is enabled, else a single set shared by every run."""
+    rs_cfg = cfg["experiment"]["resampling"]
+    if rs_cfg["enabled"] and rs_cfg["n_runs"] > 1 and rs_cfg["distinct_fewshots"]:
+        return rs_cfg["n_runs"]
+    return 1
+
+
 async def get_few_shot_message_pairs(
     user_template: str,
     active_ds: str,
@@ -282,10 +291,12 @@ async def get_few_shot_message_pairs(
     system_prompt: str = "",
     graph_ainvoke=None,
 ) -> list:
-    """Returns a list of few-shot examples for conversation-based injection.
+    """Returns few-shot example sets for conversation-based injection.
 
-    Return type: List[List[Tuple[str, str]]]
-      Outer list: one entry per few-shot example.
+    Return type: List[List[List[Tuple[str, str]]]]
+      Outermost list: one example set per resample run when resampling.distinct_fewshots
+        is enabled (length n_runs), else a single shared set (length 1).
+      Middle list: one entry per few-shot example.
       Inner list: (human, ai) exchange pairs for that example.
         - Single-call mode (no steps): one (human, ai) pair per example.
         - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
@@ -299,7 +310,13 @@ async def get_few_shot_message_pairs(
 
     cfg = get_cfg()
     n = cfg["few_shot"]["n_examples"]
-    docs = _select_examples(_TRAIN_CACHE, n)
+    n_sets = _n_fewshot_sets(cfg)
+    docs = _select_examples(_TRAIN_CACHE, n * n_sets)
+    if n_sets > 1 and len(docs) < n * n_sets:
+        raise ValueError(
+            f"[few_shot] resampling.distinct_fewshots needs {n * n_sets} examples "
+            f"({n_sets} runs x {n}) but only {len(docs)} eligible docs are available"
+        )
 
     cot_enabled = (
         cfg["few_shot"]["cot_generation"]["enabled"]
@@ -341,7 +358,9 @@ async def get_few_shot_message_pairs(
                 example_exchanges.append((step["prompt"], ai_resp))
 
         all_examples.append(example_exchanges)
-    return all_examples
+    # Split round-robin so each run's set spans the selection ranking evenly
+    # (docs are ordered best-first for similarity/mentions/bert selections).
+    return [all_examples[i::n_sets] for i in range(n_sets)]
 
 
 def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
@@ -456,7 +475,7 @@ async def pregenerate_cot(
         _load_cot_disk_cache(cache_path)
 
     cfg = get_cfg()
-    n = cfg["few_shot"]["n_examples"]
+    n = cfg["few_shot"]["n_examples"] * _n_fewshot_sets(cfg)
     active_ds = cfg["active_dataset"]
     kfold_cfg = cfg["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
