@@ -159,7 +159,8 @@ def load_hf_dataset_parsed(
                     if a != b
                 ]
         if shuffle_pair_list:
-            random.shuffle(pair_list_ids)
+            # Seeded per doc: order is shuffled but identical across runs.
+            random.Random(row_id).shuffle(pair_list_ids)
 
         yield {
             "id": row_id,
