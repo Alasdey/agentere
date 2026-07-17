@@ -21,7 +21,7 @@ system: |
   If there are no mentions in the text and no pairs to classify, return an empty array [].
 
   IMPORTANT:
-  No matter what, go through Steps 1 to 3, then output the final JSON.
+  No matter what, reason first, then output the final JSON.
 
 user_template: |
 
@@ -35,7 +35,7 @@ user_template: |
   - ONLY consider pairs of mentions that occur within the SAME sentence. Do not predict
     any relation for a pair whose two mentions are in different sentences — leave those
     pairs out entirely, not just as "norel".
-  - Return ONLY a JSON array of causal pairs (omit a pair to mark it norel):
+  - Return a JSON array of causal pairs (omit a pair to mark it norel):
   [
     {{"pair":"14,44","label":"causes"}},
     {{"pair":"44,14","label":"causedby"}}
@@ -50,7 +50,5 @@ user_template: |
   Text:
   {doc_text}
 
-  Predict all the pairs of mentions that occur within the same sentence.
-
   IMPORTANT:
-  No matter what, go through Steps 1 to 3, then output the final JSON.
+  No matter what, reason first, then output the final JSON.

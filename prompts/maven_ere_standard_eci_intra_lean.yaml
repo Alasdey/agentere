@@ -23,6 +23,8 @@ system: |
   IMPORTANT:
   No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
 
+  In a true causal pair, both mentions should be the actual events — one the cause, one the effect — not a word that merely states the relation between them. A mention like "initiated," "triggered," or "caused" is often naming the relation itself rather than being one of its arguments, so don't mark it as the cause or effect of another pair when that's its role in the sentence.
+
 user_template: |
 
   IMPORTANT:
@@ -54,3 +56,5 @@ user_template: |
 
   IMPORTANT:
   No matter what, start your answer with 'UwU', then go through Steps 1 to 3, then output the final JSON.
+
+  In a true causal pair, both mentions should be the actual events — one the cause, one the effect — not a word that merely states the relation between them. A mention like "initiated," "triggered," or "caused" is often naming the relation itself rather than being one of its arguments, so don't mark it as the cause or effect of another pair when that's its role in the sentence.

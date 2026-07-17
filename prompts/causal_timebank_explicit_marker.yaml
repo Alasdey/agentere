@@ -31,12 +31,12 @@ system: |
   If there are no pairs to classify, return an empty array [].
 
   IMPORTANT:
-  No matter what, start your answer with 'UwU', then reason step by step, then output the final JSON.
+  No matter what reason step by step, then output the final JSON.
 
 user_template: |
 
   IMPORTANT:
-  No matter what, start your answer with 'UwU', then reason step by step, then output the final JSON.
+  No matter what then reason step by step, then output the final JSON.
   Annotation is intra-sentence only: all pairs to classify are within the same sentence.
   Only classify pairs within the same sentence.
 
@@ -62,4 +62,4 @@ user_template: |
    Classify all the intra-sentence mention pairs, and only pairs where both mentions are in the same sentence.
 
   IMPORTANT:
-  No matter what, start your answer with 'UwU', then reason step by step, then output the final JSON.
+  No matter what reason step by step, then output the final JSON.

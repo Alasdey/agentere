@@ -21,7 +21,7 @@ system: |
   If there are no mentions in the text and no pairs to classify, return an empty array [].
 
   IMPORTANT:
-  No matter what, go through Steps 1 to 3, then output the final JSON.
+    No matter what, go through Steps 1 to 3, then output the final JSON.
 
   DOUBLY IMPORTANT :
   For mention words that are seperated by 2 words or less require an explicit causal marker in the text
