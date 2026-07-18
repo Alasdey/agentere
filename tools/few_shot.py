@@ -11,6 +11,11 @@ relations / mentions) and takes one doc per bin, so the chosen set always spans 
 density. Combined with resampling.distinct_fewshots, each resample run's own few-shot set still
 spans the full density range — see get_few_shot_message_pairs' round-robin split, which this
 feeds into unchanged.
+few_shot.cot_generation.same_sentence_only (bool) restricts the gold relations shown to the
+CoT-synthesis LLM — both the "correct labels are" hint and the non-CoT "Output:" fallback used
+when cot_generation.enabled is false — to only same-sentence (intra-sentence) gold triples, per
+doc["mention_sentence"]. It does not affect doc selection, and does not affect the separate
+_format_examples/few_shot_examples tool path, which always shows the full unfiltered gold.
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -186,6 +191,20 @@ def _format_examples(docs: list) -> str:
     return "\n\n".join(parts)
 
 
+def _filter_same_sentence(gold_triples: list, mention_sentence: dict) -> list:
+    """Keep only gold triples whose two mentions fall in the same sentence, per
+    doc["mention_sentence"]. Mirrors eci_extractor_intra.py's _same_sentence check,
+    but takes the per-doc map directly since callers here already hold the doc dict.
+    """
+    return [
+        (src, lbl, tgt)
+        for src, lbl, tgt in gold_triples
+        if src in mention_sentence
+        and tgt in mention_sentence
+        and mention_sentence[src] == mention_sentence[tgt]
+    ]
+
+
 async def _generate_cot_for_doc(
     doc: dict,
     system_prompt: str,
@@ -194,6 +213,7 @@ async def _generate_cot_for_doc(
     graph_ainvoke,
     steps: list = None,
     num_steps: int = 2,
+    same_sentence_only: bool = False,
 ) -> list:
     """Generate a realistic CoT for each inference step, then decontaminate.
 
@@ -203,11 +223,16 @@ async def _generate_cot_for_doc(
     Multi-step mode (task-level `steps` list) always uses the 2-step gold-guided protocol,
     regardless of `num_steps`.
 
+    `gold_output` is expected to already be pre-filtered by the caller when
+    few_shot.cot_generation.same_sentence_only is set — this function does not itself filter
+    it. `same_sentence_only` here exists purely to namespace the _COT_CACHE key so that CoT
+    generated from filtered vs. unfiltered gold can never collide in the cache.
+
     Returns a list of clean AI responses — one per inference step (length 1 for single-call mode,
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    cache_key = f"{doc_id}::n{num_steps}"
+    cache_key = f"{doc_id}::n{num_steps}" + ("::ss1" if same_sentence_only else "")
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
 
@@ -324,7 +349,10 @@ async def get_few_shot_message_pairs(
         - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
 
     When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, AI content is
-    generated via guided generation from gold labels then decontaminated.
+    generated via guided generation from gold labels then decontaminated. When
+    few_shot.cot_generation.same_sentence_only is also true, the gold shown to the synthesis
+    LLM — and the non-CoT "Output:" fallback used when cot_generation.enabled is false — is
+    first restricted to same-sentence gold triples only.
     """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
@@ -346,6 +374,7 @@ async def get_few_shot_message_pairs(
         and system_prompt
     )
     num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
+    same_sentence_only = cfg["few_shot"]["cot_generation"]["same_sentence_only"]
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -357,13 +386,16 @@ async def get_few_shot_message_pairs(
             pair_lines=pair_lines,
             doc_id=doc.get("id", ""),
         )
-        gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
+        gold_triples = doc["gold_triples"]
+        if same_sentence_only:
+            gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
+        gold_output = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
 
         if cot_enabled:
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output, graph_ainvoke,
-                steps=steps, num_steps=num_steps,
+                steps=steps, num_steps=num_steps, same_sentence_only=same_sentence_only,
             )
         else:
             # No CoT: first step gets gold output, continuation steps get empty string
@@ -533,6 +565,7 @@ async def pregenerate_cot(
     active_ds = cfg["active_dataset"]
     kfold_cfg = cfg["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
+    same_sentence_only = cfg["few_shot"]["cot_generation"]["same_sentence_only"]
 
     # Scan all test docs to collect the unique training docs that will be used as few-shots.
     needed: dict = {}  # training doc_id -> doc
@@ -542,7 +575,7 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            cache_key = f"{doc_id}::n{num_steps}"
+            cache_key = f"{doc_id}::n{num_steps}" + ("::ss1" if same_sentence_only else "")
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -565,14 +598,17 @@ async def pregenerate_cot(
                 pair_lines=pair_lines,
                 doc_id=doc.get("id", ""),
             )
-            gold_output = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
+            gold_triples = doc["gold_triples"]
+            if same_sentence_only:
+                gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
+            gold_output = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
 
             last_error = None
             for attempt in range(retries + 1):
                 try:
                     await _generate_cot_for_doc(
                         doc, system_prompt, human_content, gold_output, graph_ainvoke,
-                        steps=steps, num_steps=num_steps,
+                        steps=steps, num_steps=num_steps, same_sentence_only=same_sentence_only,
                     )
                     break
                 except Exception as e:

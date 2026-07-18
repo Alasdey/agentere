@@ -135,6 +135,11 @@ few_shot:
                          # 3: blind generation (no golds) -> correct with golds -> decontaminate
                          # num_steps=3 only applies to single-call prompts (no `steps:` in the
                          # active prompt YAML); multi-step task prompts always use the 2-step protocol.
+    same_sentence_only: false  # true: restrict the gold shown to the CoT-synthesis LLM (both the
+                                # "correct labels are" hint and the non-CoT "Output:" fallback used
+                                # when cot_generation.enabled is false) to only same-sentence
+                                # (intra-sentence) gold triples, per doc["mention_sentence"].
+                                # Does not affect doc selection or the few_shot_examples tool path.
     # cache_path: "logs/cot_cache.json"  # uncomment to persist generated CoTs across runs
 
 # ── Reprompt tool ──
