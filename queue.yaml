@@ -24,7 +24,7 @@ experiments:
         eci_extractor:
           model_id: "deepseek/deepseek-v3.2"
           concurrency: 10
-      active_dataset: "event_story_line"
+      active_dataset: "maven_ere"
       experiment:
         tools:
           - "coherence"
@@ -36,12 +36,13 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
-        retries: 3
+        retries: 5
       few_shot:
         enabled: true
         n_examples: 3
         pool_size: 100
         selection: "random"
+        density_stratify: false
         cot_generation:
           enabled: true
           num_steps: 3
@@ -52,7 +53,7 @@ experiments:
         novote_norel: true
       datasets:
         maven_ere:
-          max_examples: 50 #710
+          max_examples: 710 #710
           # prompt: "maven_ere_standard_eci_intra_tool"
           # prompt: "common_eci_extractor_tool" 
           # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
@@ -67,7 +68,7 @@ experiments:
           max_examples: 50
           prompt: "causal_timebank_explicit_marker"
         event_story_line:
-          max_examples: 233 # 233
+          max_examples: 50 # 233
           # prompt: "common_eci_extractor_tool"
           # prompt: "esl_standard_eci_intra" # This has the close mentions rule
           prompt: "esl_standard_eci_intra_lean"

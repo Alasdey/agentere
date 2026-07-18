@@ -5,6 +5,12 @@ Selection modes, controlled by few_shot.selection in config.yaml:
   "similarity" — TF-IDF cosine on document text (sklearn required)
   "mentions"   — Jaccard similarity on the sets of event mention texts
   "bert"       — cosine similarity on sentence-transformer embeddings (sentence-transformers required)
+few_shot.density_stratify (bool) layers on top of any selection mode: instead of taking the n
+best/random docs outright, it buckets the eligible pool into n quantile bins by density (causal
+relations / mentions) and takes one doc per bin, so the chosen set always spans low-to-high
+density. Combined with resampling.distinct_fewshots, each resample run's own few-shot set still
+spans the full density range — see get_few_shot_message_pairs' round-robin split, which this
+feeds into unchanged.
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -21,6 +27,7 @@ from langchain_core.tools import tool
 from dataprep.dataprep import load_hf_dataset_parsed
 from utils.formatting import format_pair_lines, format_gold_output
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
+from utils.labels import NOREL_VARIANTS
 import utils.trace_dump as trace_dump
 
 from utils.runtime_config import get_cfg, register_reset
@@ -33,18 +40,20 @@ _TFIDF_MATRIX = None
 _MENTION_SETS: Optional[list] = None  # frozenset[str] per doc, parallel to _TRAIN_CACHE
 _BERT_MODEL = None
 _BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
+_DOC_DENSITIES: Optional[list] = None  # float per doc (causal relations / mentions), parallel to _TRAIN_CACHE
 _COT_CACHE: dict = {}  # doc_id -> generated CoT string
 
 
 def _reset_caches() -> None:
     global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
-    global _BERT_MODEL, _BERT_EMBEDDINGS, _COT_CACHE
+    global _BERT_MODEL, _BERT_EMBEDDINGS, _DOC_DENSITIES, _COT_CACHE
     _TRAIN_CACHE = None
     _TFIDF_VECTORIZER = None
     _TFIDF_MATRIX = None
     _MENTION_SETS = None
     _BERT_MODEL = None
     _BERT_EMBEDDINGS = None
+    _DOC_DENSITIES = None
     _COT_CACHE = {}
 
 
@@ -90,8 +99,18 @@ def preload() -> None:
         _TRAIN_CACHE = _load_train_split()
 
 
+def _doc_density(doc: dict) -> float:
+    """Causal relations (label not in NOREL_VARIANTS) per event mention. 0.0 if the doc has
+    no mentions at all."""
+    n_mentions = len(doc.get("mentions_map", {}))
+    if n_mentions == 0:
+        return 0.0
+    n_causal = sum(1 for _, label, _ in doc["gold_triples"] if label.lower() not in NOREL_VARIANTS)
+    return n_causal / n_mentions
+
+
 def _load_train_split() -> list:
-    global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS
+    global _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS, _BERT_MODEL, _BERT_EMBEDDINGS, _DOC_DENSITIES
 
     cfg = get_cfg()
     fs_cfg = cfg.get("few_shot", {})
@@ -142,6 +161,9 @@ def _load_train_split() -> list:
         _BERT_EMBEDDINGS = _BERT_MODEL.encode(texts, convert_to_numpy=True, show_progress_bar=True)
         norms = np.linalg.norm(_BERT_EMBEDDINGS, axis=1, keepdims=True)
         _BERT_EMBEDDINGS = _BERT_EMBEDDINGS / np.where(norms == 0, 1, norms)
+
+    if fs_cfg.get("density_stratify"):
+        _DOC_DENSITIES = [_doc_density(d) for d in docs]
 
     return docs
 
@@ -359,7 +381,8 @@ async def get_few_shot_message_pairs(
 
         all_examples.append(example_exchanges)
     # Split round-robin so each run's set spans the selection ranking evenly
-    # (docs are ordered best-first for similarity/mentions/bert selections).
+    # (docs are ordered best-first for similarity/mentions/bert selections, or
+    # ascending-density-bin order when few_shot.density_stratify is enabled).
     return [all_examples[i::n_sets] for i in range(n_sets)]
 
 
@@ -368,13 +391,67 @@ def _jaccard(a: FrozenSet[str], b: FrozenSet[str]) -> float:
     return len(a & b) / len(union) if union else 0.0
 
 
+def _relevance_scores(docs: list, orig_indices: list):
+    """Query-relevance score per doc (parallel to `docs`) for the active few_shot.selection
+    strategy. Returns None when that strategy has no query-based ranking (e.g. "random",
+    "smallest") or no query is set yet — callers should fall back to a random tie-break."""
+    cfg = get_cfg()
+    selection = cfg.get("few_shot", {}).get("selection")
+
+    if selection == "similarity" and _TFIDF_VECTORIZER is not None:
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        query = CURRENT_DOC_TEXT.get()
+        if query:
+            return cosine_similarity(
+                _TFIDF_VECTORIZER.transform([query]),
+                _TFIDF_MATRIX[orig_indices]
+            )[0]
+
+    elif selection == "mentions" and _MENTION_SETS is not None:
+        query_mentions = CURRENT_DOC_MENTIONS.get()
+        if query_mentions:
+            return [_jaccard(query_mentions, _MENTION_SETS[i]) for i in orig_indices]
+
+    elif selection == "bert" and _BERT_MODEL is not None and _BERT_EMBEDDINGS is not None:
+        import numpy as np
+
+        query = CURRENT_DOC_TEXT.get()
+        if query:
+            q_emb = _BERT_MODEL.encode([query], convert_to_numpy=True)
+            q_emb = q_emb / np.linalg.norm(q_emb, keepdims=True).clip(min=1e-12)
+            return (_BERT_EMBEDDINGS[orig_indices] @ q_emb.T).ravel()
+
+    return None
+
+
+def _select_density_stratified(docs: list, orig_indices: list, n: int) -> list:
+    """Pick up to n docs spanning the training pool's density range (causal relations per
+    mention), one per quantile bin, ranked within each bin by `_relevance_scores` (random
+    tie-break when that returns None). Returned in ascending-density bin order — this ordering
+    is what makes get_few_shot_message_pairs' round-robin split spread density evenly across
+    resample runs when resampling.distinct_fewshots is enabled."""
+    order = sorted(range(len(docs)), key=lambda i: _DOC_DENSITIES[orig_indices[i]])
+    n_bins = min(n, len(order))
+    bin_bounds = [round(b * len(order) / n_bins) for b in range(n_bins + 1)]
+    scores = _relevance_scores(docs, orig_indices)
+
+    selected = []
+    for b in range(n_bins):
+        bin_idxs = order[bin_bounds[b]:bin_bounds[b + 1]] or order
+        pick = max(bin_idxs, key=lambda i: scores[i]) if scores is not None else random.choice(bin_idxs)
+        selected.append(pick)
+    return [docs[i] for i in selected]
+
+
 def _select_examples(docs: list, n: int) -> list:
     cfg = get_cfg()
     fs_cfg = cfg.get("few_shot", {})
     selection = fs_cfg.get("selection")
 
     # Exclude same-fold docs when running k-fold CV.
-    # Keep track of original indices so similarity matrices can be sliced correctly.
+    # Keep track of original indices so similarity matrices (and density lookups) can be
+    # sliced correctly.
     current_fold = CURRENT_DOC_FOLD.get()
     active_ds = cfg["active_dataset"]
     n_folds = cfg["datasets"][active_ds]["kfold"]["n_folds"]
@@ -386,40 +463,17 @@ def _select_examples(docs: list, n: int) -> list:
     else:
         orig_indices = list(range(len(docs)))
 
+    if fs_cfg.get("density_stratify"):
+        return _select_density_stratified(docs, orig_indices, n)
+
     if selection == "smallest":
         non_empty = [d for d in docs if len(d.get("pair_list_ids", [])) != 0]
         return sorted(non_empty, key=lambda d: len(d["pair_list_ids"]))[:n]
-    
-    if selection == "similarity" and _TFIDF_VECTORIZER is not None:
-        import numpy as np
-        from sklearn.metrics.pairwise import cosine_similarity
 
-        query = CURRENT_DOC_TEXT.get()
-        if query:
-            scores = cosine_similarity(
-                _TFIDF_VECTORIZER.transform([query]),
-                _TFIDF_MATRIX[orig_indices]
-            )[0]
-            top_local = np.argsort(scores)[::-1][:n]
-            return [docs[i] for i in top_local]
-
-    elif selection == "mentions" and _MENTION_SETS is not None:
-        query_mentions = CURRENT_DOC_MENTIONS.get()
-        if query_mentions:
-            scores = [_jaccard(query_mentions, _MENTION_SETS[i]) for i in orig_indices]
-            top_local = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:n]
-            return [docs[i] for i in top_local]
-
-    elif selection == "bert" and _BERT_MODEL is not None and _BERT_EMBEDDINGS is not None:
-        import numpy as np
-
-        query = CURRENT_DOC_TEXT.get()
-        if query:
-            q_emb = _BERT_MODEL.encode([query], convert_to_numpy=True)
-            q_emb = q_emb / np.linalg.norm(q_emb, keepdims=True).clip(min=1e-12)
-            scores = (_BERT_EMBEDDINGS[orig_indices] @ q_emb.T).ravel()
-            top_local = np.argsort(scores)[::-1][:n]
-            return [docs[i] for i in top_local]
+    scores = _relevance_scores(docs, orig_indices)
+    if scores is not None:
+        top_local = sorted(range(len(docs)), key=lambda i: scores[i], reverse=True)[:n]
+        return [docs[i] for i in top_local]
 
     return random.sample(docs, min(n, len(docs)))
 

@@ -121,6 +121,11 @@ few_shot:
     # "mentions"   — Jaccard similarity on event mention text sets
     # "bert"       — cosine similarity on sentence-transformer embeddings
     # "smallest"   — Gets the doc with the smallest non negative pair_list (mostly for debuging)
+  density_stratify: false  # true: force the chosen set to span low-to-high density (causal
+                            # relations / mentions per doc) — one example per density quantile
+                            # bin, ranked within each bin by `selection` (random tie-break for
+                            # "random"/"smallest"). Composes with resampling.distinct_fewshots:
+                            # each resample run's own set still spans the full density range.
   # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
