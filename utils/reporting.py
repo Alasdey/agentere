@@ -23,8 +23,16 @@ def reconstruct_pairwise_predictions(
     pred_map = {(src, tgt): lbl for src, lbl, tgt in pred_triples}
     mention_sentence = mention_sentence or {}
 
-    # Union of all relevant pairs (Gold + Pred)
+    # Union of all relevant pairs (Gold + Pred + any pair that received a vote).
+    # Voted-but-rejected pairs (causal in some resample passes, outvoted to norel)
+    # must be logged too, or downstream vote-threshold analyses only see the
+    # rejected true positives (gold rows) and none of the rejected false positives.
     all_pairs = set(gold_map.keys()) | set(pred_map.keys())
+    all_pairs |= {
+        (parts[0], parts[1])
+        for key in pair_stats
+        if len(parts := key.split(",")) == 2
+    }
 
     pairwise_rows = []
     y_true_doc = []
