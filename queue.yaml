@@ -108,7 +108,7 @@ experiments:
       few_shot:
         enabled: true
         n_examples: 3
-        pool_size: 100
+        pool_size: 20
         selection: "random"
         density_stratify: false
         intra_only: false
@@ -122,7 +122,7 @@ experiments:
         novote_norel: true
       datasets:
         maven_ere:
-          max_examples: 710 # 710
+          max_examples: 50 # 710
           # prompt: "maven_ere_standard_eci_intra_tool"
           # prompt: "common_eci_extractor_tool" 
           # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
@@ -135,7 +135,8 @@ experiments:
           # prompt: "meci_standard_eci_tools"
         causal_timebank:
           max_examples: 50 # 183 
-          prompt: "causal_timebank_explicit_marker"
+          # prompt: "causal_timebank_explicit_marker"
+          prompt: "causal_timebank_no_marker"
         event_story_line:
           max_examples: 50 # 233
           # prompt: "common_eci_extractor_tool"

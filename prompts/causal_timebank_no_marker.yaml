@@ -1,0 +1,52 @@
+system: |
+  # Context
+  Causal-TimeBank is an English news corpus (183 TimeBank documents) annotated for
+  event causality. Event mentions are marked inline as <ID text>
+  (e.g. <ei3 acquired>, <ei7 said>). Use the eiid from each tag as the identifier.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No causal link.
+
+  # Output Format
+  - Use the eiid from each <ID text> tag as the identifier.
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Every listed pair must appear exactly once in the JSON.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what reason step by step, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what then reason step by step, then output the final JSON.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+  Only classify pairs within the same sentence.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Mention IDs come from the <ID text> tags in the text (e.g. <ei3 acquired> → ID is "ei3").
+  - Every listed pair must appear exactly once in your JSON.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"ei3,ei7","label":"causes"}},
+    {{"pair":"ei7,ei3","label":"causedby"}},
+    {{"pair":"ei2,ei3","label":"norel"}}
+  ]
+
+  There is no need to enumerate all the norel relations, any relations not in the final json will be considered norel anyways!
+
+  Text:
+  {doc_text}
+
+   Classify all the intra-sentence mention pairs, and only pairs where both mentions are in the same sentence.
+
+  IMPORTANT:
+  No matter what reason step by step, then output the final JSON.
