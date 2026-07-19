@@ -126,6 +126,12 @@ few_shot:
                             # bin, ranked within each bin by `selection` (random tie-break for
                             # "random"/"smallest"). Composes with resampling.distinct_fewshots:
                             # each resample run's own set still spans the full density range.
+  intra_only: false     # true: only show same-sentence (intra-sentence) gold relations in
+                         # few-shot examples — applies everywhere gold is shown to the model
+                         # (the few_shot_examples tool's "Output:", the CoT-synthesis "correct
+                         # labels are" hint, and the non-CoT "Output:" fallback), regardless of
+                         # cot_generation.enabled. Filtered per doc["mention_sentence"]. Does not
+                         # affect which training docs are selected.
   # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
@@ -135,12 +141,9 @@ few_shot:
                          # 3: blind generation (no golds) -> correct with golds -> decontaminate
                          # num_steps=3 only applies to single-call prompts (no `steps:` in the
                          # active prompt YAML); multi-step task prompts always use the 2-step protocol.
-    same_sentence_only: false  # true: restrict the gold shown to the CoT-synthesis LLM (both the
-                                # "correct labels are" hint and the non-CoT "Output:" fallback used
-                                # when cot_generation.enabled is false) to only same-sentence
-                                # (intra-sentence) gold triples, per doc["mention_sentence"].
-                                # Does not affect doc selection or the few_shot_examples tool path.
     # cache_path: "logs/cot_cache.json"  # uncomment to persist generated CoTs across runs
+    dump_dir: "logs/cot_dumps"  # uncomment to write each synthesized CoT to <dump_dir>/<doc_id>.txt
+                                   # (doc id + doc text + CoT), for manual inspection
 
 # ── Reprompt tool ──
 reprompt:

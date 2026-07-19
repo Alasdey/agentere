@@ -11,11 +11,11 @@ relations / mentions) and takes one doc per bin, so the chosen set always spans 
 density. Combined with resampling.distinct_fewshots, each resample run's own few-shot set still
 spans the full density range — see get_few_shot_message_pairs' round-robin split, which this
 feeds into unchanged.
-few_shot.cot_generation.same_sentence_only (bool) restricts the gold relations shown to the
-CoT-synthesis LLM — both the "correct labels are" hint and the non-CoT "Output:" fallback used
-when cot_generation.enabled is false — to only same-sentence (intra-sentence) gold triples, per
-doc["mention_sentence"]. It does not affect doc selection, and does not affect the separate
-_format_examples/few_shot_examples tool path, which always shows the full unfiltered gold.
+few_shot.intra_only (bool) restricts gold relations to only same-sentence (intra-sentence) gold
+triples, per doc["mention_sentence"], everywhere gold is shown to the model: the
+_format_examples/few_shot_examples tool's "Output:", the CoT-synthesis "correct labels are"
+hint, and the non-CoT "Output:" fallback used when cot_generation.enabled is false. It does not
+affect doc selection.
 The full training split is loaded lazily and cached in memory.
 """
 from __future__ import annotations
@@ -23,6 +23,8 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import FrozenSet, Optional
 
@@ -47,11 +49,12 @@ _BERT_MODEL = None
 _BERT_EMBEDDINGS = None  # np.ndarray, shape (n_docs, hidden), parallel to _TRAIN_CACHE
 _DOC_DENSITIES: Optional[list] = None  # float per doc (causal relations / mentions), parallel to _TRAIN_CACHE
 _COT_CACHE: dict = {}  # doc_id -> generated CoT string
+_DUMP_RUN_DIR: Optional[Path] = None  # <dump_dir>/<run timestamp>, lazily created on first dump this run
 
 
 def _reset_caches() -> None:
     global _TRAIN_CACHE, _TFIDF_VECTORIZER, _TFIDF_MATRIX, _MENTION_SETS
-    global _BERT_MODEL, _BERT_EMBEDDINGS, _DOC_DENSITIES, _COT_CACHE
+    global _BERT_MODEL, _BERT_EMBEDDINGS, _DOC_DENSITIES, _COT_CACHE, _DUMP_RUN_DIR
     _TRAIN_CACHE = None
     _TFIDF_VECTORIZER = None
     _TFIDF_MATRIX = None
@@ -60,6 +63,7 @@ def _reset_caches() -> None:
     _BERT_EMBEDDINGS = None
     _DOC_DENSITIES = None
     _COT_CACHE = {}
+    _DUMP_RUN_DIR = None
 
 
 register_reset(_reset_caches)
@@ -178,10 +182,14 @@ def _format_examples(docs: list) -> str:
     active_ds = cfg["active_dataset"]
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
+    intra_only = cfg["few_shot"]["intra_only"]
     parts = []
     for i, doc in enumerate(docs, 1):
         pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
-        gold_out = format_gold_output(doc["gold_triples"], pair_list_ids=doc.get("pair_list_ids"))
+        gold_triples = doc["gold_triples"]
+        if intra_only:
+            gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
+        gold_out = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
         parts.append(
             f"--- Example {i} ---\n"
             f"Text:\n{doc['doc_text']}\n\n"
@@ -213,7 +221,8 @@ async def _generate_cot_for_doc(
     graph_ainvoke,
     steps: list = None,
     num_steps: int = 2,
-    same_sentence_only: bool = False,
+    intra_only: bool = False,
+    dump_dir: Optional[str] = None,
 ) -> list:
     """Generate a realistic CoT for each inference step, then decontaminate.
 
@@ -223,16 +232,16 @@ async def _generate_cot_for_doc(
     Multi-step mode (task-level `steps` list) always uses the 2-step gold-guided protocol,
     regardless of `num_steps`.
 
-    `gold_output` is expected to already be pre-filtered by the caller when
-    few_shot.cot_generation.same_sentence_only is set — this function does not itself filter
-    it. `same_sentence_only` here exists purely to namespace the _COT_CACHE key so that CoT
-    generated from filtered vs. unfiltered gold can never collide in the cache.
+    `gold_output` is expected to already be pre-filtered by the caller when few_shot.intra_only
+    is set — this function does not itself filter it. `intra_only` here exists purely to
+    namespace the _COT_CACHE key so that CoT generated from filtered vs. unfiltered gold can
+    never collide in the cache.
 
     Returns a list of clean AI responses — one per inference step (length 1 for single-call mode,
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    cache_key = f"{doc_id}::n{num_steps}" + ("::ss1" if same_sentence_only else "")
+    cache_key = f"{doc_id}::n{num_steps}" + ("::intra" if intra_only else "")
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
 
@@ -318,6 +327,9 @@ async def _generate_cot_for_doc(
             trace_dump.trace_dump(state)
             clean.append(state["messages"][-1].content)
 
+    if dump_dir:
+        _dump_cot_to_disk(doc, clean, dump_dir)
+
     _COT_CACHE[cache_key] = clean
     return clean
 
@@ -349,10 +361,9 @@ async def get_few_shot_message_pairs(
         - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
 
     When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, AI content is
-    generated via guided generation from gold labels then decontaminated. When
-    few_shot.cot_generation.same_sentence_only is also true, the gold shown to the synthesis
-    LLM — and the non-CoT "Output:" fallback used when cot_generation.enabled is false — is
-    first restricted to same-sentence gold triples only.
+    generated via guided generation from gold labels then decontaminated. When few_shot.intra_only
+    is also true, the gold shown to the synthesis LLM — and the non-CoT "Output:" fallback used
+    when cot_generation.enabled is false — is first restricted to same-sentence gold triples only.
     """
     global _TRAIN_CACHE
     if _TRAIN_CACHE is None:
@@ -374,7 +385,8 @@ async def get_few_shot_message_pairs(
         and system_prompt
     )
     num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
-    same_sentence_only = cfg["few_shot"]["cot_generation"]["same_sentence_only"]
+    intra_only = cfg["few_shot"]["intra_only"]
+    dump_dir = cfg["few_shot"]["cot_generation"].get("dump_dir")
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -387,7 +399,7 @@ async def get_few_shot_message_pairs(
             doc_id=doc.get("id", ""),
         )
         gold_triples = doc["gold_triples"]
-        if same_sentence_only:
+        if intra_only:
             gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
         gold_output = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
 
@@ -395,7 +407,8 @@ async def get_few_shot_message_pairs(
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output, graph_ainvoke,
-                steps=steps, num_steps=num_steps, same_sentence_only=same_sentence_only,
+                steps=steps, num_steps=num_steps, intra_only=intra_only,
+                dump_dir=dump_dir,
             )
         else:
             # No CoT: first step gets gold output, continuation steps get empty string
@@ -529,6 +542,35 @@ def _save_cot_disk_cache(cache_path: str) -> None:
     print(f"[few_shot] Saved {len(_COT_CACHE)} CoT entries to {cache_path}")
 
 
+def _dump_run_dir(dump_dir: str) -> Path:
+    """<dump_dir>/<run timestamp>/, created once per run (first dump call after the
+    last _reset_caches) and reused for every doc dumped in that same run."""
+    global _DUMP_RUN_DIR
+    if _DUMP_RUN_DIR is None:
+        _DUMP_RUN_DIR = Path(dump_dir) / datetime.now().strftime("%Y%m%d_%H%M%S")
+        _DUMP_RUN_DIR.mkdir(parents=True, exist_ok=True)
+    return _DUMP_RUN_DIR
+
+
+def _dump_cot_to_disk(doc: dict, clean: list, dump_dir: str) -> None:
+    """Write one synthesized CoT to <dump_dir>/<run timestamp>/<doc_id>.txt for manual
+    inspection, alongside the source document text. Overwrites on every fresh generation
+    within the same run (i.e. a cache hit in _generate_cot_for_doc does not re-write the
+    file); a new run gets its own timestamped folder, so reruns never clobber past dumps."""
+    doc_id = str(doc.get("id", "unknown"))
+    safe_id = re.sub(r"[^\w.-]", "_", doc_id) or "unknown"
+    path = _dump_run_dir(dump_dir) / f"{safe_id}.txt"
+    cot_text = "\n\n".join(
+        f"--- CoT step {i} ---\n{step}" for i, step in enumerate(clean, 1)
+    ) if len(clean) > 1 else clean[0]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(
+            f"Document ID: {doc_id}\n\n"
+            f"--- Document text ---\n{doc['doc_text']}\n\n"
+            f"--- Synthesized CoT ---\n{cot_text}\n"
+        )
+
+
 # ── Pre-generation ────────────────────────────────────────────────────────────
 
 async def pregenerate_cot(
@@ -542,6 +584,7 @@ async def pregenerate_cot(
     steps: list = None,
     num_steps: int = 2,
     retries: int = 3,
+    dump_dir: Optional[str] = None,
 ) -> None:
     """Generate CoT for every unique few-shot training doc needed across all test_docs.
 
@@ -565,7 +608,7 @@ async def pregenerate_cot(
     active_ds = cfg["active_dataset"]
     kfold_cfg = cfg["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
-    same_sentence_only = cfg["few_shot"]["cot_generation"]["same_sentence_only"]
+    intra_only = cfg["few_shot"]["intra_only"]
 
     # Scan all test docs to collect the unique training docs that will be used as few-shots.
     needed: dict = {}  # training doc_id -> doc
@@ -575,7 +618,7 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            cache_key = f"{doc_id}::n{num_steps}" + ("::ss1" if same_sentence_only else "")
+            cache_key = f"{doc_id}::n{num_steps}" + ("::intra" if intra_only else "")
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -599,7 +642,7 @@ async def pregenerate_cot(
                 doc_id=doc.get("id", ""),
             )
             gold_triples = doc["gold_triples"]
-            if same_sentence_only:
+            if intra_only:
                 gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
             gold_output = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
 
@@ -608,7 +651,8 @@ async def pregenerate_cot(
                 try:
                     await _generate_cot_for_doc(
                         doc, system_prompt, human_content, gold_output, graph_ainvoke,
-                        steps=steps, num_steps=num_steps, same_sentence_only=same_sentence_only,
+                        steps=steps, num_steps=num_steps, intra_only=intra_only,
+                        dump_dir=dump_dir,
                     )
                     break
                 except Exception as e:

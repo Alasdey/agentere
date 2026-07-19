@@ -466,6 +466,7 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             cache_path=fs_cfg["cot_generation"].get("cache_path"),
             num_steps=fs_cfg["cot_generation"]["num_steps"],
             retries=config["experiment"].get("retries", 3),
+            dump_dir=fs_cfg["cot_generation"].get("dump_dir"),
         )
 
     results = await run_docs_concurrent(docs, config, graph_ainvoke)
