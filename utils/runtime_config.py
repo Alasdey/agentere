@@ -36,10 +36,10 @@ def set_cfg(cfg: dict) -> None:
 def get_cfg() -> dict:
     global _cfg
     if not _cfg:
-        import yaml
-        path = Path(__file__).parent.parent / "config.yaml"
-        with open(path, "r", encoding="utf-8") as f:
-            _cfg = yaml.safe_load(f)
+        # load_config (not raw yaml) so the lazy path resolves cfg["prompt"] from the active
+        # dataset's prompt file, exactly as main.py's does — consumers may read it either way.
+        from utils.config import load_config
+        _cfg = load_config(str(Path(__file__).parent.parent / "config.yaml"))
     return _cfg
 
 

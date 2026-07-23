@@ -17,6 +17,12 @@ _format_examples/few_shot_examples tool's "Output:", the CoT-synthesis "correct 
 hint, and the non-CoT "Output:" fallback used when cot_generation.enabled is false. It does not
 affect doc selection.
 The full training split is loaded lazily and cached in memory.
+
+Synthesized CoT is cached at two levels: _COT_CACHE (optionally persisted to
+few_shot.cot_generation.cache_path), keyed by doc id + a fingerprint of everything that
+shapes the CoT — see _cot_cache_key — and, one level down, the prompt-keyed LLM cache in
+utils/llm_cache.py, which the CoT-synthesis graph built here carries. Inference itself is
+never cached; see main.py's build_chat_graph call.
 """
 from __future__ import annotations
 
@@ -25,6 +31,8 @@ import json
 import random
 import re
 from datetime import datetime
+from functools import lru_cache
+from hashlib import sha256
 from pathlib import Path
 from typing import FrozenSet, Optional
 
@@ -32,9 +40,11 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
+from model.model import build_chat_graph
 from utils.formatting import format_pair_lines, format_gold_output
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 from utils.labels import NOREL_VARIANTS
+from utils.llm_cache import get_llm_cache
 import utils.trace_dump as trace_dump
 
 from utils.runtime_config import get_cfg, register_reset
@@ -67,6 +77,66 @@ def _reset_caches() -> None:
 
 
 register_reset(_reset_caches)
+
+
+# ── CoT synthesis graph ───────────────────────────────────────────────────────
+
+@lru_cache(maxsize=1)
+def _make_cot_graph():
+    """graph_ainvoke for CoT synthesis — same model, tools and settings as the inference
+    graph built in main.py, but with the prompt-keyed LLM cache attached.
+
+    Synthesis is deterministic teacher work over training docs, so replaying it is free
+    accuracy-wise; the inference graph passes cache=False and is never served from cache.
+    `cache` rides through build_chat_graph's **llm_kwargs into ChatOpenAI.
+    """
+    from tools import get_enabled_tools  # local: tools/__init__ imports this module
+
+    cfg = get_cfg()
+    _, ainvoke = build_chat_graph(
+        model_id=cfg["model"]["default_model_id"],
+        temperature=cfg["model"]["temperature"],
+        base_url=cfg["model"]["base_url"],
+        tools=get_enabled_tools(cfg["experiment"]["tools"] or []),
+        enable_tools=cfg["experiment"]["enable_tools"],
+        cache=get_llm_cache(),
+    )
+    return ainvoke
+
+
+register_reset(_make_cot_graph.cache_clear)
+
+
+# ── CoT cache key ─────────────────────────────────────────────────────────────
+
+def _cot_cache_key(doc_id: str, num_steps: int, intra_only: bool) -> str:
+    """<doc_id>::<fingerprint of everything that shapes the synthesized CoT>.
+
+    The fingerprint is what makes the disk cache safe across a queue run: model, prompt and
+    gold-formatting all change the bytes sent to the synthesis LLM, so all of them must
+    change the key. Without it (the pre-fix behaviour, keyed on doc id and num_steps alone)
+    a shared cot_cache.json silently served CoT written by another model from another prompt.
+    """
+    cfg = get_cfg()
+    active_ds = cfg["active_dataset"]
+    fingerprint = json.dumps(
+        {
+            "model_id": cfg["model"]["default_model_id"],
+            "temperature": cfg["model"]["temperature"],
+            "num_steps": num_steps,
+            "intra_only": intra_only,
+            "dataset": active_ds,
+            "system": cfg["prompt"]["system"],
+            "user_template": cfg["prompt"]["user_template"],
+            "steps": cfg["prompt"].get("steps"),
+            "binary_undirected": cfg["data"]["binary_undirected"],
+            "constrain_to_pair_list": cfg["datasets"][active_ds]["constrain_to_pair_list"],
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return f"{doc_id}::{sha256(fingerprint.encode('utf-8')).hexdigest()[:16]}"
+
 
 _COT_GOLD_HINT = (
     "The correct label assignments for this document are:\n\n{gold_json}\n\n"
@@ -218,7 +288,6 @@ async def _generate_cot_for_doc(
     system_prompt: str,
     user_content: str,
     gold_output: str,
-    graph_ainvoke,
     steps: list = None,
     num_steps: int = 2,
     intra_only: bool = False,
@@ -241,9 +310,11 @@ async def _generate_cot_for_doc(
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    cache_key = f"{doc_id}::n{num_steps}" + ("::intra" if intra_only else "")
+    cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
+
+    graph_ainvoke = _make_cot_graph()
 
     gold_hint = _COT_GOLD_HINT.format(gold_json=gold_output)
     gold_hint_cont = _COT_GOLD_HINT_CONTINUE.format(gold_json=gold_output)
@@ -348,7 +419,6 @@ async def get_few_shot_message_pairs(
     active_ds: str,
     steps: list = None,
     system_prompt: str = "",
-    graph_ainvoke=None,
 ) -> list:
     """Returns few-shot example sets for conversation-based injection.
 
@@ -360,8 +430,8 @@ async def get_few_shot_message_pairs(
         - Single-call mode (no steps): one (human, ai) pair per example.
         - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
 
-    When few_shot.cot_generation.enabled is true and graph_ainvoke is provided, AI content is
-    generated via guided generation from gold labels then decontaminated. When few_shot.intra_only
+    When few_shot.cot_generation.enabled is true, AI content is generated via guided
+    generation from gold labels then decontaminated. When few_shot.intra_only
     is also true, the gold shown to the synthesis LLM — and the non-CoT "Output:" fallback used
     when cot_generation.enabled is false — is first restricted to same-sentence gold triples only.
     """
@@ -379,14 +449,10 @@ async def get_few_shot_message_pairs(
             f"({n_sets} runs x {n}) but only {len(docs)} eligible docs are available"
         )
 
-    cot_enabled = (
-        cfg["few_shot"]["cot_generation"]["enabled"]
-        and graph_ainvoke is not None
-        and system_prompt
-    )
+    cot_enabled = cfg["few_shot"]["cot_generation"]["enabled"] and system_prompt
     num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
     intra_only = cfg["few_shot"]["intra_only"]
-    dump_dir = cfg["few_shot"]["cot_generation"].get("dump_dir")
+    dump_dir = cfg["few_shot"]["cot_generation"]["dump_dir"]
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -406,7 +472,7 @@ async def get_few_shot_message_pairs(
         if cot_enabled:
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
-                doc, system_prompt, human_content, gold_output, graph_ainvoke,
+                doc, system_prompt, human_content, gold_output,
                 steps=steps, num_steps=num_steps, intra_only=intra_only,
                 dump_dir=dump_dir,
             )
@@ -578,7 +644,6 @@ async def pregenerate_cot(
     user_template: str,
     active_ds: str,
     system_prompt: str,
-    graph_ainvoke,
     concurrency: int = 10,
     cache_path: Optional[str] = None,
     steps: list = None,
@@ -618,7 +683,7 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            cache_key = f"{doc_id}::n{num_steps}" + ("::intra" if intra_only else "")
+            cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -650,7 +715,7 @@ async def pregenerate_cot(
             for attempt in range(retries + 1):
                 try:
                     await _generate_cot_for_doc(
-                        doc, system_prompt, human_content, gold_output, graph_ainvoke,
+                        doc, system_prompt, human_content, gold_output,
                         steps=steps, num_steps=num_steps, intra_only=intra_only,
                         dump_dir=dump_dir,
                     )
@@ -667,7 +732,9 @@ async def pregenerate_cot(
                     _save_cot_disk_cache(cache_path)
 
     await asyncio.gather(*[_gen(doc) for doc in needed.values()])
-    print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}")
+    llm_cache = get_llm_cache()
+    cache_stats = f" | LLM cache: {llm_cache.stats()}" if llm_cache else ""
+    print(f"[few_shot] CoT pre-generation done. Cache size: {len(_COT_CACHE)}{cache_stats}")
 
 
 # ── Tool ─────────────────────────────────────────────────────────────────────

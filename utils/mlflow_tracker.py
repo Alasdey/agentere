@@ -15,6 +15,7 @@ _mlflow_val.MAX_TAG_VAL_LENGTH = 10_000_000
 _mlflow_val.MAX_TRACE_TAG_VAL_LENGTH = 10_000_000
 _mlflow_val.MAX_PARAM_VAL_LENGTH = 10_000_000
 
+from utils.llm_cache import get_llm_cache
 from utils.logger import capture_git_state
 
 # Cached live pricing from OpenRouter /api/v1/models.
@@ -229,6 +230,15 @@ def log_run(
                         + usage["output_tokens"] * price_out
                     )
                     metrics["cost_usd"] = round(cost, 6)
+
+        # ── LLM cache activity ───────────────────────────────────────────────
+        # Replayed calls are stored with their token usage stripped, so they contribute
+        # nothing to the cost above. These two make that visible: a run with hits > 0 spent
+        # less than an equivalent cold run by exactly the CoT-synthesis and tool-call share.
+        llm_cache = get_llm_cache()
+        if llm_cache:
+            metrics["llm_cache_hits"]   = llm_cache.hits
+            metrics["llm_cache_misses"] = llm_cache.misses
 
         mlflow.log_metrics(metrics)
 

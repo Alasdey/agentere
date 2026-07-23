@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from utils.llm_cache import get_llm_cache
 from utils.runtime_config import get_cfg, register_reset
 
 # =============================================================================
@@ -19,12 +20,13 @@ from utils.runtime_config import get_cfg, register_reset
 
 @lru_cache(maxsize=1)
 def _make_llm() -> ChatOpenAI:
-    model_cfg = get_cfg().get("model", {})
+    model_cfg = get_cfg()["model"]
     return ChatOpenAI(
-        model=model_cfg.get("default_model_id"),
+        model=model_cfg["default_model_id"],
         temperature=0.0,
         api_key=os.environ.get("OPENROUTER_API_KEY"),
-        base_url=model_cfg.get("base_url", "https://openrouter.ai/api/v1"),
+        base_url=model_cfg["base_url"],
+        cache=get_llm_cache(),
     )
 
 

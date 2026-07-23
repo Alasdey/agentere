@@ -239,7 +239,6 @@ async def process_document_resampled(doc, config, graph_ainvoke):
                 active_ds,
                 steps=steps,
                 system_prompt=system_prompt,
-                graph_ainvoke=graph_ainvoke,
             )
 
         # ── Reprompt systematic injection ─────────────────────────────────────
@@ -403,13 +402,16 @@ async def main(config=None):
     print(f"Active Labels for {ds_config['name']}: {active_labels}")
 
     # 2. Build Graph
-    tools = get_enabled_tools(config["experiment"].get("tools", []))
+    tools = get_enabled_tools(config["experiment"]["tools"] or [])
     _, graph_ainvoke = build_chat_graph(
         model_id=config["model"]["default_model_id"],
         temperature=config["model"]["temperature"],
         base_url=config["model"]["base_url"],
         tools=tools,
-        enable_tools=config["experiment"]["enable_tools"]
+        enable_tools=config["experiment"]["enable_tools"],
+        # Reported metrics must always come from live calls: never serve inference from the
+        # LLM cache, whatever any other component may have configured.
+        cache=False,
     )
 
     kfold_cfg = config["datasets"][active_ds_key]["kfold"]
@@ -461,12 +463,11 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             active_ds=config["active_dataset"],
             steps=prompt_cfg.get("steps") or None,
             system_prompt=prompt_cfg["system"],
-            graph_ainvoke=graph_ainvoke,
             concurrency=config["experiment"]["concurrency"],
-            cache_path=fs_cfg["cot_generation"].get("cache_path"),
+            cache_path=fs_cfg["cot_generation"]["cache_path"],
             num_steps=fs_cfg["cot_generation"]["num_steps"],
-            retries=config["experiment"].get("retries", 3),
-            dump_dir=fs_cfg["cot_generation"].get("dump_dir"),
+            retries=config["experiment"]["retries"],
+            dump_dir=fs_cfg["cot_generation"]["dump_dir"],
         )
 
     results = await run_docs_concurrent(docs, config, graph_ainvoke)

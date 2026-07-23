@@ -36,8 +36,24 @@ Edit `config.yaml` to control what runs. The key knobs:
 | `experiment.resampling.enabled` | Run N passes per doc and take majority vote |
 | `few_shot.enabled` | Inject training examples before the LLM call |
 | `few_shot.selection` | `random` or `similarity` (TF-IDF cosine) |
+| `llm_cache.enabled` | Replay identical CoT-synthesis and tool calls from disk instead of the API |
 
 Results land in `logs/allatonce/run_<timestamp>_<id>.json`.
+
+### Response caching
+
+Two caches make reruns cheap without letting a stale response cross experiments:
+
+- `logs/llm_cache.sqlite` — keyed on the exact serialized message list plus the model id,
+  temperature and bound tools. Covers CoT synthesis and tool sub-LLM calls.
+- `logs/cot_cache.json` — keyed on doc id plus a fingerprint of the model, prompt and
+  gold-formatting config. Skips a whole 2–3 call synthesis chain in one lookup.
+
+**Inference is never cached.** The graph in `main.py` is built with `cache=False`, so reported
+F1 always comes from live calls. Cached responses are stored with their token counts and cost
+stripped, so they contribute nothing to `cost_usd` — the `llm_cache_hits` / `llm_cache_misses`
+metrics in MLflow show how much of a run was replayed. To force everything to regenerate,
+change `llm_cache.namespace` to any new string.
 
 ---
 

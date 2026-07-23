@@ -35,8 +35,8 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
+from utils.llm_cache import get_llm_cache
 from utils.runtime_config import get_cfg, register_reset
-from utils import trace_dump
 from utils import trace_dump
 
 def _extractor_cfg() -> dict:
@@ -56,6 +56,7 @@ def _make_llm() -> ChatOpenAI:
         temperature=0.0,
         api_key=os.environ.get("OPENROUTER_API_KEY"),
         base_url=model_cfg["base_url"],
+        cache=get_llm_cache(),
     )
 
 

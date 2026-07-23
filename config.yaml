@@ -57,6 +57,16 @@ mlflow:
   tracking_uri: "sqlite:///mlflow.db"
   experiment_name: "agentere"
 
+# ── LLM response cache ──
+# Prompt-keyed cache over the CoT-synthesis and tool sub-LLM calls. An entry is keyed on the
+# exact serialized message list plus the model id, temperature and bound tools, so a change to
+# any of those is automatically a miss. The main inference loop is built with cache=False and
+# is never served from here — reported F1 always comes from live calls.
+llm_cache:
+  enabled: true
+  path: "logs/llm_cache.sqlite"
+  namespace: ""          # any string; change it to invalidate every existing entry
+
 data:
   shuffle_pair_list: true         # shuffle pair order within each document at load time
                                    # (seeded per doc id — identical across runs)
@@ -141,9 +151,11 @@ few_shot:
                          # 3: blind generation (no golds) -> correct with golds -> decontaminate
                          # num_steps=3 only applies to single-call prompts (no `steps:` in the
                          # active prompt YAML); multi-step task prompts always use the 2-step protocol.
-    # cache_path: "logs/cot_cache.json"  # uncomment to persist generated CoTs across runs
-    dump_dir: "logs/cot_dumps"  # uncomment to write each synthesized CoT to <dump_dir>/<doc_id>.txt
-                                   # (doc id + doc text + CoT), for manual inspection
+    cache_path: "logs/cot_cache.json"  # persist generated CoTs across runs (~ to disable). Keyed by
+                                   # doc id + a fingerprint of the model, prompt and gold-formatting
+                                   # config, so entries can never cross experiments.
+    dump_dir: "logs/cot_dumps"  # write each synthesized CoT to <dump_dir>/<run>/<doc_id>.txt
+                                   # (doc id + doc text + CoT), for manual inspection (~ to disable)
 
 # ── Reprompt tool ──
 reprompt:
