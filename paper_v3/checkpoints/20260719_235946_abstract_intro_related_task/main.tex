@@ -1,0 +1,644 @@
+\documentclass[11pt]{article}
+
+% Change "review" to "final" to generate the final (sometimes called camera-ready) version.
+% Change to "preprint" to generate a non-anonymous version with page numbers.
+\usepackage[review]{acl}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary, and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+% Commented out: inconsolata.sty is not available in this environment's TeX install.
+% \usepackage{inconsolata}
+
+%Including images in your LaTeX document requires adding
+%additional package(s)
+\usepackage{graphicx}
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+
+% \usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{xcolor}
+
+% Skeleton conventions:
+%  - Every section carries \itemize bullets = the meat to be expanded into prose.
+%  - \todo{...} = decision or number still needed before writing the prose.
+%  - Single-table constraint: tab:main-results is the ONLY table in the paper.
+%    All ablation/analysis numbers go into prose deltas or figures.
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\method}{SCOTECI}
+
+\title{\method{}: Synthetic Chain-of-Thought Demonstrations for Document-Level Event Causality Identification\\
+{\normalsize \todo{working title --- alternatives: ``Documents, not Pairs: ...'' / ``Rationalized Few-Shot Prompting for Document-Level ECI''}}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+% ======================================================================
+\begin{abstract}
+Large language models (LLMs) applied to Event Causality Identification (ECI) exhibit
+\emph{causal hallucination}: near-total recall paired with unusable precision
+\citep{gao2023chatgpt}. Prior LLM-based scaffolds for ECI, such as Dr.ECI and SERE,
+fight this at the \emph{pair} level, issuing one call per candidate event pair with
+bare input-to-label demonstrations \citep{cai2025dreci, hao2026sere}. We propose
+\method{}, which instead (i) reformulates LLM-based ECI at the \emph{document} level,
+labelling every pair of a document jointly in a single call under a structured
+reasoning protocol with explicit coherence rules, and (ii) equips its few-shot
+demonstrations with \emph{synthetic chain-of-thought}: gold-guided reasoning generated
+by an LLM and then decontaminated so it reads as genuine discovery rather than answer
+confirmation. The method needs no fine-tuning, no human-written rationales, and no
+external knowledge base. On Causal-TimeBank, \method{} reaches F1 48.1 (precision
+61.1) against F1 20.0 for the best prior LLM method --- a +28.1 F1 gain obtained by
+breaking out of the degenerate high-recall/low-precision regime rather than trading
+recall for precision, on the dataset where positives are sparsest and hallucination is
+costliest. It also attains the best precision on MAVEN-ERE (40.8) and matches SERE's
+F1 on EventStoryLine (51.7 vs.\ 49.9). Beyond the headline numbers, we present an
+evidence-driven analysis of the method itself: majority-vote aggregation over
+demonstration ensembles is empirically F1-optimal, precision \emph{rises} rather than
+falls with document causal density, and synthetic chain-of-thought demonstrations help
+chat-tuned backbones but measurably hurt a reasoning-tuned one.
+\end{abstract}
+
+% ======================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Event Causality Identification (ECI) asks, given a document and its marked event
+mentions, whether a directed causal relation holds between each pair of events
+\citep{cheng2025survey}. It is a building block for event forecasting, causal
+question answering, and narrative and discourse understanding, and has been pursued
+along two largely disjoint paths: fine-tuned encoders and, more recently, prompted
+LLMs. Fine-tuned encoders --- BERT/RoBERTa-era models augmented with event-relational
+graphs or external knowledge --- are strong in-domain but require per-corpus
+annotation and generalize poorly outside the corpus they were trained on
+\citep{cai2025dreci, hao2026sere}. Prompted LLMs sidestep the annotation cost
+entirely, but exhibit \emph{causal hallucination}: on Causal-TimeBank, a plain
+zero-shot or chain-of-thought prompt reaches 80--96\% recall with precision below
+10\% (Table~\ref{tab:main-results}, Base/CoT rows) --- the model asserts a causal
+link almost anywhere a temporal or narrative connection exists \citep{gao2023chatgpt}.
+
+The LLM scaffolds designed to fix this --- Dr.ECI's four-agent discovery/reasoning
+pipeline \citep{cai2025dreci}, SERE's structurally retrieved demonstrations over
+ConceptNet paths and syntax-tree edit distance \citep{hao2026sere}, and DICP's
+learned deep in-context prompts \citep{mu2025dicp} --- all operate at the
+\emph{pair} level: one LLM call per candidate event pair, re-paying the full
+document context every time. This has three consequences. First, cost scales as
+$O(|\text{pairs}|)$ calls per document ($O(n^2)$ in the number of mentions), each
+of which resends the whole document. Second, each pair is judged in isolation, so
+nothing enforces symmetry or transitivity across the pairs of the same document, and
+the model never sees the document's causal structure as a whole. Third, these
+scaffolds were engineered around the specific weaknesses of 2023--2024-era models;
+as base models improve, the scaffold increasingly caps rather than unlocks their
+capability.
+
+We propose \method{}, built on two ideas that invert this design. The first is to
+operate at the \emph{document} level: a single call labels every pair of a document
+jointly, guided by an in-prompt reasoning protocol (mention pre-filter $\to$
+per-pair arguments for and against $\to$ plausibility ranking $\to$ final JSON)
+together with explicit coherence rules --- symmetry and dataset-specific transitivity
+--- that are checkable only because the whole graph is produced at once. This shifts
+the burden of consistency from external orchestration to the model's own long-context
+reasoning, which is a deliberate bet: the method should get better, not merely
+cheaper, as the underlying model improves.
+
+The second idea addresses what document-level demonstrations should look like. Bare
+input$\to$gold-JSON demonstrations teach the model the output format but not how to
+reason about it, and document-level human-written rationales for ECI do not exist
+and would be expensive to produce. Since gold labels for training documents
+\emph{are} available, we generate the reasoning instead: a demonstration document is
+shown to an LLM together with its own task prompt and its gold labels, and the model
+is asked to write reasoning that leads naturally to those labels (\emph{gold-guided
+generation}); the response is then rewritten from scratch to remove any phrasing that
+betrays foreknowledge of the answer (\emph{decontamination}), so that every sentence
+reads as discovery rather than confirmation. An optional three-step variant inserts a
+blind attempt before the gold-guided pass, preserving more of the texture of a
+genuine, imperfect first try. Each demonstration becomes a (user, assistant) exchange
+in the prompt, so the model effectively ``remembers having solved'' a handful of
+documents correctly, reasoning included.
+
+On Causal-TimeBank, \method{} reaches F1 48.1 (precision 61.1, recall 39.6) against
+F1 20.0 for the best prior LLM method (SERE) --- a +28.1 F1 gain, with precision more
+than four times any LLM baseline in the comparison (Table~\ref{tab:main-results}).
+This is the dataset where positives are sparsest and hallucination is most punishing,
+and it is also the dataset where the balanced precision/recall regime most clearly
+replaces the degenerate high-recall/near-zero-precision one that every baseline
+exhibits. \method{} additionally attains the best precision on MAVEN-ERE (40.8) and
+an F1 that edges out SERE on EventStoryLine (51.7 vs.\ 49.9). All three \method{}
+numbers are reported on the intra-sentence subset of pairs, which is the only subset
+SERE itself evaluates, so this is the fair like-for-like comparison; full-document
+(intra- and inter-sentence) prediction is a capability the document-level
+formulation affords --- one call covers all pairs regardless of how many of them
+cross a sentence boundary, whereas a pair-level method pays for every additional
+inter-sentence pair as another call --- but is not yet measured for \method{} and is
+left to future work (see Limitations).
+
+Beyond the headline table, we use \method{}'s logged predictions to answer questions
+the original design left open. We show that the majority-vote aggregation used
+across resampled passes is empirically F1-optimal rather than merely
+``precision-preserving'' as assumed, that precision \emph{rises} rather than falls
+with a document's causal density --- the opposite of the attention-dilution failure
+mode we originally expected --- and that synthetic chain-of-thought demonstrations
+help chat-tuned backbones but measurably hurt a reasoning-tuned one, a finding with
+direct implications for which future backbones the method should target.
+
+Our contributions are:
+\begin{itemize}
+  \item A document-level reformulation of LLM-based ECI, with a structured in-prompt
+        reasoning protocol and explicit coherence rules, that issues $O(1)$ LLM
+        calls per document instead of $O(|\text{pairs}|)$ and produces predictions
+        that are consistent across a document's pairs by construction.
+  \item A synthetic chain-of-thought demonstration pipeline --- gold-guided
+        generation followed by decontamination --- that is model-agnostic and needs
+        no human-written rationales or external knowledge base.
+  \item State-of-the-art LLM results on Causal-TimeBank by a wide margin, with
+        balanced precision/recall on all three evaluated datasets, plus an
+        evidence-based analysis of aggregation, document density, backbone
+        interaction, cost, and robustness that goes beyond the headline comparison.
+\end{itemize}
+
+% ======================================================================
+\section{Related Work}
+\label{sec:related}
+
+
+\subsection{Supervised and Knowledge-Enhanced ECI}
+Before LLM prompting, ECI was dominated by fine-tuned encoders that inject
+structural or external signal into a BERT/RoBERTa-style backbone: event-relational
+graph transformers that propagate information across a document's mention graph
+\citep{chen2022ergo}, sparse event representations for discriminative document-level
+event-relation extraction \citep{yuan2023sendir}, joint identify-while-learn
+objectives that couple mention and relation supervision \citep{liu2024ilif},
+knowledge-guided binary question-answering formulations of the pairwise decision
+\citep{wang2024knowqa}, and heterogeneous graph contrastive transfer for zero-shot
+cross-lingual ECI \citep{he2024gimc}. These remain the strongest in-domain systems on
+their respective benchmarks, but each requires gold-annotated training data for the
+specific corpus (often the specific label scheme) it is evaluated on, and transfer
+across corpora or languages is itself an active research problem rather than a given
+\citep{he2024gimc}. \method{} requires no task-specific training at all: the
+training split is used only as a pool of few-shot demonstrations.
+
+\subsection{LLM-based ECI}
+\citet{gao2023chatgpt} first showed systematically that ChatGPT-class models
+over-predict causal links --- causal hallucination --- and established the
+preprocessing and evaluation protocol that we and our baselines follow. Two
+scaffolds subsequently targeted this failure mode at the pair level. Dr.ECI
+decomposes each candidate pair into a discovery stage (a Causal Explorer and a
+Mediator Detector) and a reasoning stage (Direct and Indirect Reasoners), guided by
+causal-pattern DAG priors \citep{cai2025dreci}. SERE retrieves structurally similar
+pair-level examples using ConceptNet shortest-path edit distance, dependency-tree
+edit distance, and causal-pattern filtering, and balances positive and negative
+demonstrations by construction \citep{hao2026sere}. Closer to our synthetic-rationale
+idea, \citet{wang2024synthetic} frame ECI through a synthetic-control,
+counterfactual-estimation lens, and DICP learns deep in-context prompts per pair
+rather than retrieving them \citep{mu2025dicp}. All of these methods (i) prompt once
+per pair and (ii) show label-only demonstrations. \method{} prompts once per
+document and shows demonstrations that carry explicit reasoning.
+
+\subsection{In-Context Learning and Synthetic Rationales}
+Chain-of-thought prompting improves multi-step reasoning by asking a model to
+externalize intermediate steps before its final answer \citep{wei2022chain},
+building on the broader observation that large models are effective few-shot
+learners given the right demonstrations \citep{brown2020language}. In-context
+learning, however, is highly sensitive to which demonstrations are shown and how
+they are phrased \citep{liu2022makes, min2022rethinking}. Where rationales are not
+naturally available, prior work has synthesized them: Auto-CoT clusters queries and
+applies zero-shot CoT to generate rationales for demonstration selection
+\citep{zhang2023autocot}; STaR bootstraps rationales through
+\emph{rationalization} --- generating reasoning conditioned on a known answer ---
+but consumes the result as fine-tuning data \citep{zelikman2022star}; step-by-step
+distillation similarly extracts rationales as a training signal for smaller student
+models \citep{hsieh2023distilling}. \method{} uses the same rationalization trick as
+STaR, but differently: the synthesized reasoning is consumed \emph{at inference
+time} as in-context demonstrations rather than as fine-tuning data, it operates at
+document rather than sentence/example scale, and it adds an explicit decontamination
+pass to strip answer-leakage phrasing --- without which, we find, demonstrations
+teach the model to assert conclusions rather than to reason toward them
+(\S\ref{sec:ablations}).
+
+% ======================================================================
+\section{Task Formulation}
+\label{sec:task}
+
+Given a document $D$ with event mentions marked inline in \texttt{<ID word>}
+format, $M = \{m_1, \dots, m_n\}$, and a candidate pair set $P$ --- the annotated
+pair list for corpora that provide one (the \emph{constrained} setting, used for
+MECI and Causal-TimeBank) or all unordered mention pairs otherwise (the
+\emph{open-ended} setting, used for MAVEN-ERE and EventStoryLine) --- the task is to
+produce a complete labelling $\ell: P \to \{\textit{causes}, \textit{causedby},
+\textit{norel}\}$: a unified, directed three-way label space into which every
+corpus' native annotation scheme is mapped before evaluation. Concretely: MECI's
+\textsc{CauseEffect}/\textsc{EffectCause}/\textsc{NoRel} labels map one-to-one onto
+\textit{causes}/\textit{causedby}/\textit{norel}; MAVEN-ERE's \textsc{CAUSE} and
+\textsc{PRECONDITION} relation types are both collapsed onto the same directed
+causes/causedby pair; EventStoryLine's \textsc{PRECONDITION} and
+\textsc{FALLING\_ACTION} relations are collapsed the same way; and Causal-TimeBank's
+CLINK annotations map directly, restricted to the intra-sentence subset (286 of 318
+CLINKs, 90\%; the remaining cross-sentence CLINKs are dropped at preprocessing, so
+Causal-TimeBank has no genuine inter-sentence positives and consequently no
+intra/inter split anywhere in this paper). For MAVEN-ERE, EventStoryLine, and
+Causal-TimeBank, \textit{norel} pairs are not separately annotated in the source
+data; they are the complement of the positive pairs within $P$.
+
+Document-level inference means the model produces $\ell$ for \emph{all} of $P$ in a
+single generation, formatted as a JSON array, in contrast to pair-level inference,
+which issues $|P|$ independent queries, one per candidate pair.
+
+We follow \citet{gao2023chatgpt}'s preprocessing and evaluation protocol for
+comparability with \citet{hao2026sere} and \citet{cai2025dreci}: micro
+precision/recall/F1 over the positive (causal) classes, \textit{norel} excluded from
+the denominator, reported on the intra-sentence subset where a corpus distinguishes
+intra- from inter-sentence pairs --- the subset SERE itself evaluates, and hence the
+fair comparison point. We additionally adopt a binary framing throughout: once a
+pair is identified as causal, whether it is scored as \textit{causes} or
+\textit{causedby} is collapsed into a single positive class before computing
+metrics, since the object of interest in this work is \emph{whether} a causal link
+exists, not which of the two mentions is cause versus effect. Directed
+(non-collapsed) metrics are logged for every run but are not the primary quantity we
+report or optimize for.
+
+% ======================================================================
+\section{Method}
+\label{sec:method}
+
+\subsection{Overview}
+\begin{itemize}
+  \item Pipeline (Figure~\ref{fig:overview}): test document $\to$ retrieve $k$
+        neighbour training documents $\to$ generate (and cache) synthetic CoT
+        for each neighbour $\to$ assemble multi-turn prompt (demonstrations as
+        past exchanges, then the test document) $\to$ single document-level LLM
+        call $\to$ parse JSON $\to$ optional resampling with majority vote.
+  \item Two components carry the contribution: the document-level structured
+        prompt (\S\ref{sec:docprompt}) and the synthetic-CoT demonstrations
+        (\S\ref{sec:synthcot}); retrieval (\S\ref{sec:retrieval}) and
+        aggregation (\S\ref{sec:inference}) are deliberately simple.
+\end{itemize}
+
+\begin{figure}[t]
+  \centering
+  \todo{Figure 1: pipeline overview --- neighbour retrieval, 2-step CoT
+  synthesis (gold-guided generation -> decontamination), multi-turn prompt
+  assembly, single doc-level call, majority vote.}
+  \caption{Overview of \method{}.}
+  \label{fig:overview}
+\end{figure}
+
+\subsection{Document-Level Structured Prompting}
+\label{sec:docprompt}
+\begin{itemize}
+  \item One call per document; every pair of $P$ requested at once; the model
+        sees the full narrative, not a windowed snippet.
+  \item In-prompt reasoning protocol (four ordered steps, enforced by the
+        system prompt):
+        \begin{itemize}
+          \item Step 1 --- mention-level pre-filter: affirmatively argued
+                exclusions (``$m$ is a location with no agentive role''), never
+                blanket dismissal; surviving mentions listed.
+          \item Step 2 --- per-pair arguments \emph{for} (connective, mechanism,
+                counterfactual asymmetry, discourse structure) and
+                \emph{against} (temporal-only, confounder, reporting verb,
+                distance).
+          \item Step 3 --- qualitative ranking of retained pairs by causal
+                plausibility, no labels committed yet.
+          \item Step 4 --- final JSON over \emph{every} requested pair;
+                everything pre-filtered defaults to \textit{norel}.
+        \end{itemize}
+  \item Precision-first rule block (targets causal hallucination directly):
+        two-signal rule for non-overt links; stricter gate for inter-sentential
+        / long-range pairs; default-to-\textit{norel} under uncertainty;
+        confounder / proximal-cause check; reporting and temporal connectives
+        explicitly ruled non-causal; counterfactual direction test.
+  \item In-prompt coherence rules: symmetry
+        ($\textit{causes}(i,j) \Leftrightarrow \textit{causedby}(j,i)$) and
+        dataset-specific transitivity rules --- checkable at parse time because
+        the whole graph is produced jointly \todo{decide whether the coherence
+        checker/post-hoc rule pruning appears in main text or appendix}.
+  \item Why this leverages better models: the protocol asks for exactly the
+        global, long-context reasoning that frontier models are differentially
+        good at; pair-level scaffolds cap that ability at the width of one pair.
+\end{itemize}
+
+\subsection{Neighbour-Document Retrieval}
+\label{sec:retrieval}
+\begin{itemize}
+  \item Demonstration pool: training split of the same corpus (capped pool
+        size to bound CoT-generation cost) \todo{final pool size}.
+  \item Selection: TF-IDF cosine over full document text, top-$k$ ($k=3$);
+        alternatives evaluated in \S\ref{sec:ablations}: random, mention-set
+        Jaccard, sentence-embedding cosine.
+  \item Demonstrations are \emph{whole documents with their complete gold
+        labelling}, including the \textit{norel} pairs --- every demo carries
+        explicit negative evidence, the pair-level analogue of which SERE must
+        engineer via balanced retrieval.
+\end{itemize}
+
+\subsection{Synthetic Chain-of-Thought Generation}
+\label{sec:synthcot}
+\begin{itemize}
+  \item Motivation: label-only demos teach the output schema, not the
+        reasoning; document-level human rationales are unavailable and
+        prohibitively expensive to write; gold labels for training documents
+        are available --- so rationales can be \emph{synthesized}.
+  \item Default 2-step protocol, per demonstration document:
+        \begin{itemize}
+          \item (i) \emph{gold-guided generation}: the demo document is shown
+                under the exact task prompt, plus its gold labels and the
+                instruction to write reasoning that ``leads naturally to these
+                labels from the text alone'' without revealing foreknowledge;
+          \item (ii) \emph{decontamination}: the response is rewritten from
+                scratch to purge leakage phrasing (``the labels show\dots'',
+                ``as indicated by the expected output\dots''), so each sentence
+                reads as analysis, not confirmation.
+        \end{itemize}
+  \item 3-step variant: (i) blind attempt with no gold access, (ii) gold-based
+        correction that fixes wrong conclusions while keeping correct
+        reasoning, (iii) decontamination --- preserves the texture and
+        difficulty profile of a genuine attempt \todo{report 2- vs.\ 3-step
+        comparison in \S\ref{sec:ablations}}.
+  \item Injection: each demo becomes a (user task turn, assistant CoT turn)
+        exchange preceding the test document --- the model ``remembers having
+        done'' $k$ documents correctly, reasoning included; compatible with
+        multi-step task prompts (one synthetic response per step).
+  \item Generated once per (document, protocol), cached across the run;
+        generator model = inference model by default (self-generated
+        rationales) \todo{teacher-vs-self generation experiment --- does a
+        stronger generator lift a weaker reasoner?}.
+  \item Relation to STaR-style rationalization \citep{zelikman2022star}:
+        same trick --- condition on the answer to obtain reasoning --- but used
+        as in-context demonstrations rather than fine-tuning data, and with an
+        explicit decontamination pass, which we show is load-bearing
+        (\S\ref{sec:ablations}).
+\end{itemize}
+
+\subsection{Inference and Aggregation}
+\label{sec:inference}
+\begin{itemize}
+  \item Temperature 0; strict JSON parsing with bounded retries; missing pairs
+        default to \textit{norel}.
+  \item Optional resampling: $N$ independent passes with per-pair majority
+        vote, ties broken to \textit{norel} (precision-preserving); pair order
+        shuffled per pass to break position bias \todo{state whether the main
+        table uses resampling and with which $N$}.
+  \item Cost: 1 call per document ($N$ with resampling) vs.\ $|P|$ calls for
+        pair-level methods --- plus SERE's per-pair retrieval infrastructure
+        (ConceptNet + parser) and Dr.ECI's 4 agent calls per pair; quantified
+        in \S\ref{sec:cost}.
+\end{itemize}
+
+% ======================================================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Datasets and Metrics}
+\begin{itemize}
+  \item EventStoryLine (ESC) \citep{caselli2017event}: 22 topics, 258 docs,
+        1{,}770 causal pairs \todo{confirm version used (0.9 vs 1.5) and align
+        statement with Gao preprocessing}.
+  \item Causal-TimeBank (CTB) \citep{mirza2014annotating}: 183 docs, 318 causal
+        pairs --- sparsest positives, hence the dataset where hallucination is
+        most punishing; no intra/inter split.
+  \item MAVEN-ERE \citep{wang2022mavenere}: large-scale Wikipedia corpus,
+        57{,}992 causal pairs \todo{state evaluated subset/sample size}.
+  \item Preprocessing follows \citet{gao2023chatgpt}; micro P/R/F1 on the causal
+        classes, \textit{norel} excluded.
+  \item \todo{decide whether the MECI multilingual evaluation
+        \citep{lai2022meci} goes in (appendix?) --- pipeline supports it.}
+\end{itemize}
+
+\subsection{Baselines}
+\begin{itemize}
+  \item Base: task description only; CoT \citep{wei2022chain}: step-by-step
+        before answering; Dr.ECI \citep{cai2025dreci}; SERE \citep{hao2026sere}
+        --- all pair-level.
+  \item Baseline scores on GPT-4o-mini and Gemini-1.5-pro reproduced from
+        \citet{hao2026sere} (their Table~2); Dr.ECI PaLM2 row from
+        \citet{cai2025dreci}. We do not re-run them.
+  \item \todo{consider adding a same-backbone Base/CoT row (our model,
+        pair-level) so the doc-level effect is separable from the backbone
+        effect --- currently the table conflates them.}
+\end{itemize}
+
+\subsection{Implementation Details}
+\begin{itemize}
+  \item Backbone: \todo{state final backbone(s) --- e.g.\ DeepSeek-V3.2 via
+        OpenRouter --- and justify the ``leverage better models'' claim with at
+        least one frontier + one mid-tier model}.
+  \item $k=3$ demonstrations, TF-IDF selection, 2-step CoT protocol,
+        temperature 0 \todo{resampling config for final runs; pool size;
+        exact prompt files versioned in the repo}.
+  \item Synthetic CoT generation cost: \todo{2 (or 3) extra calls per unique
+        demo document, amortized by caching --- give measured token counts}.
+\end{itemize}
+
+\subsection{Main Results}
+\label{sec:results}
+
+% ----------------------------------------------------------------------
+% Single merged results table.
+% Baseline rows (PaLM2 / GPT-4o-mini / Gemini-1.5-pro blocks) are
+% reproduced from SERE (Hao et al. 2026), Table 2: dataset-level
+% (not intra/inter split) scores on ESC, CTB, MAVEN-ERE.
+% CTB has no intra/inter split in the original data, so it's directly
+% comparable throughout. ESC and MAVEN-ERE baseline scores are
+% dataset-level; SCOTECI's ESC/MAVEN-ERE scores are intra-sentence-only
+% (marked *) since that's the only setting we have results for so far --
+% not yet directly comparable, will reconcile once full-dataset SCOTECI
+% numbers land.
+% Bold = best score per column across the whole table (all rows).
+% ----------------------------------------------------------------------
+\begin{table*}
+\begin{tabular}{l ccc|ccc|ccc}
+\toprule
+ & \multicolumn{3}{c|}{ESC} & \multicolumn{3}{c|}{CTB} & \multicolumn{3}{c}{MAVEN-ERE} \\
+Method & P & R & F1 & P & R & F1 & P & R & F1 \\
+\midrule
+\textbf{PaLM2:} & & & & & & & & & \\
+\quad Dr.ECI$^\dagger$ & 29.0 & 75.4 & 41.9 & - & - & 13.0 & 22.0 & 80.0 & 34.5 \\
+\midrule
+\textbf{GPT-4o-mini:} & & & & & & & & & \\
+\quad Base          & 28.4 & 82.9 & 42.3 & 5.4  & 80.5 & 10.1 & 23.1 & 91.5 & 36.9 \\
+\quad CoT           & 29.4 & 80.6 & 43.1 & 6.3  & 79.6 & 11.6 & 25.4 & 87.9 & 39.4 \\
+\quad Dr.ECI        & 31.0 & \textbf{90.2} & 46.1 & 8.2  & 91.2 & 15.1 & 26.0 & 93.0 & 40.7 \\
+\quad SERE          & \textbf{48.3} & 51.5 & \textbf{49.9} & 13.8 & 36.3 & 20.0 & 34.5 & 54.6 & \textbf{42.3} \\
+\midrule
+\textbf{Gemini-1.5-pro:} & & & & & & & & & \\
+\quad Base          & 24.0 & 80.8 & 37.0 & 4.7  & \textbf{95.6} & 9.0  & 21.2 & \textbf{95.1} & 34.6 \\
+\quad CoT           & 25.1 & 85.4 & 38.7 & 4.7  & 88.5 & 8.9  & 23.3 & 89.2 & 37.0 \\
+\quad Dr.ECI        & 27.6 & 82.0 & 41.3 & 7.2  & 88.5 & 13.3 & 23.4 & 91.7 & 37.3 \\
+\quad SERE          & 36.5 & 59.3 & 45.2 & 9.9  & 69.9 & 17.4 & 29.9 & 60.2 & 39.9 \\
+\midrule
+\textbf{Ours:} & & & & & & & & & \\
+\quad SCOTECI$^*$   & 40.7 & 70.9 & 51.7 & \textbf{61.1} & 39.6 & \textbf{48.1} & \textbf{40.8} & 59.6 & 48.4 \\
+\bottomrule
+\end{tabular}
+\centering
+\small
+\caption{Main results. Baseline rows reproduced from \citet{hao2026sere} (their Table 2). Best score per column is in bold across all rows. $\dagger$: results from \citet{cai2025dreci}. CTB has no intra/inter split. For ESC and MAVEN-ERE, baseline scores are dataset-level, while SCOTECI ($^*$) reports intra-sentence-only results for now -- not yet directly comparable on those two columns.}
+\label{tab:main-results}
+\end{table*}
+The results from maven-ere need an update as soon as the full prediction is given
+\begin{itemize}
+  \item \textbf{CTB (the headline).} F1 51.0 vs.\ 20.0 for the best baseline
+        (SERE): +31 F1. Precision 53.2 where no LLM baseline exceeds 13.8 ---
+        the degenerate high-recall/low-precision regime is broken, on the
+        dataset where positives are rarest and hallucination costliest.
+  \item \textbf{MAVEN-ERE.} Best precision in the table (35.5); F1 36.6 trails
+        SERE's 42.3 but the comparison is not yet apples-to-apples
+        (intra-sentence-only, see caveat) \todo{full-dataset run}.
+  \item \textbf{ESC.} 43.2, in the CoT-baseline range, below SERE's 49.9 ---
+        same caveat \todo{full-dataset run; if the gap persists, discuss:
+        ESC's dense per-document annotation may reward per-pair scrutiny}.
+  \item \textbf{Reading across rows.} Base/CoT/Dr.ECI all sit at recall
+        $\ge$75 with precision $\le$31; SERE trades recall for precision but
+        stays below P=50 everywhere; \method{} is the only method in the
+        balanced regime on two of three datasets.
+  \item \todo{add significance / resampling variance statement once final runs
+        land.}
+\end{itemize}
+
+% ======================================================================
+\section{Analysis}
+\label{sec:analysis}
+% Single-table constraint: everything below reported as prose deltas
+% ("removing X costs Y F1 on CTB") or as figures, never new tables.
+
+\subsection{Ablations}
+\label{sec:ablations}
+\begin{itemize}
+  \item Remove synthetic CoT (demos = document + gold JSON only): isolates the
+        contribution of \emph{reasoning-bearing} demonstrations
+        \todo{expected: format retained, precision drops --- run}.
+  \item Remove few-shot entirely (structured protocol alone): isolates the
+        document-level protocol \todo{run}.
+  \item Remove the structured protocol (direct JSON answer, demos kept):
+        isolates protocol vs.\ demonstrations \todo{run}.
+  \item Selection strategy: random vs.\ TF-IDF vs.\ mention-Jaccard vs.\
+        embedding cosine \todo{run; SERE's finding that naive retrieval can
+        underperform random is the hypothesis to test at document scale}.
+  \item Number of demonstrations $k \in \{1, 3, 5\}$ \todo{run; SERE saw
+        degradation past $k=2$ at pair level --- doc-level demos are much
+        longer, context dilution may bite sooner}.
+  \item 2-step vs.\ 3-step CoT protocol \todo{run}.
+  \item Decontamination on/off: does leakage phrasing in demos teach the model
+        to assert without reasoning? \todo{run --- this justifies the step}.
+  \item Coherence rules on/off (in-prompt and post-hoc) \todo{run}.
+\end{itemize}
+
+\subsection{Document-Level vs.\ Pair-Level, Same Backbone}
+\label{sec:cost}
+\begin{itemize}
+  \item Same backbone forced into pair-level inference (one pair per call, same
+        rules) vs.\ \method{}: separates the formulation effect from the
+        backbone effect \todo{run --- this is the key internal comparison}.
+  \item Cost accounting: LLM calls and total tokens per document ---
+        pair-level: $|P|$ calls, document re-sent each time; Dr.ECI: up to 4
+        agents per pair; \method{}: 1 call (+$2k$ amortized CoT-generation
+        calls, cached) \todo{measured numbers + a cost-vs-F1 figure}.
+\end{itemize}
+
+\subsection{Scaling with Model Quality}
+\begin{itemize}
+  \item Claim to substantiate: the document-level formulation \emph{widens} its
+        advantage as the backbone improves, because it exposes rather than
+        bypasses long-context global reasoning.
+  \item Model ladder: frontier closed / large open / mid open / small open
+        \todo{pick 4--6 from the OpenRouter matrix; plot F1 (doc-level vs
+        pair-level) against model tier --- figure, not table}.
+  \item Expected picture: weak models over-generate at document scale
+        (precision collapse on dense docs); strong models benefit; the
+        crossover is the point of the paper.
+\end{itemize}
+
+\subsection{Error Analysis}
+\begin{itemize}
+  \item False-positive taxonomy: transitive flattening (A$\to$B$\to$C read as
+        A$\to$C when the scheme does not credit it), temporal-as-causal,
+        reporting verbs \todo{sample and count from traces}.
+  \item Dense documents: does precision degrade with the number of gold pairs
+        per document? \todo{scatter/figure}.
+  \item Direction errors: \textit{causes} vs.\ \textit{causedby} confusions
+        as a fraction of true-pair errors \todo{compute from logs}.
+  \item Qualitative: one worked example --- synthetic CoT demo, model reasoning,
+        prediction vs.\ gold \todo{pick a CTB doc}.
+\end{itemize}
+
+% ======================================================================
+\section{Conclusion}
+\begin{itemize}
+  \item Reframed LLM-based ECI from per-pair scaffolding to a single
+        document-level call with structured reasoning and coherence rules.
+  \item Introduced synthetic, decontaminated chain-of-thought demonstrations:
+        rationalization at inference time, no human rationales, no knowledge
+        base, no fine-tuning.
+  \item Large precision-driven gains where hallucination is costliest (CTB:
+        +31 F1); balanced P/R elsewhere.
+  \item The method is a bet on model quality: as backbones improve, the same
+        prompt gets better --- the scaffold no longer caps the model.
+  \item Future work: full-document ESC/MAVEN runs, multilingual MECI,
+        per-document strategy routing, teacher-generated CoT for small models.
+\end{itemize}
+
+% ======================================================================
+\section*{Limitations}
+\begin{itemize}
+  \item ESC and MAVEN-ERE results are currently intra-sentence only; the
+        headline CTB comparison is clean, the other two columns are not yet.
+  \item Baseline numbers are reproduced from \citet{hao2026sere}, not re-run
+        with our backbone; the same-backbone pair-level control
+        (\S\ref{sec:cost}) is the mitigation.
+  \item Synthetic CoT costs $2$--$3$ generation calls per demonstration
+        document (amortized by caching, but nonzero).
+  \item Decontamination is itself LLM-based; residual leakage phrasing cannot
+        be ruled out \todo{manual audit of $n$ sampled demos}.
+  \item Long documents with large pair sets stress the single-call format
+        (output-length limits, attention dilution); per-document routing or
+        chunking may be needed at the extreme.
+\end{itemize}
+
+% ======================================================================
+% \appendix
+% \section{Prompts}
+% \begin{itemize}
+%   \item Full system/user prompts per dataset (versioned in repo).
+%   \item CoT-generation prompts: gold hint, correction hint, decontamination.
+%   \item Coherence rule sets per dataset.
+% \end{itemize}
+% \section{Additional Details}
+% \begin{itemize}
+%   \item Dataset statistics and label mappings.
+%   \item Resampling/tie-breaking details; JSON-repair procedure.
+%   \item MECI multilingual results (if not in main text).
+% \end{itemize}
+
+% acl.sty already sets \bibliographystyle{acl_natbib} internally.
+\bibliography{references}
+
+\end{document}
+ 

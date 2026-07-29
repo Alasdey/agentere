@@ -1,0 +1,190 @@
+\begin{thebibliography}{24}
+\providecommand{\natexlab}[1]{#1}
+
+\bibitem[{Brown et~al.(2020)Brown, Mann, Ryder, Subbiah, Kaplan, Dhariwal,
+  Neelakantan, Shyam, Sastry, Askell et~al.}]{brown2020language}
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla
+  Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell,
+  et~al. 2020.
+\newblock Language models are few-shot learners.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}.
+
+\bibitem[{Cai et~al.(2025)Cai, Yu, Zhang, Chen, Xu, and Zhang}]{cai2025dreci}
+Ruichu Cai, Shengyin Yu, Jiahao Zhang, Wei Chen, Boyan Xu, and Keli Zhang.
+  2025.
+\newblock {Dr.ECI}: Infusing large language models with causal knowledge for
+  decomposed reasoning in event causality identification.
+\newblock In \emph{Proceedings of the 31st International Conference on
+  Computational Linguistics (COLING 2025)}.
+
+\bibitem[{Caselli and Vossen(2017)}]{caselli2017event}
+Tommaso Caselli and Piek Vossen. 2017.
+\newblock The event {StoryLine} corpus: A new benchmark for causal and temporal
+  relation extraction.
+\newblock In \emph{Proceedings of the Events and Stories in the News Workshop}.
+
+\bibitem[{Chen et~al.(2022)Chen, Cao, Deng, Li, Wang, Shao, and
+  Zhang}]{chen2022ergo}
+Meiqi Chen, Yixin Cao, Kunquan Deng, Mukai Li, Kun Wang, Jing Shao, and Yan
+  Zhang. 2022.
+\newblock {ERGO}: Event relational graph transformer for document-level event
+  causality identification.
+\newblock In \emph{Proceedings of the 29th International Conference on
+  Computational Linguistics (COLING 2022)}.
+
+\bibitem[{Cheng et~al.(2025)Cheng, Zeng, Hu, Si, and Liu}]{cheng2025survey}
+Qing Cheng, Zefan Zeng, Xingchen Hu, Yuehang Si, and Zhong Liu. 2025.
+\newblock A survey of event causality identification: Taxonomy, challenges,
+  assessment, and prospects.
+\newblock \emph{ACM Computing Surveys}, 37(4):Article 111.
+\newblock ArXiv:2411.10371.
+
+\bibitem[{Gao et~al.(2023)Gao, Ding, Qin, and Liu}]{gao2023chatgpt}
+Jinglong Gao, Xiao Ding, Bing Qin, and Ting Liu. 2023.
+\newblock Is {ChatGPT} a good causal reasoner? {A} comprehensive evaluation.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  EMNLP 2023}.
+
+\bibitem[{Hao et~al.(2026)Hao, Chen, Lu, Yu, Hu, Zhang, Cai, and
+  Xu}]{hao2026sere}
+Zhifeng Hao, Zhongjie Chen, Junhao Lu, Shengyin Yu, Guimin Hu, Keli Zhang,
+  Ruichu Cai, and Boyan Xu. 2026.
+\newblock {SERE}: Structural example retrieval for enhancing {LLMs} in event
+  causality identification.
+\newblock \emph{arXiv preprint arXiv:2605.03701}.
+
+\bibitem[{He et~al.(2024)He, Cao, Jin, Chen, Liu, Zhang, Sun, and
+  Zhao}]{he2024gimc}
+Zhitao He, Pengfei Cao, Zhuoran Jin, Yubo Chen, Kang Liu, Zhiqiang Zhang,
+  Mengshu Sun, and Jun Zhao. 2024.
+\newblock Zero-shot cross-lingual document-level event causality identification
+  with heterogeneous graph contrastive transfer learning.
+\newblock In \emph{Proceedings of the 2024 Joint International Conference on
+  Computational Linguistics, Language Resources and Evaluation (LREC-COLING)}.
+
+\bibitem[{Hsieh et~al.(2023)Hsieh, Li, Yeh, Nakhost, Fujii, Ratner, Krishna,
+  Lee, and Pfister}]{hsieh2023distilling}
+Cheng-Yu Hsieh, Chun-Liang Li, Chih-Kuan Yeh, Hootan Nakhost, Yasuhisa Fujii,
+  Alexander Ratner, Ranjay Krishna, Chen-Yu Lee, and Tomas Pfister. 2023.
+\newblock Distilling step-by-step! {O}utperforming larger language models with
+  less training data and smaller model sizes.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  ACL 2023}.
+
+\bibitem[{Lai et~al.(2022)Lai, Veyseh, Nguyen, Dernoncourt, and
+  Nguyen}]{lai2022meci}
+Viet~Dac Lai, Amir Pouran~Ben Veyseh, Minh~Van Nguyen, Franck Dernoncourt, and
+  Thien~Huu Nguyen. 2022.
+\newblock {MECI}: A multilingual dataset for event causality identification.
+\newblock In \emph{Proceedings of the 29th International Conference on
+  Computational Linguistics (COLING 2022)}.
+
+\bibitem[{Liu et~al.(2024)Liu, Xiang, and Wang}]{liu2024ilif}
+Cheng Liu, Wei Xiang, and Bang Wang. 2024.
+\newblock Identifying while learning for document event causality
+  identification.
+\newblock In \emph{Proceedings of the 62nd Annual Meeting of the Association
+  for Computational Linguistics (Volume 1: Long Papers)}, pages 3815--3827,
+  Bangkok, Thailand.
+
+\bibitem[{Liu et~al.(2022)Liu, Shen, Zhang, Dolan, Carin, and
+  Chen}]{liu2022makes}
+Jiachang Liu, Dinghan Shen, Yizhe Zhang, Bill Dolan, Lawrence Carin, and Weizhu
+  Chen. 2022.
+\newblock What makes good in-context examples for {GPT-3}?
+\newblock In \emph{Proceedings of Deep Learning Inside Out (DeeLIO 2022): The
+  3rd Workshop on Knowledge Extraction and Integration for Deep Learning
+  Architectures}.
+
+\bibitem[{Min et~al.(2022)Min, Lyu, Holtzman, Artetxe, Lewis, Hajishirzi, and
+  Zettlemoyer}]{min2022rethinking}
+Sewon Min, Xinxi Lyu, Ari Holtzman, Mikel Artetxe, Mike Lewis, Hannaneh
+  Hajishirzi, and Luke Zettlemoyer. 2022.
+\newblock Rethinking the role of demonstrations: What makes in-context learning
+  work?
+\newblock In \emph{Proceedings of the 2022 Conference on Empirical Methods in
+  Natural Language Processing (EMNLP)}.
+
+\bibitem[{Mirza et~al.(2014)Mirza, Sprugnoli, Tonelli, and
+  Speranza}]{mirza2014annotating}
+Paramita Mirza, Rachele Sprugnoli, Sara Tonelli, and Manuela Speranza. 2014.
+\newblock Annotating causality in the {TempEval-3} corpus.
+\newblock In \emph{Proceedings of the EACL 2014 Workshop on Computational
+  Approaches to Causality in Language (CAtoCL)}.
+
+\bibitem[{Mu et~al.(2025)Mu, Shen, Ni, Sang, Wu, Jin, and Zhang}]{mu2025dicp}
+Lin Mu, Jun Shen, Li~Ni, Lei Sang, Zhize Wu, Peiquan Jin, and Yiwen Zhang.
+  2025.
+\newblock {DICP}: Deep in-context prompt for event causality identification.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  EMNLP 2025}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{a}})Wang, Liu, Zhang, Roth, and
+  Richardson}]{wang2024synthetic}
+Haoyu Wang, Fengze Liu, Jiayao Zhang, Dan Roth, and Kyle Richardson.
+  2024{\natexlab{a}}.
+\newblock Event causality identification with synthetic control.
+\newblock In \emph{Proceedings of the 2024 Conference on Empirical Methods in
+  Natural Language Processing (EMNLP)}.
+
+\bibitem[{Wang et~al.(2022)Wang, Chen, Ding, Peng, Wang, Lin, Han, Hou, Li,
+  Liu, Li, and Zhou}]{wang2022mavenere}
+Xiaozhi Wang, Yulin Chen, Ning Ding, Hao Peng, Zimu Wang, Yankai Lin, Xu~Han,
+  Lei Hou, Juanzi Li, Zhiyuan Liu, Peng Li, and Jie Zhou. 2022.
+\newblock {MAVEN-ERE}: A unified large-scale dataset for event coreference,
+  temporal, causal, and subevent relation extraction.
+\newblock In \emph{Proceedings of the 2022 Conference on Empirical Methods in
+  Natural Language Processing (EMNLP)}.
+
+\bibitem[{Wang et~al.(2024{\natexlab{b}})Wang, Xia, Wang, and
+  Du}]{wang2024knowqa}
+Zimu Wang, Lei Xia, Wei Wang, and Xinya Du. 2024{\natexlab{b}}.
+\newblock Document-level causal relation extraction with knowledge-guided
+  binary question answering.
+\newblock In \emph{Findings of the Association for Computational Linguistics:
+  EMNLP 2024}.
+
+\bibitem[{Wei et~al.(2022)Wei, Wang, Schuurmans, Bosma, Ichter, Xia, Chi, Le,
+  and Zhou}]{wei2022chain}
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia,
+  Ed~Chi, Quoc Le, and Denny Zhou. 2022.
+\newblock Chain-of-thought prompting elicits reasoning in large language
+  models.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}.
+
+\bibitem[{Yuan et~al.(2023)Yuan, Huang, Cao, and Wen}]{yuan2023sendir}
+Changsen Yuan, Heyan Huang, Yixin Cao, and Yonggang Wen. 2023.
+\newblock Discriminative reasoning with sparse event representation for
+  document-level event-event relation extraction.
+\newblock In \emph{Proceedings of the 61st Annual Meeting of the Association
+  for Computational Linguistics (ACL)}.
+
+\bibitem[{Zelikman et~al.(2022)Zelikman, Wu, Mu, and
+  Goodman}]{zelikman2022star}
+Eric Zelikman, Yuhuai Wu, Jesse Mu, and Noah Goodman. 2022.
+\newblock {STaR}: Bootstrapping reasoning with reasoning.
+\newblock In \emph{Advances in Neural Information Processing Systems
+  (NeurIPS)}.
+
+\bibitem[{Zhang et~al.(2026)Zhang, Zhang, Jiang, and Bai}]{zhang2026cogeci}
+Zefan Zhang, Xumeng Zhang, Shijie Jiang, and Tian Bai. 2026.
+\newblock \href {https://doi.org/10.1016/j.knosys.2026.115975} {{CogECI}:
+  Context grounded document-level event causality identification via large
+  language models}.
+\newblock \emph{Knowledge-Based Systems}.
+
+\bibitem[{Zhang et~al.(2023)Zhang, Zhang, Li, and Smola}]{zhang2023autocot}
+Zhuosheng Zhang, Aston Zhang, Mu~Li, and Alex Smola. 2023.
+\newblock Automatic chain of thought prompting in large language models.
+\newblock In \emph{Proceedings of the Eleventh International Conference on
+  Learning Representations (ICLR)}.
+
+\bibitem[{Zhao and Yan(2026)}]{zhao2026cottraces}
+Yiheng Zhao and Jun Yan. 2026.
+\newblock Generating effective {CoT} traces for mitigating causal
+  hallucination.
+\newblock \emph{arXiv preprint arXiv:2604.12748}.
+
+\end{thebibliography}
