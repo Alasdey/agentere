@@ -28,18 +28,21 @@ Run-to-run noise at n=50 is sd ≈ 2–4 F1 → every ablation arm needs ≥3 se
 - This doubles as the decontam-off arm of the ablation grid's CoT axis (expe 3) — running
   it first loses nothing.
 
-### 2. Explicit-marker ablation on CTB (v4-pro)
+### 2. Explicit-marker ablation on CTB (v4-pro) — PARTIALLY DONE 2026-07-19 (late)
 - **Claim at stake**: the CTB headline is attributed to the doc-level protocol + synthetic
   CoT; v3.2-era evidence (mined §4) says the `explicit_marker` prompt rule contributes ~+30 F1
   and the scaffold ~+3. Needs confirmation on the actual backbone, and disclosure either way.
-- **Runs**: `dataset.prompt: causal_timebank_explicit_marker` vs
-  `causal_timebank_no_marker` (created 2026-07-19: byte-identical to the marker prompt with
-  only the marker-requirement parts removed — a clean single-variable ablation, unlike the
-  June-era `causal_timebank_standard_eci_norule` which differs in more ways), v4-pro final
-  config, n=50 × 3 seeds each (~$6); optionally one full-183 run of the winner's counterpart
-  for the paper number (~$7.5).
+- **Runs so far**: one seed each of `causal_timebank_no_marker` at rs0 (run `4d00346d`, F1
+  21.0) and rs3 (run `6ac6f814`, F1 37.2), both v4-pro n=50 pool=20 k=3 random 3-step-CoT,
+  matched against existing `causal_timebank_explicit_marker` runs at the same settings
+  (`1508a3d3` rs0 F1 39.6; `d27a07b9` rs3 F1 47.5). Deltas: **+18.6 F1 (rs0), +10.3 F1 (rs3)**
+  — both well outside the ~2–4 F1 noise floor. This is now written into the paper
+  (`paper_v3/main.tex`, §Ablations) as the first properly-matched current-backbone ablation.
+- **Still open**: only 1 seed per arm (not the 3 originally planned) — no variance estimate
+  on this specific delta yet; no full-183 confirmation run of the winner's counterpart.
 - **Outcome**: feeds §4.2 (disclose the dataset-specific rule) + §Ablations; defensible
-  either way (CTB is ~53% explicit-connective), but it must be measured and stated.
+  either way (CTB is ~53% explicit-connective), and now measured and stated with real
+  v4-pro numbers rather than only the v3.2-era estimate.
 
 ## P1 — strengthens the paper
 
