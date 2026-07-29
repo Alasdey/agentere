@@ -18,8 +18,182 @@ experiments:
           # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
           # default_model_id: "openai/gpt-4o-mini" # Nope
           # default_model_id: "deepseek/deepseek-v3.2"
-          default_model_id: "deepseek/deepseek-v4-pro"
+          # default_model_id: "deepseek/deepseek-v4-pro"
+          # default_model_id: "qwen/qwen3.6-35b-a3b"
           # default_model_id: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+          # default_model_id: "qwen/qwen3.7-flash"
+          default_model_id: "deepseek/deepseek-v4-flash"
+          # default_model_id: "xiaomi/mimo-v2.5"
+          # default_model_id: "openai/gpt-oss-120b"
+          # default_model_id: "qwen/qwen3-32b"
+          # default_model_id: "poolside/laguna-s-2.1" # Rate limit
+          # default_model_id: "poolside/laguna-xs-2.1"
+          # default_model_id: "nex-agi/nex-n2-mini"
+          # default_model_id: "tencent/hy3-preview"
+      tools_config:
+        eci_extractor:
+          model_id: "deepseek/deepseek-v3.2"
+          concurrency: 10
+      active_dataset: "event_story_line"
+      experiment:
+        tools:
+          - "coherence"
+          # - "counterfactual_check"
+          # - "eci_extractor"
+          # - "eci_extractor_intra"
+        enable_tools: false
+        resampling:
+          enabled: true
+          distinct_fewshots: true 
+          n_runs: 3
+        retries: 3
+      few_shot:
+        enabled: true
+        n_examples: 3
+        pool_size: 30
+        # "random" "similarity" "mentions" "bert" "smallest"
+        selection: "random"
+        density_stratify: false
+        intra_only: false
+        cot_generation:
+          enabled: true
+          num_steps: 3
+      data:
+        binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
+        vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
+        binary_default: "norel" 
+        novote_norel: true
+      datasets:
+        maven_ere:
+          max_examples: 50 # 710
+          # prompt: "maven_ere_standard_eci_intra_tool"
+          # prompt: "common_eci_extractor_tool" 
+          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
+          prompt: "maven_ere_standard_eci_intra_lean"
+          # prompt: "maven_ere_standard_eci_intra_naive"
+          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
+          # prompt: "maven_ere_standard_eci_norule_coref"
+        meci:
+          max_examples: 50
+          # prompt: "meci_standard_eci_binary"
+          prompt: "esl_standard_eci_intra"
+          # prompt: "meci_standard_eci_tools"
+        causal_timebank:
+          max_examples: 50 # 183 
+          prompt: "causal_timebank_explicit_marker"
+          # prompt: "causal_timebank_no_marker"
+        event_story_line:
+          max_examples: 233 # 233
+          # prompt: "common_eci_extractor_tool"
+          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
+          prompt: "esl_standard_eci_intra_lean"
+          # prompt: "esl_standard_eci_norule_intra"
+          
+  - name: "h"
+    overrides:
+      model:
+          # default_model_id: "openai/gpt-5.5"
+          # default_model_id: "google/gemini-1.5-pro"
+          # default_model_id: "google/gemini-3.1-flash-lite"
+          # default_model_id: "google/gemini-2.5-flash-lite"
+          # default_model_id: "z-ai/glm-5.2"
+          # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
+          # default_model_id: "openai/gpt-4o-mini" # Nope
+          # default_model_id: "deepseek/deepseek-v3.2"
+          # default_model_id: "deepseek/deepseek-v4-pro"
+          # default_model_id: "qwen/qwen3.6-35b-a3b"
+          # default_model_id: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+          # default_model_id: "qwen/qwen3.7-flash"
+          default_model_id: "deepseek/deepseek-v4-flash"
+          # default_model_id: "xiaomi/mimo-v2.5"
+          # default_model_id: "openai/gpt-oss-120b"
+          # default_model_id: "qwen/qwen3-32b"
+          # default_model_id: "poolside/laguna-s-2.1" # Rate limit
+          # default_model_id: "poolside/laguna-xs-2.1"
+          # default_model_id: "nex-agi/nex-n2-mini"
+          # default_model_id: "tencent/hy3-preview"
+      tools_config:
+        eci_extractor:
+          model_id: "deepseek/deepseek-v3.2"
+          concurrency: 10
+      active_dataset: "causal_timebank"
+      experiment:
+        tools:
+          - "coherence"
+          # - "counterfactual_check"
+          # - "eci_extractor"
+          # - "eci_extractor_intra"
+        enable_tools: false
+        resampling:
+          enabled: true
+          distinct_fewshots: true 
+          n_runs: 3
+        retries: 3
+      few_shot:
+        enabled: true
+        n_examples: 3
+        pool_size: 30
+        # "random" "similarity" "mentions" "bert" "smallest"
+        selection: "random"
+        density_stratify: false
+        intra_only: false
+        cot_generation:
+          enabled: true
+          num_steps: 3
+      data:
+        binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
+        vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
+        binary_default: "norel" 
+        novote_norel: true
+      datasets:
+        maven_ere:
+          max_examples: 50 # 710
+          # prompt: "maven_ere_standard_eci_intra_tool"
+          # prompt: "common_eci_extractor_tool" 
+          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
+          prompt: "maven_ere_standard_eci_intra_lean"
+          # prompt: "maven_ere_standard_eci_intra_naive"
+          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
+          # prompt: "maven_ere_standard_eci_norule_coref"
+        meci:
+          max_examples: 50
+          # prompt: "meci_standard_eci_binary"
+          prompt: "esl_standard_eci_intra"
+          # prompt: "meci_standard_eci_tools"
+        causal_timebank:
+          max_examples: 183 # 183 
+          prompt: "causal_timebank_explicit_marker"
+          # prompt: "causal_timebank_no_marker"
+        event_story_line:
+          max_examples: 50 # 233
+          # prompt: "common_eci_extractor_tool"
+          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
+          prompt: "esl_standard_eci_intra_lean"
+          # prompt: "esl_standard_eci_norule_intra"
+          
+  - name: "h"
+    overrides:
+      model:
+          # default_model_id: "openai/gpt-5.5"
+          # default_model_id: "google/gemini-1.5-pro"
+          # default_model_id: "google/gemini-3.1-flash-lite"
+          # default_model_id: "google/gemini-2.5-flash-lite"
+          # default_model_id: "z-ai/glm-5.2"
+          # default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
+          # default_model_id: "openai/gpt-4o-mini" # Nope
+          # default_model_id: "deepseek/deepseek-v3.2"
+          # default_model_id: "deepseek/deepseek-v4-pro"
+          # default_model_id: "qwen/qwen3.6-35b-a3b"
+          # default_model_id: "Qwen/Qwen3-Next-80B-A3B-Instruct"
+          # default_model_id: "qwen/qwen3.7-flash"
+          default_model_id: "deepseek/deepseek-v4-flash"
+          # default_model_id: "xiaomi/mimo-v2.5"
+          # default_model_id: "openai/gpt-oss-120b"
+          # default_model_id: "qwen/qwen3-32b"
+          # default_model_id: "poolside/laguna-s-2.1" # Rate limit
+          # default_model_id: "poolside/laguna-xs-2.1"
+          # default_model_id: "nex-agi/nex-n2-mini"
+          # default_model_id: "tencent/hy3-preview"
       tools_config:
         eci_extractor:
           model_id: "deepseek/deepseek-v3.2"
@@ -36,16 +210,17 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
-        retries: 5
+        retries: 3
       few_shot:
         enabled: true
         n_examples: 3
-        pool_size: 20
+        pool_size: 30
+        # "random" "similarity" "mentions" "bert" "smallest"
         selection: "random"
         density_stratify: false
-        intra_only: true
+        intra_only: false
         cot_generation:
-          enabled: false
+          enabled: true
           num_steps: 3
       data:
         binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
@@ -54,11 +229,13 @@ experiments:
         novote_norel: true
       datasets:
         maven_ere:
-          max_examples: 50 # 710
+          max_examples: 710 # 710
           # prompt: "maven_ere_standard_eci_intra_tool"
           # prompt: "common_eci_extractor_tool" 
           # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
           prompt: "maven_ere_standard_eci_intra_lean"
+          # prompt: "maven_ere_standard_eci_intra_naive"
+          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
           # prompt: "maven_ere_standard_eci_norule_coref"
         meci:
           max_examples: 50
@@ -67,8 +244,8 @@ experiments:
           # prompt: "meci_standard_eci_tools"
         causal_timebank:
           max_examples: 50 # 183 
-          # prompt: "causal_timebank_explicit_marker"
-          prompt: "causal_timebank_no_marker"
+          prompt: "causal_timebank_explicit_marker"
+          # prompt: "causal_timebank_no_marker"
         event_story_line:
           max_examples: 50 # 233
           # prompt: "common_eci_extractor_tool"

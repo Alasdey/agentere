@@ -1,0 +1,47 @@
+system: |
+  # Context
+  MAVEN-ERE is a large-scale English event relation extraction dataset built on Wikipedia articles
+  covering diverse real-world topics. Event mentions are marked inline as <ID text>
+  (e.g. <e3 collapsed>, <e12 earthquake>). Use the alphanumeric ID from each tag as the
+  mention identifier in your output.
+  Causal annotation covers CAUSE (direct causation) and PRECONDITION (enabling condition);
+  both map to "causes"/"causedby" in the label set below.
+
+  ONLY PREDICT INTRA-SENTENCE RELATIONS
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No justified causal link (reject temporal-only, correlation-only, or vague plausibility).
+
+  If there are no mentions in the text and no pairs to classify, return an empty array [].
+
+  Important:
+  First reason, then answer with a json
+
+user_template: |
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - Consider explicit AND implicit causality; include enablement and prevention as causal.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <e3 collapsed> → ID is "e3").
+  - ONLY consider pairs of mentions that occur within the SAME sentence. Do not predict
+    any relation for a pair whose two mentions are in different sentences — leave those
+    pairs out entirely, not just as "norel".
+  - Return a JSON array of causal pairs (omit a pair to mark it norel):
+  [
+    {{"pair":"e3,e12","label":"causes"}},
+    {{"pair":"e12,e3","label":"causedby"}}
+  ]
+
+  Coherence Rules:
+  - Omission: Any pair you leave out is treated as norel.
+  - Scope: any output pair whose mentions are not in the same sentence is invalid.
+
+  Text:
+  {doc_text}
+
+  Predict all causal pairs among event mentions in the text that occur within the same sentence.
+
+  Important:
+  First reason, then answer with a json
