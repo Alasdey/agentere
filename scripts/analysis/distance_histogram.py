@@ -7,10 +7,16 @@ True negatives (gold norel, pred norel) are dropped.
 The binary collapse treats causes and causedby both as the positive class
 (same as utils.metrics.compute_binary_metrics), vs. norel as negative.
 
+Every figure is emitted in two variants: one over all relation pairs, and an
+'intra.'-prefixed one restricted to same-sentence pairs. The intra variant divides
+by the intra-sentence candidate-pair count rather than the document-level one, so
+its density axis stays bounded — see ordered_pair_denominator().
+
 Usage:
     uv run scripts/analysis/distance_histogram.py
     uv run scripts/analysis/distance_histogram.py --since-days 7
     uv run scripts/analysis/distance_histogram.py --dataset meci --out-dir figs/
+    uv run scripts/analysis/distance_histogram.py --relations intra
 """
 
 from __future__ import annotations
@@ -20,6 +26,7 @@ import datetime
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -79,6 +86,18 @@ def load_doc_index(repo_id: str, split: str) -> Dict[str, Dict[str, Tuple[int, i
     return index
 
 
+def intra_pair_count(mention_to_pos: Dict[str, Tuple[int, int]]) -> int:
+    """Ordered same-sentence mention pairs in a document: sum_s m_s*(m_s-1).
+
+    The intra-sentence analogue of the document-level n*(n-1) candidate count, and
+    the only denominator under which an intra-only relation density stays bounded
+    by 1 — the document-level count would include cross-sentence pairs that an
+    intra-only view can never populate.
+    """
+    counts = Counter(sent for sent, _ in mention_to_pos.values())
+    return sum(c * (c - 1) for c in counts.values())
+
+
 def dataset_key_to_config(ds_key: str, datasets_cfg: dict) -> Optional[Tuple[str, str]]:
     ds_cfg = datasets_cfg.get(ds_key)
     if not ds_cfg:
@@ -116,6 +135,7 @@ def extract_run(log_path: Path) -> List[Dict]:
 
     per_pair = (data.get("results") or {}).get("per_pair_predictions") or []
     rows: List[Dict] = []
+    intra_pairs_cache: Dict[str, int] = {}
 
     for pred in per_pair:
         if pred.get("gold") == "unannotated":
@@ -123,11 +143,14 @@ def extract_run(log_path: Path) -> List[Dict]:
         parts = pred["pair"].split(",", 1)
         if len(parts) != 2:
             continue
-        mention_to_pos = doc_index.get(pred["id"], {})
+        doc_id = pred["id"]
+        mention_to_pos = doc_index.get(doc_id, {})
         src = mention_to_pos.get(parts[0].strip())
         tgt = mention_to_pos.get(parts[1].strip())
         if src is None or tgt is None:
             continue
+        if doc_id not in intra_pairs_cache:
+            intra_pairs_cache[doc_id] = intra_pair_count(mention_to_pos)
 
         gold_pos = binarize(pred["gold"]) == "POS"
         pred_pos = binarize(pred["pred"]) == "POS"
@@ -144,8 +167,9 @@ def extract_run(log_path: Path) -> List[Dict]:
         word_dist = abs(src[1] - tgt[1])
         rows.append({
             "dataset": active_ds,
-            "doc_id": pred["id"],
+            "doc_id": doc_id,
             "num_mentions": len(mention_to_pos),
+            "num_intra_pairs": intra_pairs_cache[doc_id],
             "kind": "intra" if sent_dist == 0 else "inter",
             "word_dist": word_dist,
             "sent_dist": sent_dist,
@@ -167,7 +191,12 @@ def main() -> None:
     parser.add_argument("--since-days", type=int, default=7, help="Only include runs from the last N days (default: 7)")
     parser.add_argument("--dataset", help="Restrict to one dataset key (e.g. meci, maven_ere)")
     parser.add_argument("--out-dir", default=str(PROJECT_ROOT / "scripts" / "analysis" / "out" / "histogram"), help="Directory to save PNG figures")
+    parser.add_argument("--relations", choices=["all", "intra", "both"], default="both",
+                        help="Which relation population to plot: all pairs, intra-sentence pairs only, "
+                             "or both variants side by side (default: both)")
     args = parser.parse_args()
+
+    variants = {"all": [False], "intra": [True], "both": [False, True]}[args.relations]
 
     log_dir = Path(args.logs)
     log_files = sorted(log_dir.glob("run_*.json"))
@@ -206,21 +235,13 @@ def main() -> None:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    report(df, "all datasets", out_dir)
-    report_density(df, "all datasets", out_dir)
-    report_density_pairs(df, "all datasets", out_dir)
-    report_density_by_gold(df, "all datasets", out_dir)
-    report_density_pairs_by_gold(df, "all datasets", out_dir)
-    report_num_mentions(df, "all datasets", out_dir)
+    for intra_only in variants:
+        report_all(df, "all datasets", out_dir, intra_only=intra_only)
     for dataset_name, sub_df in df.groupby("dataset"):
         ds_dir = out_dir / dataset_name
         ds_dir.mkdir(parents=True, exist_ok=True)
-        report(sub_df, dataset_name, ds_dir)
-        report_density(sub_df, dataset_name, ds_dir)
-        report_density_pairs(sub_df, dataset_name, ds_dir)
-        report_density_by_gold(sub_df, dataset_name, ds_dir)
-        report_density_pairs_by_gold(sub_df, dataset_name, ds_dir)
-        report_num_mentions(sub_df, dataset_name, ds_dir)
+        for intra_only in variants:
+            report_all(sub_df, dataset_name, ds_dir, intra_only=intra_only)
 
 
 CONFUSION_COLORS = [("TP", "limegreen"), ("FP", "red"), ("FN", "dodgerblue")]
@@ -269,7 +290,8 @@ def plot_grouped_bar_histogram(
 
 
 def per_doc_confusion_counts(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per (dataset, doc_id) with TP/FP/FN relation counts and num_mentions."""
+    """One row per (dataset, doc_id) with TP/FP/FN relation counts, num_mentions and
+    num_intra_pairs (the two candidate-pair denominators the density plots divide by)."""
     doc_counts = (
         df.groupby(["dataset", "doc_id", "confusion"], observed=True)
         .size()
@@ -278,8 +300,8 @@ def per_doc_confusion_counts(df: pd.DataFrame) -> pd.DataFrame:
     for c in ["TP", "FP", "FN"]:
         if c not in doc_counts.columns:
             doc_counts[c] = 0
-    num_mentions = df.groupby(["dataset", "doc_id"], observed=True)["num_mentions"].first()
-    doc_counts = doc_counts.join(num_mentions)
+    doc_meta = df.groupby(["dataset", "doc_id"], observed=True)[["num_mentions", "num_intra_pairs"]].first()
+    doc_counts = doc_counts.join(doc_meta)
     return doc_counts[doc_counts["num_mentions"] > 0]
 
 
@@ -336,16 +358,37 @@ def report_density(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str
     )
 
 
-def report_density_pairs(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
-    """Density of positive relations (TP/FP/FN) per document, normalized by the number
-    of ordered mention pairs (n * (n-1)) — i.e. relation count over candidate-pair count."""
-    doc_counts = per_doc_confusion_counts(df)
+def ordered_pair_denominator(doc_counts: pd.DataFrame, intra_only: bool) -> Tuple[pd.DataFrame, pd.Series, str]:
+    """Candidate-pair denominator for the per-ordered-pair density plots, plus the
+    documents that survive it and the matching x-axis label.
+
+    Under intra_only the candidate set is the same-sentence pairs only; dividing an
+    intra-restricted relation count by the document-level n*(n-1) would understate the
+    density by however many cross-sentence pairs the document happens to contain.
+    """
+    if intra_only:
+        doc_counts = doc_counts[doc_counts["num_intra_pairs"] > 0]
+        return (
+            doc_counts,
+            doc_counts["num_intra_pairs"],
+            "positive relations / num. ordered same-sentence mention pairs",
+        )
     doc_counts = doc_counts[doc_counts["num_mentions"] >= 2]
-    denominator = doc_counts["num_mentions"] * (doc_counts["num_mentions"] - 1)
+    return (
+        doc_counts,
+        doc_counts["num_mentions"] * (doc_counts["num_mentions"] - 1),
+        "positive relations / (num. mentions * (num. mentions - 1))",
+    )
+
+
+def report_density_pairs(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True, intra_only: bool = False) -> None:
+    """Density of positive relations (TP/FP/FN) per document, normalized by the number
+    of ordered candidate mention pairs — i.e. relation count over candidate-pair count."""
+    doc_counts, denominator, xlabel = ordered_pair_denominator(per_doc_confusion_counts(df), intra_only)
     _report_density_generic(
         doc_counts, denominator, label, out_dir, file_prefix, verbose,
         print_label="Density of positive relations per document (per ordered mention pair)",
-        xlabel="positive relations / (num. mentions * (num. mentions - 1))",
+        xlabel=xlabel,
         fname="density_per_pair_histogram.png",
         short_title="Relations per ordered pair, per document",
     )
@@ -407,15 +450,13 @@ def report_density_by_gold(df: pd.DataFrame, label: str, out_dir: Path, file_pre
     )
 
 
-def report_density_pairs_by_gold(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+def report_density_pairs_by_gold(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True, intra_only: bool = False) -> None:
     """TP/FP/FN relation counts per document, bucketed by gold density (per ordered pair)."""
-    doc_counts = per_doc_confusion_counts(df)
-    doc_counts = doc_counts[doc_counts["num_mentions"] >= 2]
-    denominator = doc_counts["num_mentions"] * (doc_counts["num_mentions"] - 1)
+    doc_counts, denominator, xlabel = ordered_pair_denominator(per_doc_confusion_counts(df), intra_only)
     _report_density_by_gold_generic(
         doc_counts, denominator, label, out_dir, file_prefix, verbose,
         print_label="Gold density of positive relations per document (per ordered mention pair)",
-        xlabel="gold positive relations / (num. mentions * (num. mentions - 1))",
+        xlabel=f"gold {xlabel}",
         fname="density_per_pair_by_gold_density_histogram.png",
         short_title="TP/FP/FN by gold relation density per ordered pair",
     )
@@ -457,7 +498,7 @@ def report_num_mentions(df: pd.DataFrame, label: str, out_dir: Path, file_prefix
         print(f"\nSaved figure → {out_path}")
 
 
-def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True) -> None:
+def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", verbose: bool = True, intra_only: bool = False) -> None:
     if verbose:
         print(f"\n############ Dataset: {label} ############")
 
@@ -497,7 +538,11 @@ def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", v
     # Sentence distance: intra-sentence pairs all land at distance 0, so they're
     # folded into the same single panel as inter-sentence pairs rather than
     # split into their own subplot.
-    plot_specs = [("word_dist", "Word distance between mentions", "word_distance_histogram.png", ["intra", "inter"]),
+    # Word distance: under intra_only the frame holds no inter-sentence pairs at all,
+    # so the second panel would render as an empty "inter (no data)" placeholder —
+    # drop it and let the intra panel use the full figure width.
+    word_kinds = ["intra"] if intra_only else ["intra", "inter"]
+    plot_specs = [("word_dist", "Word distance between mentions", "word_distance_histogram.png", word_kinds),
                   ("sent_dist", "Sentence distance between mentions", "sentence_distance_histogram.png", ["all"])]
 
     for dist_col, title, fname, kinds in plot_specs:
@@ -508,7 +553,10 @@ def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", v
             if sub.empty:
                 ax.set_title(f"{kind} (no data)")
                 continue
-            panel_title = "all pairs (intra + inter)" if kind == "all" else f"{kind}-sentence pairs"
+            if kind == "all":
+                panel_title = "all pairs (intra only)" if intra_only else "all pairs (intra + inter)"
+            else:
+                panel_title = f"{kind}-sentence pairs"
             max_val = plot_grouped_bar_histogram(ax, sub, dist_col, panel_title)
             ax.set_title(f"{panel_title} (max={int(max_val)})")
             ax.set_xlabel(title)
@@ -519,6 +567,31 @@ def report(df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "", v
         plt.close(fig)
         if verbose:
             print(f"\nSaved figure → {out_path}")
+
+
+def report_all(
+    df: pd.DataFrame, label: str, out_dir: Path, file_prefix: str = "",
+    verbose: bool = True, intra_only: bool = False,
+) -> None:
+    """Emits the full seven-figure artifact set for one frame.
+
+    intra_only restricts the frame to same-sentence pairs, tags every filename with an
+    'intra.' infix and every title with a matching suffix, so the two variants sit side
+    by side in the same directory without colliding.
+    """
+    if intra_only:
+        df = df[df["kind"] == "intra"]
+        if df.empty:
+            return
+        file_prefix = f"{file_prefix}intra."
+        label = f"{label} (intra-sentence only)"
+
+    report(df, label, out_dir, file_prefix=file_prefix, verbose=verbose, intra_only=intra_only)
+    report_density(df, label, out_dir, file_prefix=file_prefix, verbose=verbose)
+    report_density_pairs(df, label, out_dir, file_prefix=file_prefix, verbose=verbose, intra_only=intra_only)
+    report_density_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=verbose)
+    report_density_pairs_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=verbose, intra_only=intra_only)
+    report_num_mentions(df, label, out_dir, file_prefix=file_prefix, verbose=verbose)
 
 
 def generate_run_histograms(run_json_path: Path, out_dir: Path, stem: str) -> None:
@@ -541,13 +614,9 @@ def generate_run_histograms(run_json_path: Path, out_dir: Path, stem: str) -> No
     file_prefix = f"{stem}."
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    report(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    report_density(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    report_density_pairs(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    report_density_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    report_density_pairs_by_gold(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    report_num_mentions(df, label, out_dir, file_prefix=file_prefix, verbose=False)
-    print(f"Histogram artifacts saved alongside run log (prefix: {file_prefix})")
+    report_all(df, label, out_dir, file_prefix=file_prefix, verbose=False, intra_only=False)
+    report_all(df, label, out_dir, file_prefix=file_prefix, verbose=False, intra_only=True)
+    print(f"Histogram artifacts saved alongside run log (prefix: {file_prefix}, all + intra-only)")
 
 
 if __name__ == "__main__":
