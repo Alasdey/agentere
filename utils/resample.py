@@ -21,7 +21,16 @@ def aggregate_run_triples(
     num_runs = len(runs_outputs)
 
     for run in runs_outputs:
+        # One vote per directed pair per run. A single pass can list the same pair
+        # more than once (observed: a model looping and re-emitting a block of its
+        # JSON output on long documents), and counting each occurrence would let one
+        # pass cast several votes — inflating a pair's causal tally and pushing its
+        # total past num_runs. Collapse intra-run repeats to a single vote; last-wins
+        # on the label if a pass gives one pair conflicting labels.
+        run_labels = {}
         for src, lab, tgt in run:
+            run_labels[(src, tgt)] = lab
+        for (src, tgt), lab in run_labels.items():
             pair_votes[(src, tgt)].append(lab)
 
     final_triples = []
