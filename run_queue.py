@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import sys
 import time
+import traceback
 from pathlib import Path
 
 import yaml
@@ -58,15 +59,17 @@ def main_sync():
         print(yaml.dump(overrides, default_flow_style=False).rstrip())
         print(f"{'='*60}")
 
+        # Started before the try so a failure inside load_config_with_overrides still
+        # reports this experiment's elapsed time rather than the previous one's.
+        t0 = time.time()
         try:
             config = load_config_with_overrides(overrides)
-            t0 = time.time()
             asyncio.run(main(config=config))
-            elapsed = time.time() - t0
-            print(f"\n[{name}] Done in {elapsed:.0f}s\n")
+            print(f"\n[{name}] Done in {time.time() - t0:.0f}s\n")
         except Exception as e:
-            elapsed = time.time() - t0 if 't0' in dir() else 0
-            print(f"\n[{name}] FAILED after {elapsed:.0f}s: {e}\n", file=sys.stderr)
+            print(f"\n[{name}] FAILED after {time.time() - t0:.0f}s: {e}\n", file=sys.stderr)
+            # A queued run costs hours; the message alone rarely says where it broke.
+            traceback.print_exc()
             failed.append(name)
 
     total_elapsed = time.time() - total_start

@@ -88,8 +88,13 @@ def _parse_token_usage(trace_path: Path) -> Dict[str, float]:
                 if usage:
                     totals["input_tokens"]       += usage.get("input_tokens", 0)
                     totals["output_tokens"]      += usage.get("output_tokens", 0)
-                    totals["cache_read_tokens"]  += usage.get("input_token_details", {}).get("cache_read", 0)
-                cost = kwargs.get("response_metadata", {}).get("token_usage", {}).get("cost")
+                    totals["cache_read_tokens"]  += (usage.get("input_token_details") or {}).get("cache_read", 0)
+                # A generation that errors out mid-flight is still serialized as an AIMessage,
+                # but with response_metadata.token_usage explicitly null (finish_reason="error").
+                # A .get() default only covers a *missing* key, so these nested lookups have to
+                # coalesce an explicit null too.
+                token_usage = (kwargs.get("response_metadata") or {}).get("token_usage") or {}
+                cost = token_usage.get("cost")
                 if cost is not None:
                     totals["reported_cost_usd"] += cost
     return totals
