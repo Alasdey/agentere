@@ -57,6 +57,42 @@ uv run scripts/analysis/binary_eval.py logs/allatonce/run_XYZ.json --mode and
 
 ---
 
+### `vote_to_binary_eval.py` — re-score a run as if `data.vote_to_binary` had been on
+
+Reproduces the `vote_to_binary` scoring mode offline from a finished run's log: the directed
+`vote_counts` for `(a,b)` and `(b,a)` are merged into one binary causal/norel decision per
+*unordered* set `{a,b}`, gold is collapsed the same way, and every metric is recomputed — so each
+pair set is evaluated exactly once on both sides. No LLM calls, no HF download, no writes.
+
+Prints the run's logged directed metrics for reference, then a sweep over the four
+`binary_default` × `novote_norel` combinations (the run's own settings marked `*`) plus the
+direction-agnostic OR / AND baselines from `binary_eval.py`, followed by the full metric block for
+the configured combination: `per_label`, `macro_f1`, `micro_*`, `binary` / `binary_intra` /
+`binary_inter`, `sentence_unknown_*`, `per_lang_metrics` and a `per_doc_metrics` summary.
+
+The merge is **not** an OR over directions — `causes`+`causedby` votes summed across both
+directions are weighed against `norel` votes, majority wins, ties go to `binary_default`. It calls
+`utils.resample.aggregate_votes_to_binary`, the same function the pipeline runs, so it cannot
+drift from what a live run would report.
+
+Only works on runs logged after the **2026-07-19** `utils/reporting.py` fix (earlier logs lack the
+voted-but-rejected rows and their vote counts); the script refuses older logs, and refuses runs
+that already had `vote_to_binary=true`.
+
+```bash
+uv run scripts/analysis/vote_to_binary_eval.py 4085f6ca              # uuid prefix or name substring
+uv run scripts/analysis/vote_to_binary_eval.py logs/allatonce/run_XYZ.json
+uv run scripts/analysis/vote_to_binary_eval.py 4085f6ca --all-rules  # full block for every rule
+uv run scripts/analysis/vote_to_binary_eval.py 4085f6ca --per-doc    # full per-document table
+```
+
+Note: `total_pairs` here is one row per undirected set. A live `vote_to_binary` run logs about
+twice that — `reconstruct_pairwise_predictions` still emits the reverse-direction row as a
+`norel`/`norel` true negative — which leaves P/R/F1 and micro/macro F1 unchanged and only inflates
+`total_pairs` and `per_label["norel"]`.
+
+---
+
 ### `show_traces.py` — pretty-print sampled LLM traces
 
 Reads `.traces.sample.jsonl` files produced during runs and renders each message in a trace (system, human, AI, tool calls/results) with colour-coded headers and token usage info. Useful for inspecting what was actually sent to and received from the model.
