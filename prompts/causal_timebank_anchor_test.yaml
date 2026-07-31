@@ -1,0 +1,119 @@
+system: |
+  # Context
+  Causal-TimeBank is an English news corpus (183 TimeBank documents) annotated for
+  event causality. Event mentions are marked inline as <ID text>
+  (e.g. <ei3 acquired>, <ei7 said>). Use the eiid from each tag as the identifier.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+
+  ## Label Set (Use these exact strings)
+  - **"causes"**: Ti causes/enables/leads to or prevents the absence of Tj (Ti → Tj).
+  - **"causedby"**: Tj causes/enables/leads to or prevents the absence of Ti (Tj → Ti).
+  - **"norel"**: No causal link.
+
+  ## The anchor test
+  A causal link is annotated only when some word or phrase IN THE SENTENCE asserts the
+  causation. The relation is never inferred from world knowledge, plausibility, or the fact
+  that one event would naturally bring about another. Before labelling any pair causal, name
+  the anchor — point at the specific word carrying the causal claim. If you cannot point at
+  one, the label is norel.
+
+  A word qualifies as an anchor if, in this sentence, it does one of four things:
+    1. gives a reason for the other event;
+    2. gives the means by which the other event came about;
+    3. names one event as the outcome, product or consequence of the other;
+    4. asserts that one event makes the other happen, become possible, or become impossible.
+
+  Any part of speech can do this — conjunction, preposition, verb, or noun. Examples of each
+  function, to calibrate you rather than to limit you: (1) because, due to, in response to,
+  the reason for; (2) by, through, pursuant to; (3) as a result of, the result of, stems from,
+  in the wake of, the combined effect of; (4) cause, lead to, force, make, allow, enable,
+  prevent, block, ensure, keep, send, persuade, authorise, trigger, staunch, bolster.
+  These lists are illustrative and deliberately incomplete. A verb you have never seen in such
+  a list still counts if it performs one of the four functions here; a word that appears in
+  them does not count if in this sentence it does something else.
+
+  ## The substitution test
+  Some anchors are weak or ambiguous — as, with, by, from, and, in, for, following, after —
+  and are causal in some sentences and not others. Resolve them by substitution: rewrite the
+  clause using "because", "by means of", or "which resulted in", drawing only on words already
+  present in the sentence. If the rewrite says exactly what the text already said, the link is
+  causal. If the rewrite asserts something the text left to your judgement, it is norel.
+
+    "ordered an embargo AS punishment for seizing Kuwait"
+        → "ordered an embargo BECAUSE they seized Kuwait" — same claim → causal.
+    "peace talks FOLLOWING the cease-fire"
+        → "talks BECAUSE OF the cease-fire" — the text only ordered them in time → norel,
+          unless something else in the sentence supplies the reason.
+
+  ## What never counts as an anchor
+  - Purpose or intention: "in talks to settle the dispute", "organizing to complain", "an
+    attempt to get out". An intention to act is not an assertion that the act had an effect.
+  - Enablement chains you reconstruct yourself: continuing → launching → programs.
+  - An event and its own sub-part, nominalisation or coreferent mention: suspending / trading,
+    bought / purchase.
+  - A speaker's motives, and the relation between a reporting verb and what is reported.
+  - Temporal succession on its own.
+  - Transitive closure: given A → B and B → C, do not add A → C unless the text separately
+    asserts it.
+
+  ## Which two events to label
+  When the anchor is a predicate, that predicate is usually NOT one of the two events you
+  label — it is the bridge. Label the two events filling its cause slot and its effect slot.
+  They frequently sit two or three mentions apart with other event mentions in between, so
+  label the endpoints, not the adjacent steps:
+    "it <extended> the offer to <allow> shareholders time to <review> the supplement"
+    → extended causes review. Not extended→allow, not allow→review.
+
+  Direction: the event that supplies the reason, means or force is the cause. Check it by
+  reading your answer back as "X, and that is why Y happened."
+
+  Most sentences contain no anchor and therefore no causal links. A sentence with many event
+  mentions is not thereby more likely to contain one.
+
+  # Output Format
+  - Use the eiid from each <ID text> tag as the identifier.
+  - Follow the provided JSON structure exactly.
+  - Use only the approved label strings: "causes", "causedby", "norel".
+  - Every listed pair must appear exactly once in the JSON.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+
+  If there are no pairs to classify, return an empty array [].
+
+  IMPORTANT:
+  No matter what reason step by step, then output the final JSON.
+
+user_template: |
+
+  IMPORTANT:
+  No matter what then reason step by step, then output the final JSON.
+  Annotation is intra-sentence only: all pairs to classify are within the same sentence.
+  Only classify pairs within the same sentence.
+
+  Rules:
+  - Labels: "causes" | "causedby" | "norel".
+  - A pair is "causes" or "causedby" ONLY if you can name a word or phrase in that sentence
+    that asserts the causation — giving a reason, giving the means, naming one event as the
+    other's outcome, or saying one event makes the other happen or not happen. No such word
+    → "norel". Do not rely on a list; apply the test.
+  - Where that word is a predicate, it is the bridge, not an endpoint: label the events filling
+    its cause and effect slots, which may be several mentions apart.
+  - Mention IDs come from the <ID text> tags in the text (e.g. <ei3 acquired> → ID is "ei3").
+  - Every listed pair must appear exactly once in your JSON.
+  - Every "causes" entry must be accompanied by its symmetric "causedby" entry.
+  - Return ONLY a JSON array like:
+  [
+    {{"pair":"ei3,ei7","label":"causes"}},
+    {{"pair":"ei7,ei3","label":"causedby"}},
+    {{"pair":"ei2,ei3","label":"norel"}}
+  ]
+
+  There is no need to enumerate all the norel relations, any relations not in the final json will be considered norel anyways!
+
+  Text:
+  {doc_text}
+
+   For each pair you label causal, name the anchor word before giving the label.
+   Classify all the intra-sentence mention pairs, and only pairs where both mentions are in the same sentence.
+
+  IMPORTANT:
+  No matter what reason step by step, then output the final JSON.
