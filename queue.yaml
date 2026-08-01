@@ -32,6 +32,8 @@
 experiments:
   - name: "h"
     overrides:
+      llm_cache:
+        enabled: false
       model:
         default_model_id: "deepseek/deepseek-v4-flash"
       tools_config:
@@ -47,7 +49,7 @@ experiments:
           # - "eci_extractor_intra"
         enable_tools: false
         resampling:
-          enabled: false
+          enabled: true
           distinct_fewshots: true 
           n_runs: 3
         retries: 3
@@ -61,7 +63,8 @@ experiments:
         intra_only: false
         cot_generation:
           enabled: true
-          num_steps: 3
+          blind: true
+          rewrite: true
       data:
         binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
         vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
@@ -94,67 +97,5 @@ experiments:
           # prompt: "esl_standard_eci_intra" # This has the close mentions rule
           prompt: "esl_standard_eci_intra_lean"
           # prompt: "esl_standard_eci_norule_intra"
-  - name: "i"
-    overrides:
-      model:
-        default_model_id: "deepseek/deepseek-v4-flash"
-      tools_config:
-        eci_extractor:
-          model_id: "deepseek/deepseek-v3.2"
-          concurrency: 10
-      active_dataset: "event_story_line"
-      experiment:
-        tools:
-          - "coherence"
-          # - "counterfactual_check" 
-          # - "eci_extractor"
-          # - "eci_extractor_intra"
-        enable_tools: false
-        resampling:
-          enabled: true
-          distinct_fewshots: true 
-          n_runs: 3
-        retries: 3
-      few_shot:
-        enabled: true
-        n_examples: 3
-        pool_size: 100
-        # "random" "similarity" "mentions" "bert" "smallest"
-        selection: "random"
-        density_stratify: false
-        intra_only: false
-        cot_generation:
-          enabled: false
-          num_steps: 3
-      data:
-        binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
-        vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
-        binary_default: "norel" 
-        novote_norel: true
-      datasets:
-        maven_ere:
-          max_examples: 710 # 710
-          # prompt: "maven_ere_standard_eci_intra_tool"
-          # prompt: "common_eci_extractor_tool" 
-          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
-          prompt: "maven_ere_standard_eci_intra_lean"
-          # prompt: "maven_ere_standard_eci_intra_naive"
-          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
-          # prompt: "maven_ere_standard_eci_norule_coref"
-        # meci:
-        #   max_examples: 50
-        #   # prompt: "meci_standard_eci_binary"
-        #   prompt: "esl_standard_eci_intra"
-        #   # prompt: "meci_standard_eci_tools"
-        causal_timebank:
-          max_examples: 183 # 183 
-          # prompt: "causal_timebank_explicit_marker"
-          # prompt: "causal_timebank_no_marker"
-          prompt: "causal_timebank_syntax"
-          # prompt: "causal_timebank_anchor_test"
-        event_story_line:
-          max_examples: 233 # 233
-          # prompt: "common_eci_extractor_tool"
-          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
-          prompt: "esl_standard_eci_intra_lean"
-          # prompt: "esl_standard_eci_norule_intra"
+          # repo_id: "Nofing/EventStoryLine-0.9-standard-eci-corefixed"
+          repo_id: "Nofing/EventStoryLine-0.9-standard-eci"

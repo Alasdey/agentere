@@ -13,12 +13,17 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
 from tools import get_enabled_tools
-from tools.few_shot import preload as few_shot_preload, get_few_shot_message_pairs, pregenerate_cot
+from tools.few_shot import (
+    preload as few_shot_preload,
+    get_few_shot_message_pairs,
+    pregenerate_cot,
+    cot_protocol,
+)
 from utils.config import load_config
 from utils.runtime_config import set_cfg
 from utils.context import CURRENT_DOC_ID, doc_context
 from utils import causal_graph
-from utils.formatting import format_pair_lines, convert_to_binary_undirected
+from utils.formatting import format_pair_lines, convert_to_binary_undirected, parse_triples_from_text
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
@@ -35,40 +40,6 @@ from scripts.analysis.distance_histogram import generate_run_histograms
 # HELPER FUNCTIONS
 # =============================================================================
 
-def _iter_json_arrays(text: str):
-    """Yield every balanced, top-level ``[...]`` block in ``text``, in order.
-
-    String-aware, so a ``]`` inside a JSON string value does not close a block,
-    and depth-aware, so nested brackets are handled. This lets us enumerate every
-    candidate array (empty or populated) instead of relying on a regex that can
-    only see one shape.
-    """
-    depth = 0
-    in_str = False
-    escaped = False
-    start = None
-    for i, ch in enumerate(text):
-        if in_str:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_str = False
-            continue
-        if ch == '"':
-            in_str = True
-        elif ch == "[":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "]" and depth > 0:
-            depth -= 1
-            if depth == 0 and start is not None:
-                yield text[start : i + 1]
-                start = None
-
-
 def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
     """Parses the LLM response message into a list of (src, label, tgt) triples.
 
@@ -78,30 +49,8 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
     the last populated array wins, and ``[]`` is used only when no populated
     array exists anywhere in the response.
     """
-    content = message.content
     try:
-        arrays = []
-        for block in _iter_json_arrays(content):
-            try:
-                arrays.append(json.loads(block))
-            except json.JSONDecodeError:
-                continue  # not JSON (e.g. prose "[see below]") — skip it
-        if not arrays:
-            raise ValueError("No JSON array found in output")
-
-        # The real answer is the final populated array; a stray `[]` in the
-        # reasoning must not win over it. Fall back to `[]` only when every
-        # array found is empty — that is a legitimate "no relations" result.
-        populated = [a for a in arrays if a]
-        data = populated[-1] if populated else []
-
-        triples = []
-        for item in data:
-            pair = item.get("pair", "")
-            if "," in pair:
-                src, tgt = [part.strip() for part in pair.split(",", 1)]
-                triples.append((src, item.get("label", "Unknown"), tgt))
-        return triples
+        return parse_triples_from_text(message.content)
     except Exception as e:
         raise ValueError(f"JSON Parsing failed: {str(e)}")
 
@@ -457,6 +406,7 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
     fs_cfg = config["few_shot"]
     if fs_cfg["enabled"] and fs_cfg["cot_generation"]["enabled"]:
         prompt_cfg = config["prompt"]
+        cot_blind, cot_rewrite = cot_protocol(config)
         await pregenerate_cot(
             test_docs=docs,
             user_template=prompt_cfg["user_template"],
@@ -465,7 +415,8 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             system_prompt=prompt_cfg["system"],
             concurrency=config["experiment"]["concurrency"],
             cache_path=fs_cfg["cot_generation"]["cache_path"],
-            num_steps=fs_cfg["cot_generation"]["num_steps"],
+            blind=cot_blind,
+            rewrite=cot_rewrite,
             retries=config["experiment"]["retries"],
             dump_dir=fs_cfg["cot_generation"]["dump_dir"],
         )

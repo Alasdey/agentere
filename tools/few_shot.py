@@ -18,6 +18,10 @@ hint, and the non-CoT "Output:" fallback used when cot_generation.enabled is fal
 affect doc selection.
 The full training split is loaded lazily and cached in memory.
 
+Synthesized CoT is generated per the few_shot.cot_generation.blind / .rewrite switches (see
+_generate_cot_for_doc) and its final answer is always verified against the gold labels
+before it can become an exemplar — see _enforce_gold_answer.
+
 Synthesized CoT is cached at two levels: _COT_CACHE (optionally persisted to
 few_shot.cot_generation.cache_path), keyed by doc id + a fingerprint of everything that
 shapes the CoT — see _cot_cache_key — and, one level down, the prompt-keyed LLM cache in
@@ -41,7 +45,13 @@ from langchain_core.tools import tool
 
 from dataprep.dataprep import load_hf_dataset_parsed
 from model.model import build_chat_graph
-from utils.formatting import format_pair_lines, format_gold_output
+from utils.formatting import (
+    format_pair_lines,
+    format_gold_output,
+    final_json_array,
+    parse_final_answer_triples,
+    replace_final_json_array,
+)
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 from utils.labels import NOREL_VARIANTS
 from utils.llm_cache import get_llm_cache
@@ -107,14 +117,52 @@ def _make_cot_graph():
 register_reset(_make_cot_graph.cache_clear)
 
 
+# ── CoT protocol ──────────────────────────────────────────────────────────────
+
+def cot_protocol(cfg) -> tuple:
+    """(blind, rewrite) for few_shot.cot_generation, as two independent switches.
+
+    blind:   generate once with no sight of the golds, then revise against them, instead of
+             writing gold-guided from the start.
+    rewrite: run a final decontamination pass that rewrites the reasoning to remove
+             foreknowledge phrasing.
+    """
+    cot_cfg = cfg["few_shot"]["cot_generation"]
+    if "num_steps" in cot_cfg:
+        raise ValueError(
+            "few_shot.cot_generation.num_steps has been replaced by the independent booleans "
+            "`blind` and `rewrite`. Translate: 1 -> blind: false, rewrite: false | "
+            "2 -> blind: false, rewrite: true | 3 -> blind: true, rewrite: true. "
+            "Remove num_steps (check queue.yaml overrides too) so the protocol is unambiguous."
+        )
+    return cot_cfg["blind"], cot_cfg["rewrite"]
+
+
+def _protocol_code(blind: bool, rewrite: bool) -> int:
+    """Cache-key encoding of (blind, rewrite).
+
+    Deliberately reuses the old num_steps numbering — 1/2/3 for the three combinations it
+    could express — so that switching to the booleans does not change the fingerprint of
+    protocols that already have entries in cot_cache.json. Only blind-without-rewrite,
+    which num_steps had no way to request, needs a new code.
+    """
+    if blind and rewrite:
+        return 3
+    if rewrite:
+        return 2
+    if blind:
+        return 4  # blind -> correct, no decontamination: unreachable via the old num_steps
+    return 1
+
+
 # ── CoT cache key ─────────────────────────────────────────────────────────────
 
-def _cot_cache_key(doc_id: str, num_steps: int, intra_only: bool) -> str:
+def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) -> str:
     """<doc_id>::<fingerprint of everything that shapes the synthesized CoT>.
 
     The fingerprint is what makes the disk cache safe across a queue run: model, prompt and
     gold-formatting all change the bytes sent to the synthesis LLM, so all of them must
-    change the key. Without it (the pre-fix behaviour, keyed on doc id and num_steps alone)
+    change the key. Without it (the pre-fix behaviour, keyed on doc id and protocol alone)
     a shared cot_cache.json silently served CoT written by another model from another prompt.
     """
     cfg = get_cfg()
@@ -123,7 +171,7 @@ def _cot_cache_key(doc_id: str, num_steps: int, intra_only: bool) -> str:
         {
             "model_id": cfg["model"]["default_model_id"],
             "temperature": cfg["model"]["temperature"],
-            "num_steps": num_steps,
+            "num_steps": _protocol_code(blind, rewrite),  # key name kept — see _protocol_code
             "intra_only": intra_only,
             "dataset": active_ds,
             "system": cfg["prompt"]["system"],
@@ -157,7 +205,18 @@ _COT_DECONTAM_PROMPT = (
     "\"as indicated by the labels\", \"we know that\", \"the expected output\") "
     "with genuine reasoning grounded in the text and rules. "
     "Every sentence should read as if you discovered the label through analysis, "
-    "not confirmed it from a pre-known answer. Output only the rewritten response, nothing else."
+    "not confirmed it from a pre-known answer. "
+    "Keep the final JSON answer exactly as it is — rewrite only the reasoning that leads to it. "
+    "Output only the rewritten response, nothing else."
+)
+
+_COT_FIX_HINT = (
+    "The final JSON answer in your response does not match the correct label assignments.\n\n"
+    "Your answer:\n{got_json}\n\n"
+    "Correct answer:\n{gold_json}\n\n"
+    "Rewrite the response once more. Keep the same voice — no foreknowledge phrasing, no mention "
+    "of having been corrected — but make the analysis genuinely support the correct assignments, "
+    "and end with exactly that JSON array. Output only the rewritten response, nothing else."
 )
 
 _COT_CORRECT_HINT = (
@@ -169,6 +228,66 @@ _COT_CORRECT_HINT = (
     "write as though this is a refined version of your own analysis. "
     "Output the full revised response, nothing else."
 )
+
+
+def _answer_key(text: str, keep_norel: bool) -> Optional[FrozenSet]:
+    """Normalized {(src, label, tgt)} set of the final JSON answer in `text`, or None
+    when no JSON array is present at all.
+
+    Labels are lowercased. When `keep_norel` is False — datasets where omission encodes
+    norel, so format_gold_output strips norel from gold — explicit norel entries are
+    dropped here too, so writing one out compares equal to leaving it out.
+    """
+    try:
+        triples = parse_final_answer_triples(text)
+    except ValueError:
+        return None
+    return frozenset(
+        (src, lbl.lower(), tgt)
+        for src, lbl, tgt in triples
+        if keep_norel or lbl.lower() not in NOREL_VARIANTS
+    )
+
+
+async def _enforce_gold_answer(
+    graph_ainvoke,
+    context: list,
+    response: str,
+    gold_output: str,
+    keep_norel: bool,
+    doc_id: str,
+) -> str:
+    """Return `response` guaranteed to end in the gold answer.
+
+    Nothing in the synthesis protocol pins the final JSON to the gold: every step asks the
+    LLM to rewrite its own response, and a rewrite can silently drop, invent or reorder
+    labels — which would ship a mislabelled few-shot exemplar and quietly poison inference.
+    A response that lost its JSON block entirely (an empty or truncated generation) fails
+    the same check.
+
+    `context` is the conversation that produced `response`, so the correction can continue
+    it. One corrective rewrite is attempted — a plain retry would be served straight back
+    from the prompt-keyed LLM cache, so the discrepancy has to enter the prompt to change
+    anything. If that still misses, the gold array is spliced in verbatim: a slightly
+    incoherent exemplar is recoverable, a confidently wrong label is not.
+    """
+    gold_key = _answer_key(gold_output, keep_norel)
+    if _answer_key(response, keep_norel) == gold_key:
+        return response
+
+    got_json = final_json_array(response) or "(no JSON array found in your response)"
+    fix_messages = context + [
+        AIMessage(content=response),
+        HumanMessage(content=_COT_FIX_HINT.format(got_json=got_json, gold_json=gold_output)),
+    ]
+    state = await graph_ainvoke(fix_messages)
+    trace_dump.trace_dump(state)
+    fixed = state["messages"][-1].content
+    if _answer_key(fixed, keep_norel) == gold_key:
+        return fixed
+
+    print(f"[few_shot] CoT answer still off-gold for doc {doc_id} — splicing gold answer in")
+    return replace_final_json_array(fixed or response, gold_output)
 
 
 def preload() -> None:
@@ -289,17 +408,24 @@ async def _generate_cot_for_doc(
     user_content: str,
     gold_output: str,
     steps: list = None,
-    num_steps: int = 2,
+    blind: bool = False,
+    rewrite: bool = True,
     intra_only: bool = False,
     dump_dir: Optional[str] = None,
 ) -> list:
-    """Generate a realistic CoT for each inference step, then decontaminate.
+    """Generate a realistic CoT for each inference step.
 
-    Single-call mode (no `steps`) supports two protocols, selected by `num_steps`:
-      2 (default): gold-guided generation -> decontaminate.
-      3: blind generation (no golds) -> correct with golds -> decontaminate.
-    Multi-step mode (task-level `steps` list) always uses the 2-step gold-guided protocol,
-    regardless of `num_steps`.
+    Two independent switches, applied per inference step in both single-call and multi-step
+    mode:
+      blind:   write the step without seeing the golds, then revise it against them
+               (2 calls), instead of writing gold-guided from the start (1 call).
+      rewrite: finish with a decontamination pass that rewrites the reasoning to strip
+               foreknowledge phrasing (1 more call). With rewrite off, the gold hint's own
+               "do not mention or imply that you already know the answer" is the only guard.
+
+    Whatever the combination, the rewrite always runs inside the conversation that produced
+    the response — so it sees the document text and the golds — and the final response is
+    checked against `gold_output` and repaired if it drifted (see _enforce_gold_answer).
 
     `gold_output` is expected to already be pre-filtered by the caller when few_shot.intra_only
     is set — this function does not itself filter it. `intra_only` here exists purely to
@@ -310,93 +436,127 @@ async def _generate_cot_for_doc(
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
+    keep_norel = bool(doc.get("pair_list_ids"))
+    cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
     if cache_key in _COT_CACHE:
-        return _COT_CACHE[cache_key]
+        cached = _COT_CACHE[cache_key]
+        if _answer_key(cached[-1], keep_norel) == _answer_key(gold_output, keep_norel):
+            return cached
+        # Written before the answer was verified, so cot_cache.json can hold exemplars whose
+        # answer drifted off the gold. The check is a local parse and costs nothing, so it
+        # runs on every hit; only the rare miss pays for regeneration.
+        print(f"[few_shot] cached CoT for doc {doc_id} is off-gold — regenerating")
+        del _COT_CACHE[cache_key]
 
     graph_ainvoke = _make_cot_graph()
 
     gold_hint = _COT_GOLD_HINT.format(gold_json=gold_output)
     gold_hint_cont = _COT_GOLD_HINT_CONTINUE.format(gold_json=gold_output)
+    correct_hint = _COT_CORRECT_HINT.format(gold_json=gold_output)
+
+    async def _write_step(guided: list, unguided: list) -> tuple:
+        """Produce one step's response, and the conversation that produced it.
+
+        `guided` already carries the gold hint; `unguided` is the same conversation without
+        it. Gold-guided writing answers `guided` directly. Blind writing answers `unguided`,
+        then revises that attempt against the golds — so either way the returned context ends
+        up holding both the document text and the gold labels, which is what the
+        decontamination rewrite and any gold repair need to see.
+
+        The returned context is always a snapshot: callers keep it until after every step has
+        been written, while `guided`/`unguided` go on growing in place.
+        """
+        if not blind:
+            state = await graph_ainvoke(guided)
+            trace_dump.trace_dump(state)
+            return state["messages"][-1].content, list(guided)
+
+        state = await graph_ainvoke(unguided)
+        trace_dump.trace_dump(state)
+        context = list(unguided) + [
+            AIMessage(content=state["messages"][-1].content),
+            HumanMessage(content=correct_hint),
+        ]
+        state = await graph_ainvoke(context)
+        trace_dump.trace_dump(state)
+        return state["messages"][-1].content, context
+
+    async def _decontaminate(raw: str, context: list) -> tuple:
+        """Rewrite `raw` to strip foreknowledge, continuing the conversation that wrote it."""
+        context = context + [
+            AIMessage(content=raw),
+            HumanMessage(content=_COT_DECONTAM_PROMPT),
+        ]
+        state = await graph_ainvoke(context)
+        trace_dump.trace_dump(state)
+        return state["messages"][-1].content, context
 
     if not steps:
         # ── Single-call mode ──────────────────────────────────────────────────
-        if num_steps == 3:
-            # Step 1: blind generation, no gold visibility.
-            gen_messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_content),
-            ]
-            state = await graph_ainvoke(gen_messages)
-            trace_dump.trace_dump(state)
-            blind_raw = state["messages"][-1].content
+        base = [SystemMessage(content=system_prompt), HumanMessage(content=user_content)]
+        raw, context = await _write_step(base + [HumanMessage(content=gold_hint)], base)
 
-            # Step 2: correct the blind reasoning using the golds.
-            correct_hint = _COT_CORRECT_HINT.format(gold_json=gold_output)
-            correct_messages = gen_messages + [
-                AIMessage(content=blind_raw),
-                HumanMessage(content=correct_hint),
-            ]
-            state2 = await graph_ainvoke(correct_messages)
-            trace_dump.trace_dump(state2)
-            raw = state2["messages"][-1].content
-            pre_decontam_messages = correct_messages + [AIMessage(content=raw)]
-        else:
-            # Step 1 (2-step protocol): gold-guided generation.
-            gen_messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_content),
-                HumanMessage(content=gold_hint),
-            ]
-            state = await graph_ainvoke(gen_messages)
-            trace_dump.trace_dump(state)
-            raw = state["messages"][-1].content
-            pre_decontam_messages = gen_messages + [AIMessage(content=raw)]
+        if rewrite:
+            raw, context = await _decontaminate(raw, context)
+        clean = [raw]
 
-        # Final step: decontaminate.
-        decontam_messages = pre_decontam_messages + [
-            HumanMessage(content=_COT_DECONTAM_PROMPT),
-        ]
-        state_final = await graph_ainvoke(decontam_messages)
-        trace_dump.trace_dump(state_final)
-        clean = [state_final["messages"][-1].content]
+        clean[0] = await _enforce_gold_answer(
+            graph_ainvoke, context, clean[0], gold_output, keep_norel, doc_id
+        )
     else:
         # ── Multi-step mode ───────────────────────────────────────────────────
-        # Build guided generation conversation step by step, then decontaminate each.
-        # Conversation grows: [Sys, Human(user), Human(gold_hint)] → AI(step0_raw)
-        #   → Human(step1.prompt), Human(gold_hint_cont) → AI(step1_raw) → ...
-        messages = [
+        # Two parallel conversations grow in lockstep: `guided` carries the gold hints,
+        # `unguided` is the same history without them, for blind writing. Both accumulate the
+        # accepted (post-revision) response for each step, never the blind first attempt.
+        guided = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_content),
             HumanMessage(content=gold_hint),
         ]
+        unguided = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_content),
+        ]
         raw_responses = []
+        prefixes = []  # conversation that produced each raw response, for decontamination
 
         # First step response (user_content already incorporates step 1 instruction)
-        state = await graph_ainvoke(messages)
-        trace_dump.trace_dump(state)
-        raw_responses.append(state["messages"][-1].content)
-        messages.append(AIMessage(content=raw_responses[-1]))
+        raw, context = await _write_step(guided, unguided)
+        raw_responses.append(raw)
+        prefixes.append(context)
+        guided.append(AIMessage(content=raw))
+        unguided.append(AIMessage(content=raw))
 
         for step in steps:
-            messages.append(HumanMessage(content=step["prompt"]))
-            messages.append(HumanMessage(content=gold_hint_cont))
-            state = await graph_ainvoke(messages)
-            trace_dump.trace_dump(state)
-            raw_responses.append(state["messages"][-1].content)
-            messages.append(AIMessage(content=raw_responses[-1]))
+            guided.append(HumanMessage(content=step["prompt"]))
+            guided.append(HumanMessage(content=gold_hint_cont))
+            unguided.append(HumanMessage(content=step["prompt"]))
+            raw, context = await _write_step(guided, unguided)
+            raw_responses.append(raw)
+            prefixes.append(context)
+            guided.append(AIMessage(content=raw))
+            unguided.append(AIMessage(content=raw))
 
-        # Decontaminate each raw response independently
-        clean = []
-        for raw in raw_responses:
-            decontam_messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=raw),
-                HumanMessage(content=_COT_DECONTAM_PROMPT),
-            ]
-            state = await graph_ainvoke(decontam_messages)
-            trace_dump.trace_dump(state)
-            clean.append(state["messages"][-1].content)
+        if not rewrite:
+            clean = list(raw_responses)
+            contexts = prefixes
+        else:
+            # Decontaminate each raw response inside the conversation that produced it, so
+            # the rewrite still sees the document, the golds and the earlier steps. Rewriting
+            # it in a bare [system, raw, decontam] conversation instead — as this used to —
+            # asked for "reasoning grounded in the text" with the text absent from context.
+            clean = []
+            contexts = []
+            for prefix, raw in zip(prefixes, raw_responses):
+                cleaned, context = await _decontaminate(raw, prefix)
+                clean.append(cleaned)
+                contexts.append(context)
+
+        # Only the last step carries the final answer; earlier steps are intermediate
+        # reasoning and legitimately contain no JSON array.
+        clean[-1] = await _enforce_gold_answer(
+            graph_ainvoke, contexts[-1], clean[-1], gold_output, keep_norel, doc_id
+        )
 
     if dump_dir:
         _dump_cot_to_disk(doc, clean, dump_dir)
@@ -430,8 +590,9 @@ async def get_few_shot_message_pairs(
         - Single-call mode (no steps): one (human, ai) pair per example.
         - Multi-step mode: (human_step1, ai_step1), (step2_prompt, ai_step2), ... per example.
 
-    When few_shot.cot_generation.enabled is true, AI content is generated via guided
-    generation from gold labels then decontaminated. When few_shot.intra_only
+    When few_shot.cot_generation.enabled is true, AI content is synthesized from the gold
+    labels per the cot_generation.blind / .rewrite switches, then verified to still end in
+    the gold answer. When few_shot.intra_only
     is also true, the gold shown to the synthesis LLM — and the non-CoT "Output:" fallback used
     when cot_generation.enabled is false — is first restricted to same-sentence gold triples only.
     """
@@ -450,7 +611,7 @@ async def get_few_shot_message_pairs(
         )
 
     cot_enabled = cfg["few_shot"]["cot_generation"]["enabled"] and system_prompt
-    num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
+    blind, rewrite = cot_protocol(cfg)
     intra_only = cfg["few_shot"]["intra_only"]
     dump_dir = cfg["few_shot"]["cot_generation"]["dump_dir"]
 
@@ -473,7 +634,7 @@ async def get_few_shot_message_pairs(
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output,
-                steps=steps, num_steps=num_steps, intra_only=intra_only,
+                steps=steps, blind=blind, rewrite=rewrite, intra_only=intra_only,
                 dump_dir=dump_dir,
             )
         else:
@@ -647,7 +808,8 @@ async def pregenerate_cot(
     concurrency: int = 10,
     cache_path: Optional[str] = None,
     steps: list = None,
-    num_steps: int = 2,
+    blind: bool = False,
+    rewrite: bool = True,
     retries: int = 3,
     dump_dir: Optional[str] = None,
 ) -> None:
@@ -683,7 +845,7 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
+            cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -716,7 +878,7 @@ async def pregenerate_cot(
                 try:
                     await _generate_cot_for_doc(
                         doc, system_prompt, human_content, gold_output,
-                        steps=steps, num_steps=num_steps, intra_only=intra_only,
+                        steps=steps, blind=blind, rewrite=rewrite, intra_only=intra_only,
                         dump_dir=dump_dir,
                     )
                     break

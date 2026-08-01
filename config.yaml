@@ -147,10 +147,18 @@ few_shot:
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
   cot_generation:
     enabled: true      # true: generate realistic CoT few-shots via LLM
-    num_steps: 2        # 2 (default): gold-guided generation -> decontaminate
-                         # 3: blind generation (no golds) -> correct with golds -> decontaminate
-                         # num_steps=3 only applies to single-call prompts (no `steps:` in the
-                         # active prompt YAML); multi-step task prompts always use the 2-step protocol.
+    # Two independent switches. Both apply per inference step, in single-call and
+    # multi-step prompts alike. Cost per step = (2 if blind else 1) + (1 if rewrite else 0)
+    # LLM calls. Whatever the combination, the final response is verified against the gold
+    # answer and repaired if it drifted.
+    blind: false        # false: write the step gold-guided from the start.
+                         # true:  write it without seeing the golds, then revise against them.
+                         #        Costs one extra call; reasoning is discovered rather than
+                         #        reverse-engineered, so less foreknowledge to strip later.
+    rewrite: true       # true:  finish with a decontamination pass that rewrites the reasoning
+                         #        to strip foreknowledge phrasing ("the answer shows", ...).
+                         # false: skip it — the gold hint's own "do not mention or imply that you
+                         #        already know the answer" is then the only guard.
     cache_path: "logs/cot_cache.json"  # persist generated CoTs across runs (~ to disable). Keyed by
                                    # doc id + a fingerprint of the model, prompt and gold-formatting
                                    # config, so entries can never cross experiments.
