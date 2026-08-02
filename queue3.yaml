@@ -86,6 +86,141 @@ _defaults:
 
 experiments:
 
+  # ─────────────────────────── causal_timebank (183) ───────────────────────────
+
+  - name: "ctb_fs1"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "ctb_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+
+  - name: "ctb_res5"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 5
+
+
+  - name: "ctb_sel_bert"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+
+  - name: "ctb_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+
+  # ────────────────────────── event_story_line (233) ───────────────────────────
+
+  - name: "esl_fs1"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "esl_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+  - name: "esl_res5"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 5
+
+  - name: "esl_sel_bert"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+  - name: "esl_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+
+  # ───────────────────────────── maven_ere (710) ───────────────────────────────
+
+  - name: "maven_fs1"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "maven_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+  - name: "maven_res5"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 5
+
+  - name: "maven_sel_bert"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+  - name: "maven_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+  
   # ───────────────────────────── Extras ───────────────────────────────
   
   - name: "ctb_fs7"
