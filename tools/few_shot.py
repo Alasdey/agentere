@@ -109,12 +109,12 @@ register_reset(_make_cot_graph.cache_clear)
 
 # ── CoT cache key ─────────────────────────────────────────────────────────────
 
-def _cot_cache_key(doc_id: str, num_steps: int, intra_only: bool) -> str:
+def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) -> str:
     """<doc_id>::<fingerprint of everything that shapes the synthesized CoT>.
 
     The fingerprint is what makes the disk cache safe across a queue run: model, prompt and
     gold-formatting all change the bytes sent to the synthesis LLM, so all of them must
-    change the key. Without it (the pre-fix behaviour, keyed on doc id and num_steps alone)
+    change the key. Without it (the pre-fix behaviour, keyed on doc id and protocol alone)
     a shared cot_cache.json silently served CoT written by another model from another prompt.
     """
     cfg = get_cfg()
@@ -123,7 +123,8 @@ def _cot_cache_key(doc_id: str, num_steps: int, intra_only: bool) -> str:
         {
             "model_id": cfg["model"]["default_model_id"],
             "temperature": cfg["model"]["temperature"],
-            "num_steps": num_steps,
+            "blind": blind,
+            "rewrite": rewrite,
             "intra_only": intra_only,
             "dataset": active_ds,
             "system": cfg["prompt"]["system"],
@@ -289,17 +290,20 @@ async def _generate_cot_for_doc(
     user_content: str,
     gold_output: str,
     steps: list = None,
-    num_steps: int = 2,
+    blind: bool = False,
+    rewrite: bool = True,
     intra_only: bool = False,
     dump_dir: Optional[str] = None,
 ) -> list:
-    """Generate a realistic CoT for each inference step, then decontaminate.
+    """Generate a realistic CoT for each inference step, optionally decontaminating it.
 
-    Single-call mode (no `steps`) supports two protocols, selected by `num_steps`:
-      2 (default): gold-guided generation -> decontaminate.
-      3: blind generation (no golds) -> correct with golds -> decontaminate.
-    Multi-step mode (task-level `steps` list) always uses the 2-step gold-guided protocol,
-    regardless of `num_steps`.
+    Two independent switches shape the protocol:
+      `blind`   — write the reasoning without the golds, then revise it against them
+                  (blind -> correct) instead of a single gold-guided pass. Single-call mode
+                  only; multi-step mode (task-level `steps` list) is always gold-guided.
+      `rewrite` — append a decontamination pass that rewrites the response from scratch to
+                  remove foreknowledge phrasing. Applies to both modes (per step in
+                  multi-step mode); when false the raw response is used as-is.
 
     `gold_output` is expected to already be pre-filtered by the caller when few_shot.intra_only
     is set — this function does not itself filter it. `intra_only` here exists purely to
@@ -310,7 +314,7 @@ async def _generate_cot_for_doc(
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
-    cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
+    cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
 
@@ -321,7 +325,7 @@ async def _generate_cot_for_doc(
 
     if not steps:
         # ── Single-call mode ──────────────────────────────────────────────────
-        if num_steps == 3:
+        if blind:
             # Step 1: blind generation, no gold visibility.
             gen_messages = [
                 SystemMessage(content=system_prompt),
@@ -342,7 +346,7 @@ async def _generate_cot_for_doc(
             raw = state2["messages"][-1].content
             pre_decontam_messages = correct_messages + [AIMessage(content=raw)]
         else:
-            # Step 1 (2-step protocol): gold-guided generation.
+            # Step 1: gold-guided generation.
             gen_messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_content),
@@ -353,13 +357,16 @@ async def _generate_cot_for_doc(
             raw = state["messages"][-1].content
             pre_decontam_messages = gen_messages + [AIMessage(content=raw)]
 
-        # Final step: decontaminate.
-        decontam_messages = pre_decontam_messages + [
-            HumanMessage(content=_COT_DECONTAM_PROMPT),
-        ]
-        state_final = await graph_ainvoke(decontam_messages)
-        trace_dump.trace_dump(state_final)
-        clean = [state_final["messages"][-1].content]
+        if rewrite:
+            # Final step: decontaminate.
+            decontam_messages = pre_decontam_messages + [
+                HumanMessage(content=_COT_DECONTAM_PROMPT),
+            ]
+            state_final = await graph_ainvoke(decontam_messages)
+            trace_dump.trace_dump(state_final)
+            clean = [state_final["messages"][-1].content]
+        else:
+            clean = [raw]
     else:
         # ── Multi-step mode ───────────────────────────────────────────────────
         # Build guided generation conversation step by step, then decontaminate each.
@@ -389,6 +396,9 @@ async def _generate_cot_for_doc(
         # Decontaminate each raw response independently
         clean = []
         for raw in raw_responses:
+            if not rewrite:
+                clean.append(raw)
+                continue
             decontam_messages = [
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=raw),
@@ -450,7 +460,8 @@ async def get_few_shot_message_pairs(
         )
 
     cot_enabled = cfg["few_shot"]["cot_generation"]["enabled"] and system_prompt
-    num_steps = cfg["few_shot"]["cot_generation"]["num_steps"]
+    blind = cfg["few_shot"]["cot_generation"]["blind"]
+    rewrite = cfg["few_shot"]["cot_generation"]["rewrite"]
     intra_only = cfg["few_shot"]["intra_only"]
     dump_dir = cfg["few_shot"]["cot_generation"]["dump_dir"]
 
@@ -473,7 +484,7 @@ async def get_few_shot_message_pairs(
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output,
-                steps=steps, num_steps=num_steps, intra_only=intra_only,
+                steps=steps, blind=blind, rewrite=rewrite, intra_only=intra_only,
                 dump_dir=dump_dir,
             )
         else:
@@ -647,7 +658,8 @@ async def pregenerate_cot(
     concurrency: int = 10,
     cache_path: Optional[str] = None,
     steps: list = None,
-    num_steps: int = 2,
+    blind: bool = False,
+    rewrite: bool = True,
     retries: int = 3,
     dump_dir: Optional[str] = None,
 ) -> None:
@@ -683,7 +695,7 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
-            cache_key = _cot_cache_key(doc_id, num_steps, intra_only)
+            cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -716,7 +728,7 @@ async def pregenerate_cot(
                 try:
                     await _generate_cot_for_doc(
                         doc, system_prompt, human_content, gold_output,
-                        steps=steps, num_steps=num_steps, intra_only=intra_only,
+                        steps=steps, blind=blind, rewrite=rewrite, intra_only=intra_only,
                         dump_dir=dump_dir,
                     )
                     break

@@ -1,160 +1,315 @@
-# queue.yaml
-# Each entry is a set of overrides deep-merged on top of config.yaml.
-# Only keys that differ from config.yaml need to appear.
+# queue1.yaml — one-factor-at-a-time sweep over maven_ere / event_story_line / causal_timebank
+#
+# Baseline (= your template block): deepseek-v4-flash, tools off, resampling on with
+# n_runs 3 + distinct_fewshots, few-shot on with n_examples 3 / selection random,
+# cot_generation enabled + blind + rewrite.
+#
+# Each experiment changes the baseline in EXACTLY ONE parameter, so every variant pairs
+# with the dataset's `*_base` run in scripts/analysis/list_ablations.py:
+#   n_examples : 1, 5, 7          (baseline 3)
+#   n_runs     : 5, 7             (baseline 3)
+#   selection  : bert, mentions, similarity   (baseline random)
+# 9 runs x 3 datasets = 27 experiments, ordered cheapest dataset first
+# (causal_timebank 183 -> event_story_line 233 -> maven_ere 710).
+#
+# The shared block lives in `_defaults` below and is pulled into every entry with the
+# YAML merge key `<<:`; a variant re-merges only the sub-block it touches. run_queue.py
+# reads `experiments` only, so `_defaults` is inert.
+#
+#   uv run python run_queue.py --queue queue1.yaml
+#   uv run python run_queue.py --queue queue1.yaml --only ctb_base ctb_fs1 ctb_fs5 ctb_fs7
 
-# default_model_id: "openai/gpt-5.5"
-# default_model_id: "google/gemini-3.1-flash-lite"
-# default_model_id: "google/gemini-2.5-flash-lite"
-# default_mot_model_id: "google/gemini-1.5-pro"
-# defauldel_id: "z-ai/glm-5.2"
-# default_model_id: "qwen/qwen3-30b-a3b-thinking-2507"
-# default_model_id: "openai/gpt-4o-mini" # Nope
-# default_model_id: "deepseek/deepseek-v3.2"
-# default_model_id: "deepseek/deepseek-v4-pro"
-# default_model_id: "qwen/qwen3.6-35b-a3b"
-# default_model_id: "Qwen/Qwen3-Next-80B-A3B-Instruct"
-# default_model_id: "qwen/qwen3.7-flash"
-# default_model_id: "deepseek/deepseek-v4-flash"
-# default_model_id: "xiaomi/mimo-v2.5"
-# default_model_id: "openai/gpt-oss-120b"
-# default_model_id: "qwen/qwen3-32b"
-# default_model_id: "poolside/laguna-s-2.1" # Rate limit
-# default_model_id: "poolside/laguna-xs-2.1"
-# default_model_id: "nex-agi/nex-n2-mini"
-# default_model_id: "tencent/hy3-preview"
+_defaults:
+  model: &model
+    default_model_id: "deepseek/deepseek-v4-flash"
 
-# active_dataset: "maven_ere"
-# active_dataset: "event_story_line"
-# active_dataset: "meci"
-# active_dataset: "causal_timebank"
+  tools_config: &tools_config
+    eci_extractor:
+      model_id: "deepseek/deepseek-v3.2"
+      concurrency: 10
+
+  resampling: &resampling
+    enabled: true
+    distinct_fewshots: true
+    n_runs: 3
+
+  experiment: &experiment
+    tools:
+      - "coherence"
+      # - "counterfactual_check"
+      # - "eci_extractor"
+      # - "eci_extractor_intra"
+    enable_tools: false
+    resampling: *resampling
+    retries: 3
+
+  cot_generation: &cot_generation
+    enabled: true
+    blind: true
+    rewrite: true
+
+  few_shot: &few_shot
+    enabled: true
+    n_examples: 3
+    pool_size: 100
+    # "random" "similarity" "mentions" "bert" "smallest"
+    selection: "random"
+    density_stratify: false
+    intra_only: false
+    cot_generation: *cot_generation
+
+  data: &data
+    binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
+    vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
+    binary_default: "norel"
+    novote_norel: true
+
+  datasets: &datasets
+    maven_ere:
+      max_examples: 710 # 710
+      prompt: "maven_ere_standard_eci_intra_lean"
+    causal_timebank:
+      max_examples: 183 # 183
+      prompt: "causal_timebank_syntax"
+    event_story_line:
+      max_examples: 233 # 233
+      prompt: "esl_standard_eci_intra_lean"
+
+  base: &base
+    model: *model
+    tools_config: *tools_config
+    experiment: *experiment
+    few_shot: *few_shot
+    data: *data
+    datasets: *datasets
 
 
 experiments:
-  - name: "h"
+
+  # ─────────────────────────── causal_timebank (183) ───────────────────────────
+
+  - name: "ctb_fs1"
     overrides:
-      model:
-        default_model_id: "deepseek/deepseek-v4-flash"
-      tools_config:
-        eci_extractor:
-          model_id: "deepseek/deepseek-v3.2"
-          concurrency: 10
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "ctb_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+
+  - name: "ctb_res5"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 5
+
+
+  - name: "ctb_sel_bert"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+
+  - name: "ctb_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+
+  # ────────────────────────── event_story_line (233) ───────────────────────────
+
+  - name: "esl_fs1"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "esl_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+  - name: "esl_res5"
+    overrides:
+      <<: *base
       active_dataset: "event_story_line"
       experiment:
-        tools:
-          - "coherence"
-          # - "counterfactual_check" 
-          # - "eci_extractor"
-          # - "eci_extractor_intra"
-        enable_tools: false
+        <<: *experiment
         resampling:
-          enabled: false
-          distinct_fewshots: true 
-          n_runs: 3
-        retries: 3
-      few_shot:
-        enabled: true
-        n_examples: 3
-        pool_size: 100
-        # "random" "similarity" "mentions" "bert" "smallest"
-        selection: "random"
-        density_stratify: false
-        intra_only: false
-        cot_generation:
-          enabled: true
-          num_steps: 3
-      data:
-        binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
-        vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
-        binary_default: "norel" 
-        novote_norel: true
-      datasets:
-        maven_ere:
-          max_examples: 710 # 710
-          # prompt: "maven_ere_standard_eci_intra_tool"
-          # prompt: "common_eci_extractor_tool" 
-          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
-          prompt: "maven_ere_standard_eci_intra_lean"
-          # prompt: "maven_ere_standard_eci_intra_naive"
-          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
-          # prompt: "maven_ere_standard_eci_norule_coref"
-        # meci:
-        #   max_examples: 50
-        #   # prompt: "meci_standard_eci_binary"
-        #   prompt: "esl_standard_eci_intra"
-        #   # prompt: "meci_standard_eci_tools"
-        causal_timebank:
-          max_examples: 183 # 183 
-          # prompt: "causal_timebank_explicit_marker"
-          # prompt: "causal_timebank_no_marker"
-          prompt: "causal_timebank_syntax"
-          # prompt: "causal_timebank_anchor_test"
-        event_story_line:
-          max_examples: 233 # 233
-          # prompt: "common_eci_extractor_tool"
-          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
-          prompt: "esl_standard_eci_intra_lean"
-          # prompt: "esl_standard_eci_norule_intra"
-  - name: "i"
+          <<: *resampling
+          n_runs: 5
+
+  - name: "esl_sel_bert"
     overrides:
-      model:
-        default_model_id: "deepseek/deepseek-v4-flash"
-      tools_config:
-        eci_extractor:
-          model_id: "deepseek/deepseek-v3.2"
-          concurrency: 10
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+  - name: "esl_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+
+  # ───────────────────────────── maven_ere (710) ───────────────────────────────
+
+  - name: "maven_fs1"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        n_examples: 1
+
+  - name: "maven_fs5"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        n_examples: 5
+
+  - name: "maven_res5"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 5
+
+  - name: "maven_sel_bert"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        selection: "bert"
+
+  - name: "maven_sel_similarity"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        selection: "similarity"
+
+  - name: "ctb_fs7"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      few_shot:
+        <<: *few_shot
+        n_examples: 7
+
+  - name: "esl_fs7"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        n_examples: 7
+
+  - name: "maven_fs7"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        n_examples: 7
+
+  - name: "ctb_res7"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 7
+
+  - name: "esl_res7"
+    overrides:
+      <<: *base
       active_dataset: "event_story_line"
       experiment:
-        tools:
-          - "coherence"
-          # - "counterfactual_check" 
-          # - "eci_extractor"
-          # - "eci_extractor_intra"
-        enable_tools: false
+        <<: *experiment
         resampling:
-          enabled: true
-          distinct_fewshots: true 
-          n_runs: 3
-        retries: 3
+          <<: *resampling
+          n_runs: 7
+  
+  - name: "maven_res7"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      experiment:
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 7
+
+  - name: "ctb_sel_mentions"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
       few_shot:
-        enabled: true
-        n_examples: 3
-        pool_size: 100
-        # "random" "similarity" "mentions" "bert" "smallest"
-        selection: "random"
-        density_stratify: false
-        intra_only: false
-        cot_generation:
-          enabled: false
-          num_steps: 3
-      data:
-        binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
-        vote_to_binary: false          # post-hoc: recombine directed causes/causedby vote_counts into a binary
-        binary_default: "norel" 
-        novote_norel: true
-      datasets:
-        maven_ere:
-          max_examples: 710 # 710
-          # prompt: "maven_ere_standard_eci_intra_tool"
-          # prompt: "common_eci_extractor_tool" 
-          # prompt: "maven_ere_standard_eci_intra" # This has the close mentions rule
-          prompt: "maven_ere_standard_eci_intra_lean"
-          # prompt: "maven_ere_standard_eci_intra_naive"
-          # prompt: "maven_ere_standard_eci_intra_lean_nomenteventline"
-          # prompt: "maven_ere_standard_eci_norule_coref"
-        # meci:
-        #   max_examples: 50
-        #   # prompt: "meci_standard_eci_binary"
-        #   prompt: "esl_standard_eci_intra"
-        #   # prompt: "meci_standard_eci_tools"
-        causal_timebank:
-          max_examples: 183 # 183 
-          # prompt: "causal_timebank_explicit_marker"
-          # prompt: "causal_timebank_no_marker"
-          prompt: "causal_timebank_syntax"
-          # prompt: "causal_timebank_anchor_test"
-        event_story_line:
-          max_examples: 233 # 233
-          # prompt: "common_eci_extractor_tool"
-          # prompt: "esl_standard_eci_intra" # This has the close mentions rule
-          prompt: "esl_standard_eci_intra_lean"
-          # prompt: "esl_standard_eci_norule_intra"
+        <<: *few_shot
+        selection: "mentions"
+
+  - name: "esl_sel_mentions"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"
+      few_shot:
+        <<: *few_shot
+        selection: "mentions"
+  
+  - name: "maven_sel_mentions"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+      few_shot:
+        <<: *few_shot
+        selection: "mentions"
+  
+  - name: "maven_base"
+    overrides:
+      <<: *base
+      active_dataset: "maven_ere"
+  
+  - name: "ctb_base"
+    overrides:
+      <<: *base
+      active_dataset: "causal_timebank"
+
+  - name: "esl_base"
+    overrides:
+      <<: *base
+      active_dataset: "event_story_line"

@@ -123,9 +123,9 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
-  pool_size: 20         # max training docs to load (null = full split); limits CoT generation cost
+  pool_size: 100         # max training docs to load (null = full split); limits CoT generation cost
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
-  selection: "similarity"   
+  selection: "random"   
     # "random"     — resample every call for variance
     # "similarity" — TF-IDF cosine against the current doc text (sklearn required)
     # "mentions"   — Jaccard similarity on event mention text sets
@@ -147,10 +147,15 @@ few_shot:
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
   cot_generation:
     enabled: true      # true: generate realistic CoT few-shots via LLM
-    num_steps: 2        # 2 (default): gold-guided generation -> decontaminate
-                         # 3: blind generation (no golds) -> correct with golds -> decontaminate
-                         # num_steps=3 only applies to single-call prompts (no `steps:` in the
-                         # active prompt YAML); multi-step task prompts always use the 2-step protocol.
+    blind: true        # true: generate the reasoning without showing the golds, then revise it
+                         # against them (blind -> correct); false (default): one gold-guided pass.
+                         # Only applies to single-call prompts (no `steps:` in the active prompt
+                         # YAML); multi-step task prompts are always gold-guided.
+    rewrite: true       # true (default): a final pass rewrites the response from scratch to strip
+                         # phrasing that reveals foreknowledge of the golds (decontamination);
+                         # false: keep the gold-guided/corrected response as generated.
+                         # blind: false + rewrite: true is the former num_steps: 2 protocol,
+                         # blind: true + rewrite: true the former num_steps: 3.
     cache_path: "logs/cot_cache.json"  # persist generated CoTs across runs (~ to disable). Keyed by
                                    # doc id + a fingerprint of the model, prompt and gold-formatting
                                    # config, so entries can never cross experiments.
@@ -180,8 +185,8 @@ encoder:
 # =============================================================================
 # Set this to the key of the dataset you want to evaluate.
 # active_dataset: "maven_ere"
-# active_dataset: "event_story_line"
-active_dataset: "meci"
+active_dataset: "event_story_line"
+# active_dataset: "meci"
 # active_dataset: "causal_timebank"
 
 # =============================================================================
@@ -196,7 +201,8 @@ datasets:
     text_field: "text"
     ann_field: "annots"
     # prompt: "common_eci_tool"    
-    prompt: "maven_ere_standard_eci"
+    # prompt: "maven_ere_standard_eci"
+    prompt: "maven_ere_standard_eci_intra_lean"
     # prompt: "maven_ere_eci_bin"
     # prompt: "maven_ere_eci"
     # prompt: "maven_ere_1"
@@ -207,8 +213,8 @@ datasets:
     kfold:
       enabled: false
       n_folds: -1
-    # max_examples: 710
-    max_examples: 50
+    max_examples: 710
+    # max_examples: 50
     # max_examples: 5
 
   meci:
@@ -233,10 +239,10 @@ datasets:
     # prompt: "medi_autoprompt_deepseek"
     # prompt: "meci_autoprompt_deepseek_30"
     # max_examples: 716
-    max_examples: 50
+    # max_examples: 50
     # max_examples: 10
     # max_examples: 5
-    # max_examples: 1
+    max_examples: 1
 
 
   causal_timebank:
@@ -253,7 +259,8 @@ datasets:
     # prompt: "meci_orig"
     # prompt: "causal_timebank_sort"
     # prompt: "causal_timebank_standard_eci"
-    prompt: "causal_timebank_standard_eci_norule"
+    # prompt: "causal_timebank_standard_eci_norule"
+    prompt: "causal_timebank_syntax"
     # prompt: "meci_sort"
     # max_examples: 183
     max_examples: 50
@@ -272,7 +279,8 @@ datasets:
       enabled: true
       n_folds: 5
     # prompt: "common_eci_tool"    
-    prompt: "esl_standard_eci"
+    prompt: "esl_standard_eci_intra_lean"
+    # prompt: "esl_standard_eci"
     # prompt: "event_story_line_binary_cot"
     # prompt: "event_story_line_binary"
     # prompt: "event_story_line_eci"

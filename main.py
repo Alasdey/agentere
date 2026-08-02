@@ -465,7 +465,8 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             system_prompt=prompt_cfg["system"],
             concurrency=config["experiment"]["concurrency"],
             cache_path=fs_cfg["cot_generation"]["cache_path"],
-            num_steps=fs_cfg["cot_generation"]["num_steps"],
+            blind=fs_cfg["cot_generation"]["blind"],
+            rewrite=fs_cfg["cot_generation"]["rewrite"],
             retries=config["experiment"]["retries"],
             dump_dir=fs_cfg["cot_generation"]["dump_dir"],
         )
