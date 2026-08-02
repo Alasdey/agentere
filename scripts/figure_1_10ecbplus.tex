@@ -1,0 +1,46 @@
+\documentclass{article}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+% Inline event-mention box
+\newcommand{\tikzmarkbox}[3][]{%
+  \tikz[remember picture, baseline=(#2.base)]%
+    \node[draw=blue, fill=blue!10, rectangle, rounded corners,
+      inner sep=1pt, outer sep=0pt, #1, anchor=base] (#2) {#3};%
+}
+
+\parindent=0pt
+\begin{document}
+
+\begin{figure}[htbp]
+\centering
+
+{\normalsize\bfseries EventStoryLine~0.9\enspace$\cdot$\enspace\texttt{1\_10ecbplus.xml}}
+
+\medskip
+
+\begin{tikzpicture}[remember picture]
+\node[text width=12.0cm, align=justify] (mainText) {%
+Lindsay Lohan \tikzmarkbox{n14}{checks into} Betty Ford Center May 03, 2013 After skipping out on \tikzmarkbox{n3}{entering} a Newport Beach rehabilitation facility and \tikzmarkbox{n4}{facing} the prospect of \tikzmarkbox{n43}{arrest} for \tikzmarkbox{n6}{violating} her \tikzmarkbox{n19}{probation}, Lindsay Lohan has \tikzmarkbox{n5}{checked into} the Betty Ford Center to \tikzmarkbox{n1}{begin} a 90 - day court - mandated \tikzmarkbox{n44}{stay} in her reckless \tikzmarkbox{n15}{driving} \tikzmarkbox{n16}{conviction}. Lohan was previously at Betty Ford from September 2010 to January 2011 after a \tikzmarkbox{n17}{probation} \tikzmarkbox{n13}{violation} in a prior \tikzmarkbox{n18}{drunk} \tikzmarkbox{n11}{driving} \tikzmarkbox{n12}{case}. Her latest \tikzmarkbox{n7}{stay} at Betty Ford \tikzmarkbox{n2}{comes} after Lohan \tikzmarkbox{n8}{rear - ended} a truck with her Porsche on Pacific Coast Highway on June 8, and then \tikzmarkbox{n10}{lied} to police, \tikzmarkbox{n9}{telling} them she was not \tikzmarkbox{n36}{driving}.%
+};
+\end{tikzpicture}
+
+\medskip
+
+\includegraphics[width=12.0cm]{graph_1_10ecbplus.png}
+
+\smallskip
+
+\begin{center}\small
+\tikz[baseline=(b.base)]{\node[draw=blue, fill=blue!10, rounded corners, inner sep=2pt, font=\small] (b) {event};}\enspace event mention\qquad
+\tikz[baseline=0pt]{\draw[-{Stealth[length=2mm]}, thick, red!70!black, shorten >=2pt](0,0.5ex)--(2em,0.5ex);}\enspace causes
+\end{center}
+
+\caption{Annotated example from EventStoryLine~0.9 (\texttt{1\_10ecbplus.xml}). Blue boxes are event mentions. Arrows show causes relations.}
+\label{fig:1-10ecbplus-xml}
+\end{figure}
+
+\end{document}

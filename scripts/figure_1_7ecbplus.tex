@@ -1,0 +1,46 @@
+\documentclass{article}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+% Inline event-mention box
+\newcommand{\tikzmarkbox}[3][]{%
+  \tikz[remember picture, baseline=(#2.base)]%
+    \node[draw=blue, fill=blue!10, rectangle, rounded corners,
+      inner sep=1pt, outer sep=0pt, #1, anchor=base] (#2) {#3};%
+}
+
+\parindent=0pt
+\begin{document}
+
+\begin{figure}[htbp]
+\centering
+
+{\normalsize\bfseries EventStoryLine~0.9\enspace$\cdot$\enspace\texttt{1\_7ecbplus.xml}}
+
+\medskip
+
+\begin{tikzpicture}[remember picture]
+\node[text width=12.0cm, align=justify] (mainText) {%
+Lindsay Lohan \tikzmarkbox{n1}{Checks Into} Court - \tikzmarkbox{n7}{Ordered} \tikzmarkbox{n27}{Rehab} May 02, 2013 Lindsay Lohan's lawyer \tikzmarkbox{n9}{says} the actress \tikzmarkbox{n2}{checked into} rehab on Thursday, but the facility has not been officially \tikzmarkbox{n3}{sanctioned} by the court that \tikzmarkbox{n4}{ordered} her to serve 90 days of \tikzmarkbox{n5}{treatment}. \tikzmarkbox{n10}{Attorney} Mark Jay Heller \tikzmarkbox{n8}{told} LA Superior Court Judge James R. Dabney that Lohan, 26, had \tikzmarkbox{n6}{checked into} Morningside Recovery in Newport Beach, CA, according to the Associated Press.%
+};
+\end{tikzpicture}
+
+\medskip
+
+\includegraphics[width=12.0cm]{graph_1_7ecbplus.png}
+
+\smallskip
+
+\begin{center}\small
+\tikz[baseline=(b.base)]{\node[draw=blue, fill=blue!10, rounded corners, inner sep=2pt, font=\small] (b) {event};}\enspace event mention\qquad
+\tikz[baseline=0pt]{\draw[-{Stealth[length=2mm]}, thick, red!70!black, shorten >=2pt](0,0.5ex)--(2em,0.5ex);}\enspace causes
+\end{center}
+
+\caption{Annotated example from EventStoryLine~0.9 (\texttt{1\_7ecbplus.xml}). Blue boxes are event mentions. Arrows show causes relations.}
+\label{fig:1-7ecbplus-xml}
+\end{figure}
+
+\end{document}
