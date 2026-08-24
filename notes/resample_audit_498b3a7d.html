@@ -1,0 +1,910 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What 20 Passes Bought</title>
+<style>
+:root {
+  color-scheme: light;
+  --ground:      #f5f7f9;
+  --panel:       #ffffff;
+  --panel-2:     #eef1f5;
+  --ink:         #10151b;
+  --ink-2:       #56616e;
+  --ink-3:       #7d8794;
+  --rule:        #dbe1e8;
+  --rule-strong: #b9c3ce;
+  --s1:          #2a78d6;
+  --s2:          #eb6834;
+  --s3:          #1baf7a;
+  --neutral-mark:#c3ccd6;
+  --flag:        #b34a1c;
+  --shadow:      0 1px 2px rgba(16,21,27,.06), 0 8px 24px -12px rgba(16,21,27,.18);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #11151a;
+    --panel:       #171d24;
+    --panel-2:     #1e252e;
+    --ink:         #e9edf2;
+    --ink-2:       #a2aeba;
+    --ink-3:       #7e8a97;
+    --rule:        #29323d;
+    --rule-strong: #3b4653;
+    --s1:          #3987e5;
+    --s2:          #d95926;
+    --s3:          #199e70;
+    --neutral-mark:#414c58;
+    --flag:        #e2884f;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #11151a;
+  --panel:       #171d24;
+  --panel-2:     #1e252e;
+  --ink:         #e9edf2;
+  --ink-2:       #a2aeba;
+  --ink-3:       #7e8a97;
+  --rule:        #29323d;
+  --rule-strong: #3b4653;
+  --s1:          #3987e5;
+  --s2:          #d95926;
+  --s3:          #199e70;
+  --neutral-mark:#414c58;
+  --flag:        #e2884f;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px 120px; }
+.prose { max-width: 68ch; }
+p { margin: 0 0 1em; }
+a { color: var(--s1); }
+
+/* ---------- masthead ---------- */
+.mast {
+  border-bottom: 1px solid var(--rule);
+  padding: 56px 0 30px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.eyebrow {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3); margin: 0;
+}
+h1 {
+  font-family: var(--serif); font-weight: 600; font-size: clamp(34px, 5vw, 52px);
+  line-height: 1.05; letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.standfirst { font-size: 20px; line-height: 1.5; color: var(--ink-2); max-width: 60ch; margin: 0; }
+.runbar {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: var(--mono);
+  font-size: 12px; color: var(--ink-2); padding-top: 6px;
+}
+.runbar b { color: var(--ink); font-weight: 500; }
+
+/* ---------- tiles ---------- */
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+  margin: 40px 0 8px; border-radius: 3px; overflow: hidden;
+}
+.tile { background: var(--panel); padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 4px; }
+.tile .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.tile .v { font-family: var(--mono); font-size: 27px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile .n { font-size: 13.5px; color: var(--ink-2); font-family: var(--sans); line-height: 1.4; }
+
+/* ---------- sections ---------- */
+section { margin-top: 62px; }
+.shead { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--rule-strong); padding-bottom: 8px; margin-bottom: 26px; }
+.shead h2 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+.shead .tag { margin-left: auto; }
+h3 { font-size: 19px; font-weight: 600; margin: 34px 0 10px; }
+.tag {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-2); border: 1px solid var(--rule-strong); border-radius: 2px;
+  padding: 3px 8px; white-space: nowrap;
+}
+.tag.hot { color: var(--flag); border-color: var(--flag); }
+
+/* ---------- callout ---------- */
+.callout {
+  background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--s2);
+  border-radius: 2px; padding: 16px 20px; margin: 24px 0; font-size: 16px;
+}
+.callout .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--s2); display: block; margin-bottom: 6px; }
+.callout p:last-child { margin-bottom: 0; }
+.callout.calm { border-left-color: var(--s1); }
+.callout.calm .lbl { color: var(--s1); }
+
+/* ---------- tables ---------- */
+.tablewrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--rule); border-radius: 3px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-family: var(--sans); font-size: 13px; color: var(--ink-2); padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+th, td { padding: 5px 12px; text-align: right; white-space: nowrap; }
+th {
+  font-weight: 500; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); border-bottom: 1px solid var(--rule-strong); position: sticky; top: 0; background: var(--panel);
+}
+th:first-child, td:first-child { text-align: left; }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+tbody tr.sum { border-top: 1px solid var(--rule-strong); background: var(--panel-2); }
+tbody tr.sum td { color: var(--ink); }
+td.dim { color: var(--ink-3); }
+td.best { font-weight: 600; color: var(--ink); }
+td.best::after { content: " \25B2"; font-size: 8px; vertical-align: 1.5px; color: var(--ink-3); }
+td.worst { color: var(--ink-3); }
+td.worst::after { content: " \25BC"; font-size: 8px; vertical-align: 1.5px; }
+td.mark { font-weight: 600; color: var(--ink); }
+
+/* ---------- charts ---------- */
+figure { margin: 30px 0 34px; background: var(--panel); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 20px 14px; }
+figure .ftitle { font-family: var(--sans); font-size: 14.5px; font-weight: 600; margin-bottom: 2px; }
+figure .fsub { font-family: var(--sans); font-size: 13px; color: var(--ink-2); margin-bottom: 14px; max-width: 74ch; }
+figcaption { font-family: var(--sans); font-size: 12.5px; color: var(--ink-3); margin-top: 10px; line-height: 1.5; }
+.chartbox { position: relative; overflow-x: auto; }
+.chartbox svg { display: block; width: 100%; min-width: 700px; height: auto; }
+#c-grid svg, #c-mat svg { width: auto; min-width: 0; max-width: none; }
+svg text { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-bottom: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.tip {
+  position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+  background: var(--panel); border: 1px solid var(--rule-strong); border-radius: 3px;
+  box-shadow: var(--shadow); padding: 7px 10px; font-family: var(--mono); font-size: 11.5px;
+  line-height: 1.5; color: var(--ink); white-space: nowrap; z-index: 5; font-variant-numeric: tabular-nums;
+}
+.tip b { font-weight: 600; }
+
+/* ---------- misc ---------- */
+ul.findings { list-style: none; padding: 0; margin: 18px 0; display: flex; flex-direction: column; gap: 14px; }
+ul.findings li { display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: baseline; }
+ul.findings .num { font-family: var(--mono); font-size: 15px; color: var(--s1); text-align: right; font-variant-numeric: tabular-nums; }
+ul.findings .num.warn { color: var(--flag); }
+.prose ul.plain { padding-left: 1.15em; }
+.prose ul.plain li { margin-bottom: .5em; }
+code { font-family: var(--mono); font-size: .88em; background: var(--panel-2); padding: 1px 5px; border-radius: 2px; }
+hr.soft { border: 0; border-top: 1px solid var(--rule); margin: 34px 0; }
+.foot { margin-top: 70px; padding-top: 20px; border-top: 1px solid var(--rule); font-family: var(--sans); font-size: 13px; color: var(--ink-3); }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .wrap { padding: 0 18px 80px; }
+  ul.findings li { grid-template-columns: 1fr; gap: 2px; }
+  ul.findings .num { text-align: left; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Resampling diagnostics · agentere</p>
+  <h1>What 20 passes bought</h1>
+  <p class="standfirst">Every one of the 1,000 individual LLM passes behind run <b>498b3a7d</b> was recovered from the MLflow traces and scored on its own. This is what the TP/FP/TN/FN look like pass by pass — and what the 20-way vote did and didn't buy.</p>
+  <div class="runbar">
+    <span>run <b>498b3a7d</b></span>
+    <span>ESL v0.9 · train[:50]</span>
+    <span>deepseek-v4-flash · <b>T=0</b></span>
+    <span>20 passes × 50 docs = <b>1,000</b> calls</span>
+    <span>intra-only prompt</span>
+    <span>tie&nbsp;→&nbsp;norel</span>
+  </div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><span class="k">Single pass · intra F1</span><span class="v">0.384</span><span class="n">±0.015 sd, range 0.353–0.415 across the 20 passes</span></div>
+  <div class="tile"><span class="k">20-vote ensemble</span><span class="v">0.401</span><span class="n">the logged <code>binary_intra</code> headline: +0.017 over the mean pass</span></div>
+  <div class="tile"><span class="k">Best fixed threshold</span><span class="v">0.439</span><span class="n">k≥6 instead of majority; 0.427 held out under document-level CV</span></div>
+  <div class="tile"><span class="k">Cost of passes 6–20</span><span class="v">$0.78</span><span class="n">of $1.04 total, for −0.001 F1 against a 5-pass vote</span></div>
+</div>
+
+<section>
+  <div class="shead"><h2>How these numbers exist at all</h2><span class="tag">reconstruction verified</span></div>
+  <div class="prose">
+    <p>The run report only stores the aggregated vote (<code>vote_counts</code> per pair), so per-pass confusion matrices were not recoverable from it. They were rebuilt from <code>mlflow.db</code>: exactly 1,000 traces carry a <code>doc_id</code> tag — 20 per document for all 50 documents — and each root span holds the full model output. Every output was re-parsed with <code>main.py</code>'s own <code>parse_llm_json</code>, then re-aggregated through <code>utils.resample.aggregate_run_triples</code> and <code>utils.reporting</code>.</p>
+    <p>The rebuild reproduces the logged artifact <b>exactly</b>: 4,067 pair rows, zero <code>vote_counts</code> mismatches, zero prediction mismatches, and <code>binary</code>/<code>binary_intra</code>/<code>binary_inter</code> identical to 16 digits. Nothing below is an estimate of the run — it is the run, disaggregated.</p>
+  </div>
+
+  <div class="callout calm">
+    <span class="lbl">One caveat on pass identity</span>
+    <p><code>constrain_to_pair_list</code> is <code>false</code> for ESL, so no pair list is enumerated in the prompt and <code>reshuffle_per_resample</code> has nothing to reshuffle — all 20 prompts for a document are byte-identical. Pass index is therefore arbitrary (ordered here by trace start time) and carries no shared factor across documents. That does not affect any distribution below; it only means "pass&nbsp;7" is a label, not an experimental condition. It also means every difference you see between passes at <b>temperature 0</b> is pure backend nondeterminism.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>The confusion matrices, pass by pass</h2><span class="tag">intra</span></div>
+  <div class="prose">
+    <p>Counts are over the real candidate space — every ordered mention pair <code>(a,b), a≠b</code> in the 50 documents, which is how <code>pair_list_ids</code> is built. That is 25,742 directed pairs, 4,038 of them intra-sentence, with 2,020 gold positives (598 intra). TP, FP and FN are identical to what the run report would give; only TN differs, for reasons in the last section.</p>
+  </div>
+  <div class="tablewrap" id="tbl-intra"></div>
+  <div class="prose">
+    <p>The spread is not subtle. FP swings by 224 between the leanest and the most talkative pass — a third of its own mean — while TP swings by 70. Precision and recall move in opposite directions across passes and very nearly cancel: the correlation between a pass's output volume and its recall is <b>+0.74</b>, with precision at <b>−0.50</b>, leaving F1 essentially uncorrelated with volume (<b>+0.03</b>). Each pass is a different point on the same trade-off curve, not a better or worse classifier drawn from one distribution.</p>
+  </div>
+  <div class="tablewrap" id="tbl-binary"></div>
+  <div class="prose">
+    <p>The <code>binary</code> view adds the 21,704 inter-sentence pairs, of which 1,422 are gold positive. Since the prompt forbids answering them, they are almost all FN by construction — FN barely moves (cv 1.1%) because it is dominated by a fixed block of ~1,400 unanswerable pairs.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Where the passes sit against the vote curve</h2><span class="tag">the central figure</span></div>
+  <figure>
+    <div class="ftitle">Single passes vs. thresholded votes, intra-sentence</div>
+    <div class="fsub">Each blue dot is one of the 20 passes. The orange line is what you get by keeping every pair with at least <i>k</i> causal votes, sweeping k from 20 (top left) to 1 (bottom right). The ensemble actually shipped — 3-way argmax over {causes, causedby, norel} — is the ringed point.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>individual pass</span>
+      <span><i style="background:var(--s2)"></i>vote threshold k≥1…20</span>
+      <span><i style="background:var(--s3)"></i>shipped ensemble (logged 0.4012)</span>
+    </div>
+    <div class="chartbox" id="c-pr"></div>
+    <figcaption>Iso-F1 contours in grey. The vote curve passes above the pass cloud, but not by much: at the mean single-pass recall (0.507) thresholding buys precision 0.334 against 0.309 — about +0.02 F1. The large gain sits further down the curve, at k≥6.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="shead"><h2>Majority vote is the wrong threshold</h2><span class="tag hot">+0.04 F1 left on the table</span></div>
+  <figure>
+    <div class="ftitle">F1 as a function of the vote threshold</div>
+    <div class="fsub">Majority (k≥11) is a default, not an optimum. On intra pairs the F1 peak sits at k≥6, and the curve is nearly flat from k=3 to k=8.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>intra</span>
+      <span><i style="background:var(--s2)"></i>binary (all pairs)</span>
+    </div>
+    <div class="chartbox" id="c-thresh"></div>
+    <figcaption>Selecting k on the data is worth checking honestly: under 2-fold document-level CV (200 random splits), tuning k on one half scores <b>0.427 ± 0.028</b> on the other, against <b>0.399</b> for fixed majority and <b>0.439</b> for the in-sample optimum. The tuning is real, worth roughly +0.028; the extra +0.012 is selection bias. k=6 or 7 was chosen in 75% of folds.</figcaption>
+  </figure>
+  <div class="callout">
+    <span class="lbl">A quieter bug in the aggregation</span>
+    <p><code>aggregate_run_triples</code> takes a 3-way argmax over {causes, causedby, norel}, with norel votes implied by absence. A pair split 6&nbsp;causes / 5&nbsp;causedby / 9&nbsp;norel therefore resolves to <b>norel</b> even though 11 of 20 passes called it causal. That happened to <b>8 pairs</b> here. All 8 were gold-negative, so this run got lucky — direction splitting bought +0.0023 F1 instead of costing recall. It is still an unintended coupling between the directional decision and the binary one; <code>data.vote_to_binary</code> exists to remove it and is currently off.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>How many passes were actually needed</h2><span class="tag hot">5</span></div>
+  <figure>
+    <div class="ftitle">Majority vote over m randomly chosen passes</div>
+    <div class="fsub">400 random subsets per m; ties broken to norel, matching the run's <code>tie_breaking</code>. Bands are ±1 sd over subsets.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>intra F1</span>
+      <span><i style="background:var(--s2)"></i>binary F1</span>
+    </div>
+    <div class="chartbox" id="c-size"></div>
+    <figcaption>Intra F1 reaches 0.397 at m=3 and 0.400 at m=5, then flattens and drifts <i>down</i> to 0.399 at m=20 — more voters means a stricter effective threshold, and the F1 optimum is at a looser one. Even m sees the tie rule push toward norel, which is why m=2 collapses to 0.359. On binary, voting never gains: m=3 ties a single pass at 0.210 and every larger m is worse.</figcaption>
+  </figure>
+  <div class="prose">
+    <p>At $0.052 per pass, the run spent <b>$0.78</b> on passes 6 through 20 to move intra F1 by <b>−0.001</b>. The one thing the extra passes do buy is a finer-grained vote count, which is what makes the k≥6 threshold and the ranking below possible — but 8–10 passes would give nearly the same resolution.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Are the passes really different, or just noisy?</h2><span class="tag">systematically different</span></div>
+  <div class="prose">
+    <p>If each pair fired independently in each pass with its own rate <i>p<sub>i</sub></i> = k<sub>i</sub>/20, the variance of a pass's positive count would be Σ&nbsp;p<sub>i</sub>(1−p<sub>i</sub>). It isn't close.</p>
+  </div>
+  <ul class="findings">
+    <li><span class="num warn">13.2×</span><span><b>Overdispersion in output volume.</b> Observed variance of intra predictions per pass is 4,190 against 318 expected under independent per-pair noise (χ² = 250.5 on 19 df, p ≈ 2×10⁻⁴²). One pass emits 848 positives, another 1,118. The <i>mechanism</i> is document-level clustering, not a persistent per-pass temperament — see the dependency section below.</span></li>
+    <li><span class="num warn">11.9×</span><span><b>…concentrated in false positives.</b> FP variance is 2,889 vs 242 expected. TP is much better behaved at 3.9× — the extra talk lands mostly on negatives.</span></li>
+    <li><span class="num warn">123.5</span><span><b>Cochran's Q over the 20 passes</b> (19 df, p ≈ 2×10⁻¹⁷): the passes are not equally accurate. 88 of the 190 pass pairs differ at p&lt;0.05 by McNemar; worst vs. best pass gives 358/261 discordant pairs, p = 0.0001.</span></li>
+    <li><span class="num">0.55</span><span><b>Fleiss κ across the 20 passes</b> on intra pairs (0.64 on binary). Mean pairwise Cohen κ is 0.550 ± 0.032. Two passes share only <b>49%</b> of their positive sets by Jaccard.</span></li>
+  </ul>
+  <div class="callout">
+    <span class="lbl">What this means for the resampling design</span>
+    <p>These are not 20 draws from one classifier with per-pair jitter. Majority voting over correlated voters is exactly the regime where voting underdelivers — which is what the +0.017 measures. What the correlation is <i>between</i> turns out to be the important question, and it is answered next: not between passes, but between the pairs inside a document.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Pairs are not decided independently</h2><span class="tag hot">binary_intra</span></div>
+  <div class="prose">
+    <p>Everything in this section is intra-sentence only, and collapsed to <b>undirected</b> decisions for the reason immediately below. The null throughout is a permutation that keeps each decision's vote count and destroys coupling — shuffle the pass axis independently per pair.</p>
+  </div>
+
+  <h3>The mirror is one decision wearing two rows</h3>
+  <div class="prose">
+    <p>Of 2,019 undirected intra pairs × 20 passes = 40,380 direction-decisions, exactly <b>5</b> were asymmetric. φ between mirrored directions is <b>0.9991</b> (median 1.000), agreement 0.9999. The prompt's symmetry rule is obeyed essentially deterministically, so the 4,038 intra rows are <b>2,019 decisions</b> and <code>support_pos = 598</code> is <b>299 links</b>. F1 is unaffected — precision and recall both scale — but every count, every χ², every confidence interval is on half the independent units it looks like.</p>
+  </div>
+
+  <h3>Inside a document, decisions travel together</h3>
+  <figure>
+    <div class="ftitle">Correlation across the 20 passes between two distinct decisions</div>
+    <div class="fsub">Mean Pearson r over all decision pairs in each class, restricted to decisions that ever vary. Grey ticks are the permutation null, which sits at zero everywhere.</div>
+    <div class="chartbox" id="c-dep"></div>
+    <figcaption>Cross-document correlation is flat zero: there is no global factor tying a pass's behaviour on one document to its behaviour on another. All of the dependence is inside the document, and it roughly doubles when the two decisions sit in the same sentence or share a mention. Median co-firing lift inside a sentence is 1.54× independence.</figcaption>
+  </figure>
+
+  <h3>One document, every decision, all 20 passes</h3>
+  <div class="prose">
+    <p><code>1_15ecbplus.xml</code> has 20 candidate intra-sentence relations spread over four sentences — small enough to print whole. Twelve of the twenty vary across passes. Read the grid first: each row is a pass, each column a relation, a filled cell means that pass called it causal.</p>
+  </div>
+  <figure>
+    <div class="ftitle">Pass × relation incidence — <code>1_15ecbplus.xml</code></div>
+    <div class="fsub">20 passes down, 20 candidate relations across, grouped by sentence. ◆ marks a relation that is causal in the gold annotation.</div>
+    <div class="chartbox" id="c-grid"></div>
+    <figcaption>Sentence 4 is switched on in nearly every pass, sentence 5 is off in every pass except one unanimous relation, and sentence 3 flickers. Per-pass totals run from 6 to 13 of the 20 relations.</figcaption>
+  </figure>
+  <figure>
+    <div class="ftitle">Covariance across the 20 passes, same document</div>
+    <div class="fsub">Cells are the Pearson correlation of the two relations' 0/1 vectors over the 20 passes; the raw covariance is in the tooltip, since |cov| ≤ 0.25 for binary variables and does not spread over a colour scale. A dot means one of the two relations never varied (k = 0 or k = 20), so no correlation is defined. Blocks are sentences.</div>
+    <div class="legend" id="c-mat-legend"></div>
+    <div class="chartbox" id="c-mat"></div>
+    <figcaption>The strong positives are all inside sentence 4, and the strongest of them share a mention: <b>(negotiated, traveled)</b> with <b>(negotiated, register)</b> at r = +0.81, <b>(change, register)</b> with <b>(change, treatment)</b> at +0.79. Within this document, within-sentence r averages <b>+0.294</b> and across-sentence r averages <b>−0.109</b> — a pass that spends its output on one sentence tends to spend less on another. The largest negative, −0.69, runs between sentence 3's (admitted, checking in) and sentence 4's (change, traveled).</figcaption>
+  </figure>
+
+  <h3>The sentence is the unit, but the event is not</h3>
+  <ul class="findings">
+    <li><span class="num warn">10.3×</span><span><b>Per-document counts are over-dispersed.</b> Summed over documents, the observed variance of positives per pass is 1,642 against 159 under independence. Median per-document ratio 3.7; the worst is <code>1_13ecbplus.xml</code>, which emits between <b>3 and 70</b> of its 73 candidate decisions depending on the pass (32×). <code>1_12ecbplus</code> runs 3→46, <code>3_4ecbplus</code> 8→49.</span></li>
+    <li><span class="num">16.2%</span><span><b>Sentences behave like switches.</b> In sentences with ≥3 candidates, every decision is off in 16.2% of (sentence, pass) cells against 13.4% under independence, and every decision is on in 3.85% against 2.14%. Both tails are inflated.</span></li>
+    <li><span class="num">1.04×</span><span><b>But there is no hub-event effect.</b> The variance-to-mean ratio of mention degree in a pass's predicted graph is 0.857, against 0.825 for a random selection of the same size from the same document. The model is not deciding "this event is causal" — the clustering is regional, not per-mention.</span></li>
+  </ul>
+
+  <h3>Errors: same document yes, same pass no</h3>
+  <div class="prose">
+    <p>Two different questions hide behind "are the errors always in the same runs".</p>
+  </div>
+  <ul class="findings">
+    <li><span class="num">p=0.20</span><span><b>There is no bad pass.</b> Kendall's W over the 50 documents, against a null that re-aligns pass labels at random: error count W = 0.087 vs null 0.075 (z = +0.8, p = 0.196); F1 W = 0.085 vs 0.075 (p = 0.26). Only output volume clears the null (W = 0.109 vs 0.068, p = 0.006), and that traces to a faint start-time effect (r = +0.081 between a pass's start order within its document and its volume, p = 0.022) — scheduling, worth 0.6% of variance. Pass identity does not survive from one document to the next; cross-document covariance is in fact <b>negative</b> (−600 against +1,642 within).</span></li>
+    <li><span class="num">−1/19</span><span><b>No error personality either.</b> The 20×20 pass correlation matrix over per-decision errors averages −0.0526, which is exactly the −1/(k−1) centering artifact — no structure. Its leading eigenvalue is 1.81 against a ~1.29 noise bound: one weak factor worth 9.1% of pass-space variance (noise alone gives ~5%), loading 0.55 on output volume.</span></li>
+    <li><span class="num warn">+0.37</span><span><b>Within a document, errors absolutely co-occur.</b> FP-with-FP correlation is +0.261 in the same document and <b>+0.368</b> in the same sentence (TP-with-TP: +0.182 / +0.303). <b>87.8%</b> of false positives in multi-candidate sentences arrive with company — 5,748 against 795 arriving alone.</span></li>
+    <li><span class="num">0.58</span><span><b>Misses are stabler than false alarms.</b> FN-set Jaccard between passes is 0.576 against 0.455 for FP sets. The model reliably fails to see the same links; what fluctuates is how much extra it invents. This is why voting cannot clean up — the co-firing errors co-fire in <i>most</i> passes, which is the 46% of FP mass sitting at k ≥ 16.</span></li>
+  </ul>
+
+  <div class="callout">
+    <span class="lbl">What this costs the headline interval</span>
+    <p>Bootstrapping the 20-vote F1 of 0.399 by different units: <b>directed rows as logged (4,038)</b> sd 0.0168, CI [0.367, 0.432] · <b>undirected decisions (2,019)</b> sd 0.0240, CI [0.350, 0.447] · <b>sentences (221)</b> sd 0.0268 · <b>documents (50)</b> sd 0.0281, CI [0.344, 0.454]. Design effect <b>2.78×</b>; effective n ≈ <b>1,450</b>, not 4,038. Two configurations differing by less than about 0.06 F1 are not separable on 50 documents, and any pair-level significance test between runs will manufacture differences that are not there. Cluster by document.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>What the vote count is worth as a score</h2><span class="tag">AUC 0.769</span></div>
+  <figure>
+    <div class="ftitle">Every intra pair by its causal vote count</div>
+    <div class="fsub">Bars are pair counts; the blue portion is gold-positive. k=0 is omitted — 1,614 pairs no pass ever proposed, only 3.3% of them gold-positive.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>gold causal</span>
+      <span><i style="background:var(--neutral-mark)"></i>gold norel</span>
+    </div>
+    <div class="chartbox" id="c-hist"></div>
+    <figcaption>P(gold+ | k) climbs from 3.3% at k=0 to 40.4% at k=20 — a 12× lift, Spearman +0.80 over the bins — but bin-to-bin it is ragged and the ceiling is low. Even unanimous agreement across all 20 passes is only 40% precise. Brier 0.162, ECE 0.139: the vote fraction ranks well and calibrates badly.</figcaption>
+  </figure>
+  <ul class="findings">
+    <li><span class="num">77%</span><span><b>of gold intra positives live in the contested zone</b> (1–19 votes). Only 14% are found unanimously, and <b>9% (54 pairs) are never proposed by any pass</b> — that is the hard recall ceiling of 0.910 for anything built on these votes.</span></li>
+    <li><span class="num">55%</span><span><b>of gold-negative intra pairs get at least one causal vote</b> (1,880 of 3,440). A single pass's ~679 false positives are drawn from that pool, but not uniformly: 46% of all FP mass comes from pairs that 16+ passes agree on. Voting cannot remove those.</span></li>
+  </ul>
+</section>
+
+<section>
+  <div class="shead"><h2>Three things that distort the headline numbers</h2><span class="tag hot">read before quoting</span></div>
+
+  <h3>1 · <code>binary</code> is mostly measuring pairs the prompt forbids answering</h3>
+  <div class="prose">
+    <p>70.4% of gold positives (1,422 of 2,020) are inter-sentence, and the system prompt says <i>"do NOT output a relation for that pair under any circumstances."</i> A perfect intra-only system would score binary R = 0.296, P = 1.0, <b>F1 = 0.457</b>. The logged 0.2016 is 44% of that ceiling, not 20% of a reachable 1.0. <code>binary_intra</code> is the only headline here that means what it looks like.</p>
+    <p>Note also that the model violates the scope rule in every pass: 27.5 inter-sentence predictions per pass on average (range 10–50). Those violations are <b>50.5% precise</b> — considerably better than its 30.9% precision on the intra pairs it was asked about. When it volunteers an out-of-scope answer, it is usually onto something.</p>
+  </div>
+
+  <h3>2 · The TN in the report is not a corpus TN</h3>
+  <div class="prose">
+    <p><code>reconstruct_pairwise_predictions</code> builds its universe as gold ∪ predicted ∪ <i>voted</i>, so the only negatives in the 4,067 logged rows are ones some pass voted for. Real candidate space is 25,742 pairs (4,038 intra). For the intra ensemble that is TN = 1,431 in the report universe vs <b>2,930</b> in reality — accuracy would read 0.673 instead of 0.794. Precision, recall and F1 are unaffected; accuracy, specificity, MCC and anything else touching TN are not comparable to published numbers computed over a fixed candidate set.</p>
+  </div>
+
+  <h3>3 · Direction is close to a coin flip</h3>
+  <div class="prose">
+    <p>Across all 20 passes, of the 6,069 intra pairs correctly identified as causal, only <b>59.6%</b> carry the correct arrow. That single factor is most of the gap between <code>binary_intra</code> F1 0.401 and the 3-class <code>micro_f1</code> of 0.118. Any effort spent on the causal/norel decision is worth roughly half as much as it looks until direction improves.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Pass noise is not your biggest uncertainty</h2><span class="tag">1.9×</span></div>
+  <div class="prose">
+    <p>Bootstrapping the 50 documents (2,000 resamples) puts the ensemble intra F1 at 0.399 with a 95% CI of <b>[0.343, 0.455]</b>, sd 0.029. Pass-to-pass sd is 0.015. Document sampling contributes about twice the uncertainty that resampling does, and the per-document instability is severe in its own right: mean within-document F1 sd across passes is 0.099, and on the smallest documents a single pass swings between 0.0 and 1.0.</p>
+    <p>Put bluntly: the 20× compute went into shrinking the smaller of the two error bars. The same budget spent on 200 documents with 3 passes each would have produced a materially tighter headline.</p>
+  </div>
+  <div class="tablewrap" id="tbl-doc"></div>
+</section>
+
+<section>
+  <div class="shead"><h2>What I would change</h2><span class="tag">actionable</span></div>
+  <ul class="findings">
+    <li><span class="num">1</span><span><b>Drop to 5–8 passes</b> and spend the saved calls on documents. Nothing in the F1 curve justifies 20; the vote resolution argument tops out around 8–10.</span></li>
+    <li><span class="num">2</span><span><b>Log per-pass predictions.</b> <code>aggregate_run_triples</code> already builds a <code>votes</code> list in run order and <code>main.py</code> keeps <code>pair_stats</code> — but only <code>vote_counts</code> survives into the report. Persisting the ordered votes would make this whole analysis a one-liner instead of a trace-mining exercise.</span></li>
+    <li><span class="num">3</span><span><b>Make the vote threshold a tuned parameter</b>, selected per fold on the training half (the 5-fold split already exists in the config). Worth +0.028 F1 honestly measured, versus 0 for hard-coded majority.</span></li>
+    <li><span class="num">4</span><span><b>Turn on <code>vote_to_binary</code></b> — or at least measure with it — so the directional split cannot silently veto a binary majority.</span></li>
+    <li><span class="num">5</span><span><b>Quote <code>binary_intra</code>, and only <code>binary_intra</code>.</b> The framework stays as it is — inter-sentence pairs remain in the pipeline for their own reasons — but <code>binary</code>, <code>micro_f1</code> and <code>macro_f1</code> from an intra-only prompt are ceiling-limited artefacts (0.457 max on binary) and should not be compared against anything.</span></li>
+    <li><span class="num">6</span><span><b>Cluster by document in every comparison.</b> Design effect 2.78× on the F1 interval; effective n ≈ 1,450 against 4,038 logged rows. A pair-level test between two configurations will report differences that a document-level bootstrap does not support. The practical threshold on 50 documents is about 0.06 F1.</span></li>
+    <li><span class="num">7</span><span><b>Count undirected decisions when reporting support.</b> The mirrored rows are one decision (φ = 0.999), so 598 gold intra positives are 299 links. This changes no metric value and every degrees-of-freedom.</span></li>
+    <li><span class="num">8</span><span><b>Treat TN-based numbers as offline recomputations.</b> Accuracy, specificity and MCC over the report's gold ∪ pred ∪ voted universe are not comparable across runs; recompute them over the fixed candidate space when they are needed, rather than reading them off the artifact.</span></li>
+  </ul>
+</section>
+
+<p class="foot">Rebuilt from <code>mlruns/1/0fc786024884402e9ce1eb7705c1f51f</code> and <code>mlflow.db</code> (1,000 tagged traces) · verified bit-identical to the logged report · ESL gold loaded offline from the HF cache.</p>
+
+</div>
+
+<script id="D" type="application/json">{"per_pass_binary": [{"pass": 0, "tp": 288, "fp": 668, "fn": 1732, "tn": 23054, "precision": 0.301255230125523, "recall": 0.14257425742574256, "f1": 0.1935483870967742, "mcc": 0.16270509631466903}, {"pass": 1, "tp": 326, "fp": 722, "fn": 1694, "tn": 23000, "precision": 0.3110687022900763, "recall": 0.1613861386138614, "f1": 0.21251629726205998, "mcc": 0.17818917828160669}, {"pass": 2, "tp": 280, "fp": 683, "fn": 1740, "tn": 23039, "precision": 0.29075804776739356, "recall": 0.13861386138613863, "f1": 0.18773047267851156, "mcc": 0.15562728532676057}, {"pass": 3, "tp": 340, "fp": 642, "fn": 1680, "tn": 23080, "precision": 0.34623217922606925, "recall": 0.16831683168316833, "f1": 0.22651565622918057, "mcc": 0.19829831164783904}, {"pass": 4, "tp": 312, "fp": 673, "fn": 1708, "tn": 23049, "precision": 0.31675126903553297, "recall": 0.15445544554455445, "f1": 0.2076539101497504, "mcc": 0.17674542184448294}, {"pass": 5, "tp": 302, "fp": 754, "fn": 1718, "tn": 22968, "precision": 0.2859848484848485, "recall": 0.1495049504950495, "f1": 0.19635890767230169, "mcc": 0.15960433065213012}, {"pass": 6, "tp": 316, "fp": 674, "fn": 1704, "tn": 23048, "precision": 0.3191919191919192, "recall": 0.15643564356435644, "f1": 0.20996677740863787, "mcc": 0.17902647742626945}, {"pass": 7, "tp": 310, "fp": 696, "fn": 1710, "tn": 23026, "precision": 0.3081510934393638, "recall": 0.15346534653465346, "f1": 0.2048909451421018, "mcc": 0.17224578227262555}, {"pass": 8, "tp": 332, "fp": 752, "fn": 1688, "tn": 22970, "precision": 0.3062730627306273, "recall": 0.16435643564356436, "f1": 0.21391752577319592, "mcc": 0.17761692841669152}, {"pass": 9, "tp": 312, "fp": 636, "fn": 1708, "tn": 23086, "precision": 0.3291139240506329, "recall": 0.15445544554455445, "f1": 0.21024258760107814, "mcc": 0.18225409773215992}, {"pass": 10, "tp": 344, "fp": 760, "fn": 1676, "tn": 22962, "precision": 0.3115942028985507, "recall": 0.1702970297029703, "f1": 0.22023047375160054, "mcc": 0.18350939265510577}, {"pass": 11, "tp": 330, "fp": 647, "fn": 1690, "tn": 23075, "precision": 0.33776867963152507, "recall": 0.16336633663366337, "f1": 0.22022022022022025, "mcc": 0.19152158532240116}, {"pass": 12, "tp": 352, "fp": 746, "fn": 1668, "tn": 22976, "precision": 0.3205828779599271, "recall": 0.17425742574257425, "f1": 0.22578576010262988, "mcc": 0.19004333820525665}, {"pass": 13, "tp": 292, "fp": 572, "fn": 1728, "tn": 23150, "precision": 0.33796296296296297, "recall": 0.14455445544554454, "f1": 0.20249653259361997, "mcc": 0.1798307819204834}, {"pass": 14, "tp": 306, "fp": 662, "fn": 1714, "tn": 23060, "precision": 0.31611570247933884, "recall": 0.15148514851485148, "f1": 0.20481927710843373, "mcc": 0.17468625496819168}, {"pass": 15, "tp": 308, "fp": 742, "fn": 1712, "tn": 22980, "precision": 0.29333333333333333, "recall": 0.15247524752475247, "f1": 0.2006514657980456, "mcc": 0.16476607317831188}, {"pass": 16, "tp": 315, "fp": 651, "fn": 1705, "tn": 23071, "precision": 0.32608695652173914, "recall": 0.15594059405940594, "f1": 0.21098459477561954, "mcc": 0.18182038698825662}, {"pass": 17, "tp": 316, "fp": 664, "fn": 1704, "tn": 23058, "precision": 0.3224489795918367, "recall": 0.15643564356435644, "f1": 0.21066666666666664, "mcc": 0.1804935939300698}, {"pass": 18, "tp": 346, "fp": 804, "fn": 1674, "tn": 22918, "precision": 0.3008695652173913, "recall": 0.1712871287128713, "f1": 0.21829652996845425, "mcc": 0.17884424237263577}, {"pass": 19, "tp": 320, "fp": 702, "fn": 1700, "tn": 23020, "precision": 0.3131115459882583, "recall": 0.15841584158415842, "f1": 0.21038790269559499, "mcc": 0.17741701184759467}], "per_pass_intra": [{"pass": 0, "tp": 280, "fp": 658, "fn": 318, "tn": 2782, "precision": 0.29850746268656714, "recall": 0.4682274247491639, "f1": 0.3645833333333333, "mcc": 0.2329412153536369}, {"pass": 1, "tp": 308, "fp": 690, "fn": 290, "tn": 2750, "precision": 0.30861723446893785, "recall": 0.5150501672240803, "f1": 0.38596491228070173, "mcc": 0.2589436559656984}, {"pass": 2, "tp": 272, "fp": 673, "fn": 326, "tn": 2767, "precision": 0.2878306878306878, "recall": 0.45484949832775917, "f1": 0.35255994815294883, "mcc": 0.21745812538381878}, {"pass": 3, "tp": 320, "fp": 624, "fn": 278, "tn": 2816, "precision": 0.3389830508474576, "recall": 0.5351170568561873, "f1": 0.41504539559014264, "mcc": 0.29685568806582135}, {"pass": 4, "tp": 290, "fp": 657, "fn": 308, "tn": 2783, "precision": 0.30623020063357975, "recall": 0.48494983277591974, "f1": 0.37540453074433655, "mcc": 0.24643121481385838}, {"pass": 5, "tp": 296, "fp": 738, "fn": 302, "tn": 2702, "precision": 0.2862669245647969, "recall": 0.49498327759197325, "f1": 0.3627450980392157, "mcc": 0.228229898377012}, {"pass": 6, "tp": 306, "fp": 666, "fn": 292, "tn": 2774, "precision": 0.3148148148148148, "recall": 0.5117056856187291, "f1": 0.3898089171974523, "mcc": 0.2642869305126457}, {"pass": 7, "tp": 298, "fp": 686, "fn": 300, "tn": 2754, "precision": 0.30284552845528456, "recall": 0.4983277591973244, "f1": 0.37673830594184576, "mcc": 0.24730731585840057}, {"pass": 8, "tp": 320, "fp": 742, "fn": 278, "tn": 2698, "precision": 0.3013182674199623, "recall": 0.5351170568561873, "f1": 0.38554216867469876, "mcc": 0.25769877682025666}, {"pass": 9, "tp": 292, "fp": 624, "fn": 306, "tn": 2816, "precision": 0.31877729257641924, "recall": 0.4882943143812709, "f1": 0.3857331571994716, "mcc": 0.260292138601243}, {"pass": 10, "tp": 324, "fp": 734, "fn": 274, "tn": 2706, "precision": 0.30623818525519847, "recall": 0.5418060200668896, "f1": 0.391304347826087, "mcc": 0.26529365341526306}, {"pass": 11, "tp": 310, "fp": 633, "fn": 288, "tn": 2807, "precision": 0.32873806998939553, "recall": 0.5183946488294314, "f1": 0.4023361453601557, "mcc": 0.2807293740081667}, {"pass": 12, "tp": 342, "fp": 738, "fn": 256, "tn": 2702, "precision": 0.31666666666666665, "recall": 0.5719063545150501, "f1": 0.4076281287246722, "mcc": 0.2867733107664256}, {"pass": 13, "tp": 280, "fp": 568, "fn": 318, "tn": 2872, "precision": 0.330188679245283, "recall": 0.4682274247491639, "f1": 0.3872752420470263, "mcc": 0.2643251283105513}, {"pass": 14, "tp": 302, "fp": 656, "fn": 296, "tn": 2784, "precision": 0.31524008350730687, "recall": 0.5050167224080268, "f1": 0.3881748071979434, "mcc": 0.26244747627796244}, {"pass": 15, "tp": 298, "fp": 728, "fn": 300, "tn": 2712, "precision": 0.290448343079922, "recall": 0.4983277591973244, "f1": 0.3669950738916256, "mcc": 0.23391394756482878}, {"pass": 16, "tp": 299, "fp": 627, "fn": 299, "tn": 2813, "precision": 0.3228941684665227, "recall": 0.5, "f1": 0.39238845144356954, "mcc": 0.26845175355051176}, {"pass": 17, "tp": 302, "fp": 654, "fn": 296, "tn": 2786, "precision": 0.3158995815899582, "recall": 0.5050167224080268, "f1": 0.38867438867438864, "mcc": 0.26312240013593197}, {"pass": 18, "tp": 326, "fp": 792, "fn": 272, "tn": 2648, "precision": 0.29159212880143115, "recall": 0.5451505016722408, "f1": 0.3799533799533799, "mcc": 0.2499855424123112}, {"pass": 19, "tp": 304, "fp": 690, "fn": 294, "tn": 2750, "precision": 0.3058350100603622, "recall": 0.5083612040133779, "f1": 0.3819095477386935, "mcc": 0.2537782640856775}], "calib_intra": [{"k": 0, "n": 1614, "pos": 54, "prec_at_k": 0.03345724907063197, "cum_n": 2424, "cum_p": 0.22442244224422442, "cum_r": 0.9096989966555183, "cum_f1": 0.3600264725347452}, {"k": 1, "n": 428, "pos": 34, "prec_at_k": 0.0794392523364486, "cum_n": 2424, "cum_p": 0.22442244224422442, "cum_r": 0.9096989966555183, "cum_f1": 0.3600264725347452}, {"k": 2, "n": 254, "pos": 40, "prec_at_k": 0.15748031496062992, "cum_n": 1996, "cum_p": 0.25551102204408815, "cum_r": 0.8528428093645485, "cum_f1": 0.3932151117964533}, {"k": 3, "n": 202, "pos": 10, "prec_at_k": 0.04950495049504951, "cum_n": 1742, "cum_p": 0.269804822043628, "cum_r": 0.7859531772575251, "cum_f1": 0.40170940170940167}, {"k": 4, "n": 144, "pos": 32, "prec_at_k": 0.2222222222222222, "cum_n": 1540, "cum_p": 0.2987012987012987, "cum_r": 0.7692307692307693, "cum_f1": 0.4303086997193639}, {"k": 5, "n": 134, "pos": 20, "prec_at_k": 0.14925373134328357, "cum_n": 1396, "cum_p": 0.30659025787965616, "cum_r": 0.7157190635451505, "cum_f1": 0.4292878635907723}, {"k": 6, "n": 106, "pos": 24, "prec_at_k": 0.22641509433962265, "cum_n": 1262, "cum_p": 0.3232963549920761, "cum_r": 0.6822742474916388, "cum_f1": 0.4387096774193548}, {"k": 7, "n": 117, "pos": 44, "prec_at_k": 0.37606837606837606, "cum_n": 1156, "cum_p": 0.33217993079584773, "cum_r": 0.6421404682274248, "cum_f1": 0.43785632839224625}, {"k": 8, "n": 111, "pos": 30, "prec_at_k": 0.2702702702702703, "cum_n": 1039, "cum_p": 0.3272377285851781, "cum_r": 0.568561872909699, "cum_f1": 0.41539401343921806}, {"k": 9, "n": 64, "pos": 18, "prec_at_k": 0.28125, "cum_n": 928, "cum_p": 0.33405172413793105, "cum_r": 0.5183946488294314, "cum_f1": 0.40629095674967236}, {"k": 10, "n": 68, "pos": 14, "prec_at_k": 0.20588235294117646, "cum_n": 864, "cum_p": 0.33796296296296297, "cum_r": 0.4882943143812709, "cum_f1": 0.39945280437756503}, {"k": 11, "n": 60, "pos": 18, "prec_at_k": 0.3, "cum_n": 796, "cum_p": 0.3492462311557789, "cum_r": 0.46488294314381273, "cum_f1": 0.3988522238163558}, {"k": 12, "n": 46, "pos": 16, "prec_at_k": 0.34782608695652173, "cum_n": 736, "cum_p": 0.3532608695652174, "cum_r": 0.43478260869565216, "cum_f1": 0.38980509745127434}, {"k": 13, "n": 68, "pos": 22, "prec_at_k": 0.3235294117647059, "cum_n": 690, "cum_p": 0.3536231884057971, "cum_r": 0.4080267558528428, "cum_f1": 0.3788819875776397}, {"k": 14, "n": 45, "pos": 18, "prec_at_k": 0.4, "cum_n": 622, "cum_p": 0.35691318327974275, "cum_r": 0.3712374581939799, "cum_f1": 0.36393442622950817}, {"k": 15, "n": 52, "pos": 15, "prec_at_k": 0.28846153846153844, "cum_n": 577, "cum_p": 0.3535528596187175, "cum_r": 0.3411371237458194, "cum_f1": 0.34723404255319146}, {"k": 16, "n": 79, "pos": 19, "prec_at_k": 0.24050632911392406, "cum_n": 525, "cum_p": 0.36, "cum_r": 0.31605351170568563, "cum_f1": 0.3365983971504898}, {"k": 17, "n": 56, "pos": 16, "prec_at_k": 0.2857142857142857, "cum_n": 446, "cum_p": 0.3811659192825112, "cum_r": 0.2842809364548495, "cum_f1": 0.32567049808429116}, {"k": 18, "n": 80, "pos": 36, "prec_at_k": 0.45, "cum_n": 390, "cum_p": 0.39487179487179486, "cum_r": 0.25752508361204013, "cum_f1": 0.3117408906882591}, {"k": 19, "n": 102, "pos": 34, "prec_at_k": 0.3333333333333333, "cum_n": 310, "cum_p": 0.38064516129032255, "cum_r": 0.19732441471571907, "cum_f1": 0.2599118942731278}, {"k": 20, "n": 208, "pos": 84, "prec_at_k": 0.40384615384615385, "cum_n": 208, "cum_p": 0.40384615384615385, "cum_r": 0.14046822742474915, "cum_f1": 0.20843672456575682}], "calib_binary": [{"k": 0, "n": 23164, "pos": 1412, "prec_at_k": 0.06095665688136764, "cum_n": 2578, "cum_p": 0.23584173778122575, "cum_r": 0.300990099009901, "cum_f1": 0.2644628099173554}, {"k": 1, "n": 478, "pos": 48, "prec_at_k": 0.100418410041841, "cum_n": 2578, "cum_p": 0.23584173778122575, "cum_r": 0.300990099009901, "cum_f1": 0.2644628099173554}, {"k": 2, "n": 290, "pos": 54, "prec_at_k": 0.18620689655172415, "cum_n": 2100, "cum_p": 0.26666666666666666, "cum_r": 0.27722772277227725, "cum_f1": 0.2718446601941748}, {"k": 3, "n": 222, "pos": 20, "prec_at_k": 0.09009009009009009, "cum_n": 1810, "cum_p": 0.2795580110497238, "cum_r": 0.2504950495049505, "cum_f1": 0.26422976501305484}, {"k": 4, "n": 152, "pos": 34, "prec_at_k": 0.2236842105263158, "cum_n": 1588, "cum_p": 0.3060453400503778, "cum_r": 0.24059405940594059, "cum_f1": 0.26940133037694014}, {"k": 5, "n": 144, "pos": 28, "prec_at_k": 0.19444444444444445, "cum_n": 1436, "cum_p": 0.3147632311977716, "cum_r": 0.22376237623762377, "cum_f1": 0.2615740740740741}, {"k": 6, "n": 118, "pos": 30, "prec_at_k": 0.2542372881355932, "cum_n": 1292, "cum_p": 0.3281733746130031, "cum_r": 0.2099009900990099, "cum_f1": 0.2560386473429952}, {"k": 7, "n": 119, "pos": 44, "prec_at_k": 0.3697478991596639, "cum_n": 1174, "cum_p": 0.33560477001703576, "cum_r": 0.19504950495049506, "cum_f1": 0.2467125860989355}, {"k": 8, "n": 111, "pos": 30, "prec_at_k": 0.2702702702702703, "cum_n": 1055, "cum_p": 0.33175355450236965, "cum_r": 0.17326732673267325, "cum_f1": 0.2276422764227642}, {"k": 9, "n": 68, "pos": 20, "prec_at_k": 0.29411764705882354, "cum_n": 944, "cum_p": 0.3389830508474576, "cum_r": 0.15841584158415842, "cum_f1": 0.21592442645074222}, {"k": 10, "n": 70, "pos": 16, "prec_at_k": 0.22857142857142856, "cum_n": 876, "cum_p": 0.3424657534246575, "cum_r": 0.1485148514851485, "cum_f1": 0.20718232044198898}, {"k": 11, "n": 60, "pos": 18, "prec_at_k": 0.3, "cum_n": 806, "cum_p": 0.3523573200992556, "cum_r": 0.1405940594059406, "cum_f1": 0.2009907997169144}, {"k": 12, "n": 48, "pos": 16, "prec_at_k": 0.3333333333333333, "cum_n": 746, "cum_p": 0.35656836461126007, "cum_r": 0.1316831683168317, "cum_f1": 0.1923355025307303}, {"k": 13, "n": 70, "pos": 24, "prec_at_k": 0.34285714285714286, "cum_n": 698, "cum_p": 0.35816618911174786, "cum_r": 0.12376237623762376, "cum_f1": 0.18395879323031641}, {"k": 14, "n": 47, "pos": 20, "prec_at_k": 0.425531914893617, "cum_n": 628, "cum_p": 0.35987261146496813, "cum_r": 0.11188118811881188, "cum_f1": 0.1706948640483384}, {"k": 15, "n": 54, "pos": 17, "prec_at_k": 0.3148148148148148, "cum_n": 581, "cum_p": 0.35456110154905335, "cum_r": 0.10198019801980197, "cum_f1": 0.15840061514801998}, {"k": 16, "n": 79, "pos": 19, "prec_at_k": 0.24050632911392406, "cum_n": 527, "cum_p": 0.3586337760910816, "cum_r": 0.09356435643564356, "cum_f1": 0.1484098939929329}, {"k": 17, "n": 56, "pos": 16, "prec_at_k": 0.2857142857142857, "cum_n": 448, "cum_p": 0.3794642857142857, "cum_r": 0.08415841584158416, "cum_f1": 0.1377633711507293}, {"k": 18, "n": 82, "pos": 36, "prec_at_k": 0.43902439024390244, "cum_n": 392, "cum_p": 0.39285714285714285, "cum_r": 0.07623762376237624, "cum_f1": 0.12769485903814262}, {"k": 19, "n": 102, "pos": 34, "prec_at_k": 0.3333333333333333, "cum_n": 310, "cum_p": 0.38064516129032255, "cum_r": 0.05841584158415842, "cum_f1": 0.10128755364806868}, {"k": 20, "n": 208, "pos": 84, "prec_at_k": 0.40384615384615385, "cum_n": 208, "cum_p": 0.40384615384615385, "cum_r": 0.041584158415841586, "cum_f1": 0.07540394973070018}], "curve": {"1": {"binary_f1": 0.20962380251528712, "binary_sd": 0.010387609655014732, "intra_f1": 0.38402282080060246, "intra_sd": 0.015527906236729377, "intra_p": 0.3091046179302131, "intra_r": 0.5081270903010033}, "2": {"binary_f1": 0.17032967576157618, "binary_sd": 0.010006037971901997, "intra_f1": 0.35892410615953374, "intra_sd": 0.016788213850315096, "intra_p": 0.34705688939922696, "intra_r": 0.3722115384615385}, "3": {"binary_f1": 0.20966754022025108, "binary_sd": 0.008617900315199437, "intra_f1": 0.3970480158284475, "intra_sd": 0.014227192227752029, "intra_p": 0.3295749395338762, "intra_r": 0.4997742474916388}, "5": {"binary_f1": 0.20839573592611696, "binary_sd": 0.006336597122768402, "intra_f1": 0.3997443361790745, "intra_sd": 0.010736942421938496, "intra_p": 0.3363006609216905, "intra_r": 0.49299749163879597}, "7": {"binary_f1": 0.2077888814080623, "binary_sd": 0.005508100261137961, "intra_f1": 0.4009508042596751, "intra_sd": 0.009831956493474965, "intra_p": 0.33966839804145027, "intra_r": 0.4893896321070234}, "9": {"binary_f1": 0.20638745553810636, "binary_sd": 0.004756660476982148, "intra_f1": 0.4000510912589042, "intra_sd": 0.008561781862534295, "intra_p": 0.3404306900271341, "intra_r": 0.48510033444816053}, "11": {"binary_f1": 0.20549339745261175, "binary_sd": 0.004264834116792438, "intra_f1": 0.3992842887747115, "intra_sd": 0.007779900597808537, "intra_p": 0.34094842517569157, "intra_r": 0.4817809364548495}, "13": {"binary_f1": 0.20515206336741496, "binary_sd": 0.0036057890114679155, "intra_f1": 0.3993515851075471, "intra_sd": 0.00641305546211821, "intra_p": 0.34195008558021817, "intra_r": 0.47997491638795986}, "15": {"binary_f1": 0.2045382925909073, "binary_sd": 0.0031196259337860966, "intra_f1": 0.3989226883311382, "intra_sd": 0.005560399451502512, "intra_p": 0.3425969337232913, "intra_r": 0.47745819397993317}, "17": {"binary_f1": 0.20417585960415408, "binary_sd": 0.002502642657126521, "intra_f1": 0.3988904555956564, "intra_sd": 0.004287560110502159, "intra_p": 0.3429855209877506, "intra_r": 0.4765969899665552}, "19": {"binary_f1": 0.2039442506925978, "binary_sd": 0.001429164482025927, "intra_f1": 0.3988520511259966, "intra_sd": 0.002652066321702754, "intra_p": 0.34314352128988596, "intra_r": 0.4761705685618729}, "20": {"binary_f1": 0.2009907997169144, "binary_sd": 0.0, "intra_f1": 0.3988522238163558, "intra_sd": 0.0, "intra_p": 0.3492462311557789, "intra_r": 0.46488294314381273}}, "ensemble": {"binary": {"tp": 284, "fp": 522, "fn": 1736, "tn": 23200, "precision": 0.3523573200992556, "recall": 0.1405940594059406, "f1": 0.2009907997169144, "mean_pass_f1": 0.20939404453472385, "sd_pass_f1": 0.010184288302678373, "best": 0.22651565622918057, "worst": 0.18773047267851156, "union_f1": 0.2644628099173554, "inter_f1": 0.07540394973070018}, "intra": {"tp": 278, "fp": 518, "fn": 320, "tn": 2922, "precision": 0.3492462311557789, "recall": 0.46488294314381273, "f1": 0.3988522238163558, "mean_pass_f1": 0.38403826400058444, "sd_pass_f1": 0.015094062716149208, "best": 0.41504539559014264, "worst": 0.35255994815294883, "union_f1": 0.3600264725347452, "inter_f1": 0.20843672456575682}}, "agreement": {"binary": {"cohen_mean": 0.6360573840977836, "cohen_sd": 0.02445395130954235, "cohen_min": 0.5513251625163685, "cohen_max": 0.7085078450799116, "fleiss": 0.6359559422563352, "jaccard": 0.4822650723211509}, "intra": {"cohen_mean": 0.5501923728151265, "cohen_sd": 0.03227594991146145, "cohen_min": 0.440258776538789, "cohen_max": 0.6476918527517144, "fleiss": 0.5499109123727496, "jaccard": 0.49241193363085567}}, "universe": {"pairs": 25742, "intra": 4038, "inter": 21704, "pos": 2020, "pos_intra": 598, "pos_inter": 1422, "report_universe": 4066}, "regimes": {"never": 1614, "always": 208, "contested": 2216, "never_pos": 54, "always_pos": 84, "contested_pos": 460}, "boot": {"f1": 0.3988522238163558, "lo": 0.3429438543247344, "hi": 0.4545454545454546, "sd": 0.028496488806869755}, "behaviour": [{"pass": 0, "emitted": 956, "valid_pos": 956, "inter_pred": 18, "dir_ok": 174, "dir_bad": 114}, {"pass": 1, "emitted": 1048, "valid_pos": 1048, "inter_pred": 50, "dir_ok": 188, "dir_bad": 138}, {"pass": 2, "emitted": 963, "valid_pos": 963, "inter_pred": 18, "dir_ok": 164, "dir_bad": 116}, {"pass": 3, "emitted": 982, "valid_pos": 982, "inter_pred": 38, "dir_ok": 206, "dir_bad": 134}, {"pass": 4, "emitted": 1011, "valid_pos": 985, "inter_pred": 38, "dir_ok": 180, "dir_bad": 132}, {"pass": 5, "emitted": 1056, "valid_pos": 1056, "inter_pred": 22, "dir_ok": 172, "dir_bad": 130}, {"pass": 6, "emitted": 990, "valid_pos": 990, "inter_pred": 18, "dir_ok": 206, "dir_bad": 110}, {"pass": 7, "emitted": 1006, "valid_pos": 1006, "inter_pred": 22, "dir_ok": 184, "dir_bad": 126}, {"pass": 8, "emitted": 1205, "valid_pos": 1084, "inter_pred": 22, "dir_ok": 196, "dir_bad": 136}, {"pass": 9, "emitted": 949, "valid_pos": 948, "inter_pred": 32, "dir_ok": 174, "dir_bad": 138}, {"pass": 10, "emitted": 1104, "valid_pos": 1104, "inter_pred": 46, "dir_ok": 194, "dir_bad": 150}, {"pass": 11, "emitted": 978, "valid_pos": 977, "inter_pred": 34, "dir_ok": 184, "dir_bad": 146}, {"pass": 12, "emitted": 1098, "valid_pos": 1098, "inter_pred": 18, "dir_ok": 232, "dir_bad": 120}, {"pass": 13, "emitted": 865, "valid_pos": 864, "inter_pred": 16, "dir_ok": 166, "dir_bad": 126}, {"pass": 14, "emitted": 968, "valid_pos": 968, "inter_pred": 10, "dir_ok": 168, "dir_bad": 138}, {"pass": 15, "emitted": 1050, "valid_pos": 1050, "inter_pred": 24, "dir_ok": 190, "dir_bad": 118}, {"pass": 16, "emitted": 966, "valid_pos": 966, "inter_pred": 40, "dir_ok": 196, "dir_bad": 119}, {"pass": 17, "emitted": 980, "valid_pos": 980, "inter_pred": 24, "dir_ok": 206, "dir_bad": 110}, {"pass": 18, "emitted": 1153, "valid_pos": 1150, "inter_pred": 32, "dir_ok": 194, "dir_bad": 152}, {"pass": 19, "emitted": 1022, "valid_pos": 1022, "inter_pred": 28, "dir_ok": 182, "dir_bad": 138}], "docsd": [{"doc": "5_3ecbplus.xml", "pairs": 2, "gold": 2, "f1_mean": 0.1, "f1_sd": 0.30779350562554625, "ens_f1": 0.0}, {"doc": "4_10ecbplus.xml", "pairs": 40, "gold": 4, "f1_mean": 0.7102380952380953, "f1_sd": 0.2282645966876307, "ens_f1": 0.8}, {"doc": "4_2ecbplus.xml", "pairs": 76, "gold": 4, "f1_mean": 0.4685714285714286, "f1_sd": 0.22443143417346392, "ens_f1": 0.5714285714285715}, {"doc": "5_4ecbplus.xml", "pairs": 10, "gold": 4, "f1_mean": 0.5399999999999999, "f1_sd": 0.2225845000199313, "ens_f1": 0.6666666666666666}, {"doc": "1_20ecbplus.xml", "pairs": 20, "gold": 6, "f1_mean": 0.4440476190476191, "f1_sd": 0.21629867673149145, "ens_f1": 0.3333333333333333}, {"doc": "4_1ecbplus.xml", "pairs": 88, "gold": 8, "f1_mean": 0.5140496182524046, "f1_sd": 0.19855518070658584, "ens_f1": 0.75}, {"doc": "4_11ecbplus.xml", "pairs": 80, "gold": 4, "f1_mean": 0.7044444444444444, "f1_sd": 0.1755859030694809, "ens_f1": 1.0}, {"doc": "4_4ecbplus.xml", "pairs": 34, "gold": 2, "f1_mean": 0.39666666666666667, "f1_sd": 0.16820344128708756, "ens_f1": 0.4}, {"doc": "1_2ecbplus.xml", "pairs": 106, "gold": 14, "f1_mean": 0.27455501803699145, "f1_sd": 0.15365539293952557, "ens_f1": 0.15384615384615383}, {"doc": "4_8ecbplus.xml", "pairs": 48, "gold": 10, "f1_mean": 0.39691933066933066, "f1_sd": 0.14705448462929202, "ens_f1": 0.3076923076923077}, {"doc": "1_11ecbplus.xml", "pairs": 50, "gold": 8, "f1_mean": 0.27764975764975763, "f1_sd": 0.129787693482996, "ens_f1": 0.25}, {"doc": "1_13ecbplus.xml", "pairs": 146, "gold": 8, "f1_mean": 0.10404800828942706, "f1_sd": 0.12919410672551485, "ens_f1": 0.0}, {"doc": "5_2ecbplus.xml", "pairs": 100, "gold": 16, "f1_mean": 0.2212660537776637, "f1_sd": 0.12650303560467513, "ens_f1": 0.14285714285714288}, {"doc": "3_4ecbplus.xml", "pairs": 146, "gold": 36, "f1_mean": 0.33174192187898655, "f1_sd": 0.12592996698031764, "ens_f1": 0.26666666666666666}, {"doc": "3_1ecbplus.xml", "pairs": 132, "gold": 28, "f1_mean": 0.4134114481802308, "f1_sd": 0.11923449608379025, "ens_f1": 0.4}, {"doc": "3_11ecbplus.xml", "pairs": 324, "gold": 40, "f1_mean": 0.4019265601794995, "f1_sd": 0.11547396862434399, "ens_f1": 0.4736842105263158}, {"doc": "1_8ecbplus.xml", "pairs": 110, "gold": 12, "f1_mean": 0.2599612287026475, "f1_sd": 0.11411031724618349, "ens_f1": 0.2}, {"doc": "1_10ecbplus.xml", "pairs": 140, "gold": 24, "f1_mean": 0.26598688334141335, "f1_sd": 0.11247257807780858, "ens_f1": 0.28571428571428575}, {"doc": "3_5ecbplus.xml", "pairs": 26, "gold": 6, "f1_mean": 0.5509521034521034, "f1_sd": 0.10882132403295774, "ens_f1": 0.6666666666666666}, {"doc": "3_8ecbplus.xml", "pairs": 144, "gold": 42, "f1_mean": 0.3455339308580828, "f1_sd": 0.10613106056069145, "ens_f1": 0.3333333333333333}, {"doc": "1_4ecbplus.xml", "pairs": 68, "gold": 8, "f1_mean": 0.32645592109988397, "f1_sd": 0.10295386990924296, "ens_f1": 0.4}, {"doc": "1_18ecbplus.xml", "pairs": 54, "gold": 4, "f1_mean": 0.5358008658008658, "f1_sd": 0.10207642630813514, "ens_f1": 0.5714285714285715}, {"doc": "1_19ecbplus.xml", "pairs": 110, "gold": 14, "f1_mean": 0.3042933830348441, "f1_sd": 0.10171975255311161, "ens_f1": 0.3529411764705882}, {"doc": "1_15ecbplus.xml", "pairs": 40, "gold": 10, "f1_mean": 0.6762569946393475, "f1_sd": 0.10113327515442526, "ens_f1": 0.6666666666666666}, {"doc": "5_10ecbplus.xml", "pairs": 20, "gold": 6, "f1_mean": 0.49833333333333335, "f1_sd": 0.09395469855263737, "ens_f1": 0.5}, {"doc": "1_3ecbplus.xml", "pairs": 88, "gold": 18, "f1_mean": 0.34759488703698893, "f1_sd": 0.09354563267873046, "ens_f1": 0.39999999999999997}, {"doc": "1_12ecbplus.xml", "pairs": 94, "gold": 4, "f1_mean": 0.17305109168204533, "f1_sd": 0.09185249618908645, "ens_f1": 0.19999999999999998}, {"doc": "1_9ecbplus.xml", "pairs": 38, "gold": 10, "f1_mean": 0.5803957102409114, "f1_sd": 0.08736227815163539, "ens_f1": 0.6153846153846154}, {"doc": "3_6ecbplus.xml", "pairs": 98, "gold": 24, "f1_mean": 0.6839325860885963, "f1_sd": 0.08367097604145683, "ens_f1": 0.6956521739130435}, {"doc": "3_10ecbplus.xml", "pairs": 178, "gold": 34, "f1_mean": 0.41569748793350536, "f1_sd": 0.08263055396671559, "ens_f1": 0.5098039215686274}, {"doc": "1_5ecbplus.xml", "pairs": 170, "gold": 14, "f1_mean": 0.1966610630835291, "f1_sd": 0.08197722812881639, "ens_f1": 0.125}, {"doc": "5_1ecbplus.xml", "pairs": 216, "gold": 22, "f1_mean": 0.3899382476372301, "f1_sd": 0.07911213953198591, "ens_f1": 0.4705882352941176}, {"doc": "3_9ecbplus.xml", "pairs": 30, "gold": 10, "f1_mean": 0.6004067011419953, "f1_sd": 0.07889291626064505, "ens_f1": 0.6153846153846154}, {"doc": "1_21ecbplus.xml", "pairs": 86, "gold": 14, "f1_mean": 0.5710125056887743, "f1_sd": 0.07128498152500601, "ens_f1": 0.5555555555555556}, {"doc": "3_3ecbplus.xml", "pairs": 128, "gold": 24, "f1_mean": 0.24773117397597297, "f1_sd": 0.06646941181980102, "ens_f1": 0.18749999999999997}, {"doc": "1_14ecbplus.xml", "pairs": 88, "gold": 12, "f1_mean": 0.43035605458963244, "f1_sd": 0.0663378020522131, "ens_f1": 0.5333333333333333}, {"doc": "5_5ecbplus.xml", "pairs": 10, "gold": 6, "f1_mean": 0.8928571428571429, "f1_sd": 0.0634659511884742, "ens_f1": 0.8571428571428571}, {"doc": "3_2ecbplus.xml", "pairs": 308, "gold": 44, "f1_mean": 0.3711691598709635, "f1_sd": 0.057160149721080106, "ens_f1": 0.3684210526315789}, {"doc": "1_7ecbplus.xml", "pairs": 32, "gold": 4, "f1_mean": 0.3300865800865801, "f1_sd": 0.05532328234305749, "ens_f1": 0.3333333333333333}, {"doc": "1_1ecbplus.xml", "pairs": 152, "gold": 16, "f1_mean": 0.3062485241684326, "f1_sd": 0.05127664529561934, "ens_f1": 0.3}, {"doc": "3_7ecbplus.xml", "pairs": 66, "gold": 4, "f1_mean": 0.2638095238095238, "f1_sd": 0.04378190986173794, "ens_f1": 0.28571428571428575}, {"doc": "1_16ecbplus.xml", "pairs": 48, "gold": 8, "f1_mean": 0.28091269841269845, "f1_sd": 0.0428636980970174, "ens_f1": 0.28571428571428575}, {"doc": "5_6ecbplus.xml", "pairs": 6, "gold": 2, "f1_mean": 0.5083333333333333, "f1_sd": 0.03726779962499649, "ens_f1": 0.5}, {"doc": "5_7ecbplus.xml", "pairs": 2, "gold": 2, "f1_mean": 1.0, "f1_sd": 0.0, "ens_f1": 1.0}, {"doc": "1_17ecbplus.xml", "pairs": 2, "gold": 0, "f1_mean": 0.0, "f1_sd": 0.0, "ens_f1": 0.0}, {"doc": "4_3ecbplus.xml", "pairs": 26, "gold": 2, "f1_mean": 0.0, "f1_sd": 0.0, "ens_f1": 0.0}, {"doc": "4_5ecbplus.xml", "pairs": 36, "gold": 2, "f1_mean": 0.0, "f1_sd": 0.0, "ens_f1": 0.0}, {"doc": "4_6ecbplus.xml", "pairs": 2, "gold": 0, "f1_mean": 0.0, "f1_sd": 0.0, "ens_f1": 0.0}, {"doc": "4_9ecbplus.xml", "pairs": 18, "gold": 2, "f1_mean": 0.6666666666666666, "f1_sd": 0.0, "ens_f1": 0.6666666666666666}, {"doc": "1_6ecbplus.xml", "pairs": 2, "gold": 0, "f1_mean": 0.0, "f1_sd": 0.0, "ens_f1": 0.0}], "split": {"loss": 8, "loss_pos": 0, "gain": 0}, "ceiling": {"intra_share_of_gold": 0.296039603960396, "binary_f1_ceiling": 0.4568372803666921}, "cv": {"fixed_6": 0.4386076948241062, "fixed_11": 0.39887712344156656, "tuned": 0.42696132423530037, "chosen": {"7": 150, "6": 150, "5": 12, "4": 70, "9": 5, "8": 7, "11": 3, "16": 1, "12": 1, "10": 1}}, "direction": {"pass_ok": 3618, "pass_bad": 2451, "ens_ok": 164, "ens_bad": 114}, "dispersion": {"binary_pred_pos": {"X2": 252.59776931730977, "p": 9.212368498656226e-43}, "binary_tp": {"X2": 85.47144516936277, "p": 2.0825705482697082e-10}, "binary_fp": {"X2": 229.7301593609665, "p": 3.826344617488331e-38}, "intra_pred_pos": {"X2": 250.47010799034143, "p": 2.4855526462058386e-42}, "intra_tp": {"X2": 73.94568425241238, "p": 2.007103558987574e-08}, "intra_fp": {"X2": 226.39528169594985, "p": 1.7925219605029276e-37}}, "cochran": {"Q": 123.50037360096272, "p": 2.4497234204868167e-17}, "persistence": {"ever_fp": 1880, "neg": 3440, "ever_fn": 514, "pos": 598}, "cost": {"cost_usd": 1.037116, "tokens_output": 4451615.0, "tokens_input": 977007.0, "tokens_cache_read": 667478.0}, "mcnemar": {"worst": 2, "best": 3, "p": 0.00011405437101815717, "sig_pairs": 88}, "calib_meta": {"intra": {"brier": 0.16235698365527487, "ece": 0.13849678058444775, "auc": 0.7691746227735864, "best_k": 6, "best_f1": 0.4387096774193548, "majority_f1": 0.3988522238163558}, "binary": {"brier": 0.08000942040245514, "ece": 0.07473972496309533, "auc": 0.6128440011820084, "best_k": 2, "best_f1": 0.2718446601941748, "majority_f1": 0.2009907997169144}}, "overdisp": {"binary_pred_pos": {"observed": 4460.976315789475, "expected": 335.5475, "ratio": 13.294619437753148}, "binary_tp": {"observed": 377.5026315789474, "expected": 83.9175, "ratio": 4.498497114176987}, "binary_fp": {"observed": 3042.4736842105262, "expected": 251.63, "ratio": 12.091061018998237}, "intra_pred_pos": {"observed": 4190.134210526317, "expected": 317.8525, "ratio": 13.18263726264955}, "intra_tp": {"observed": 293.4184210526316, "expected": 75.3925, "ratio": 3.8918781185480196}, "intra_fp": {"observed": 2889.042105263158, "expected": 242.46, "ratio": 11.915541141892097}}, "corr": {"volume(pred+) ~ intra precision": {"pearson": -0.4946793086812611, "spearman": -0.4255639097744361}, "volume(pred+) ~ intra recall": {"pearson": 0.7420472216424868, "spearman": 0.6935248828808563}, "volume(pred+) ~ intra F1": {"pearson": 0.032081908028971345, "spearman": -0.004511278195488722}, "scope violations ~ intra F1": {"pearson": 0.2939735057207697, "spearman": 0.25123486032362535}, "pass order ~ intra F1 (drift)": {"pearson": 0.23670333526551313, "spearman": 0.26165413533834586}}, "dep": {"mirror": {"undirected": 2019, "both": 9821, "one": 5, "neither": 30554, "agreement": 0.9998761763249133, "phi": 0.9991183699864341}, "cofire": {"diff_doc": -0.00274219766909121, "same_doc": 0.22806992447715116, "same_sent": 0.3290770329163642, "diff_sent": 0.19059141335910704, "share_mention": 0.3462325753386014, "disjoint": 0.20981288720519647, "null_diff_doc": -8.311153881721046e-05, "null_same_doc": -0.00020270158760402217, "null_same_sent": -0.00042331154923312675, "sentence_lift": 1.5384615384615385}, "sentence": {"cells": 3400, "obs_zero": 550, "null_zero": 456.53722304211783, "obs_full": 131, "null_full": 72.64507100560422}, "hub": {"obs": 0.8570996722556032, "null": 0.8249707041009064}, "doc_overdispersion": {"median": 3.686906870390441, "mean": 5.847276238216784, "corpus_ratio": 6.557106580065498}, "top_docs": [{"doc": "1_13ecbplus.xml", "n_pairs": 73, "mean": 14.55, "var": 199.7342105263158, "var0": 6.2025, "ratio": 32.20221048388808, "min": 3, "max": 70}, {"doc": "1_12ecbplus.xml", "n_pairs": 47, "mean": 21.4, "var": 207.8315789473684, "var0": 9.270000000000001, "ratio": 22.41980355419292, "min": 3, "max": 46}, {"doc": "3_4ecbplus.xml", "n_pairs": 73, "mean": 18.9, "var": 150.41052631578947, "var0": 7.39, "ratio": 20.353251192934977, "min": 8, "max": 49}, {"doc": "3_2ecbplus.xml", "n_pairs": 154, "mean": 28.55, "var": 214.78684210526316, "var0": 12.432500000000001, "ratio": 17.276239059341496, "min": 11, "max": 62}, {"doc": "3_11ecbplus.xml", "n_pairs": 162, "mean": 24.45, "var": 156.89210526315787, "var0": 10.9025, "ratio": 14.390470558418517, "min": 9, "max": 53}, {"doc": "1_3ecbplus.xml", "n_pairs": 44, "mean": 15.2, "var": 66.48421052631579, "var0": 6.025, "ratio": 11.0347237388076, "min": 6, "max": 31}, {"doc": "3_10ecbplus.xml", "n_pairs": 89, "mean": 31.1, "var": 93.88421052631578, "var0": 8.51, "ratio": 11.032222153503618, "min": 14, "max": 51}, {"doc": "1_1ecbplus.xml", "n_pairs": 76, "mean": 20.25, "var": 79.14473684210526, "var0": 7.592500000000001, "ratio": 10.424068072717187, "min": 10, "max": 41}], "pass_errors": {"corr_mean": -0.05263157894736825, "ev1": 0.09061455293632449, "ev2": 0.07474544529829522, "fp_jaccard": 0.45478168849611067, "fn_jaccard": 0.5760976525565893}, "variance": {"observed": 1041.6947368421054, "within": 1641.8999999999999, "cross": -600.2052631578945, "pb": 158.865, "within_ratio": 10.335190255877627}, "kendall": {"output volume": {"W": 0.10903097744360903, "null": 0.06807100872180451, "z": 2.748757752897842, "p": 0.006}, "error count": {"W": 0.08729022556390978, "null": 0.07526687518796991, "z": 0.7614541843110486, "p": 0.196}, "F1": {"W": 0.0849563909774436, "null": 0.07502803969924812, "z": 0.6337661073956032, "p": 0.26}}, "error_cofire": {"both gold-negative (FP with FP)": 0.26110353267440956, "both gold-positive (TP with TP)": 0.18215042772868137, "one of each (TP with FP)": 0.16568972535868973, "both gold-negative, same sentence": 0.36765155157455226, "both gold-positive, same sentence": 0.30284152971758477}, "fp_company": {"solo": 795, "company": 5748}, "boot": {"directed rows, as logged (4,038)": {"sd": 0.01684843773314731, "deff": 0.9999999999999996}, "undirected decisions (2,019)": {"sd": 0.024014836784490675, "deff": 2.031608420416255}, "sentences (221)": {"sd": 0.02678546606595869, "deff": 2.5274300252042945}, "documents (50)": {"sd": 0.028114657732929326, "deff": 2.784494260904593}}, "time_trend": {"r": 0.0806, "p": 0.022}, "vol_range": {"min": 424, "max": 559, "sd": 32.3, "expected_sd": 40.5}, "classes": [{"label": "different documents", "n": 589382, "r": -0.0027}, {"label": "same doc, different sentence", "n": 17429, "r": 0.1906}, {"label": "same sentence, disjoint mentions", "n": 3269, "r": 0.3123}, {"label": "same sentence, sharing a mention", "n": 3198, "r": 0.3462}]}, "matrix": {"doc": "1_15ecbplus.xml", "n_passes": 20, "labels": [{"a": "10", "b": "11", "sent": 1, "k": 20, "gold": true, "ta": "Check Into", "tb": "Fleeing"}, {"a": "12", "b": "7", "sent": 3, "k": 4, "gold": false, "ta": "leaving", "tb": "checking in"}, {"a": "12", "b": "13", "sent": 3, "k": 19, "gold": true, "ta": "leaving", "tb": "admitted"}, {"a": "12", "b": "14", "sent": 3, "k": 0, "gold": false, "ta": "leaving", "tb": "according"}, {"a": "13", "b": "7", "sent": 3, "k": 2, "gold": false, "ta": "admitted", "tb": "checking in"}, {"a": "13", "b": "14", "sent": 3, "k": 1, "gold": false, "ta": "admitted", "tb": "according"}, {"a": "14", "b": "7", "sent": 3, "k": 0, "gold": false, "ta": "according", "tb": "checking in"}, {"a": "1", "b": "2", "sent": 4, "k": 20, "gold": true, "ta": "negotiated", "tb": "change"}, {"a": "1", "b": "3", "sent": 4, "k": 11, "gold": false, "ta": "negotiated", "tb": "traveled"}, {"a": "1", "b": "4", "sent": 4, "k": 13, "gold": false, "ta": "negotiated", "tb": "register"}, {"a": "1", "b": "8", "sent": 4, "k": 7, "gold": false, "ta": "negotiated", "tb": "treatment"}, {"a": "2", "b": "3", "sent": 4, "k": 19, "gold": false, "ta": "change", "tb": "traveled"}, {"a": "2", "b": "4", "sent": 4, "k": 18, "gold": false, "ta": "change", "tb": "register"}, {"a": "2", "b": "8", "sent": 4, "k": 17, "gold": false, "ta": "change", "tb": "treatment"}, {"a": "3", "b": "4", "sent": 4, "k": 20, "gold": true, "ta": "traveled", "tb": "register"}, {"a": "3", "b": "8", "sent": 4, "k": 1, "gold": false, "ta": "traveled", "tb": "treatment"}, {"a": "4", "b": "8", "sent": 4, "k": 6, "gold": false, "ta": "register", "tb": "treatment"}, {"a": "5", "b": "6", "sent": 5, "k": 0, "gold": false, "ta": "spent time", "tb": "suing"}, {"a": "5", "b": "9", "sent": 5, "k": 0, "gold": false, "ta": "spent time", "tb": "assault"}, {"a": "6", "b": "9", "sent": 5, "k": 20, "gold": true, "ta": "suing", "tb": "assault"}], "incidence": [[1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1], [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1], [1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1]], "cov": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.16, 0.01, 0.0, 0.08, -0.01, 0.0, 0.0, -0.01, -0.03, -0.02, -0.04, -0.03, -0.02, 0.0, -0.01, -0.01, 0.0, 0.0, 0.0], [0.0, 0.01, 0.0475, 0.0, 0.005, 0.0025, 0.0, 0.0, 0.0275, -0.0175, -0.0325, -0.0025, -0.005, -0.0075, 0.0, 0.0025, 0.015, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.08, 0.005, 0.0, 0.09, -0.005, 0.0, 0.0, -0.005, -0.015, -0.035, -0.045, -0.04, -0.035, 0.0, -0.005, -0.03, 0.0, 0.0, 0.0], [0.0, -0.01, 0.0025, 0.0, -0.005, 0.0475, 0.0, 0.0, 0.0225, 0.0175, -0.0175, 0.0025, 0.005, 0.0075, 0.0, -0.0025, -0.015, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, -0.01, 0.0275, 0.0, -0.005, 0.0225, 0.0, 0.0, 0.2475, 0.1925, 0.0575, 0.0275, 0.055, 0.0825, 0.0, 0.0225, 0.035, 0.0, 0.0, 0.0], [0.0, -0.03, -0.0175, 0.0, -0.015, 0.0175, 0.0, 0.0, 0.1925, 0.2275, 0.1225, 0.0325, 0.065, 0.0975, 0.0, 0.0175, 0.055, 0.0, 0.0, 0.0], [0.0, -0.02, -0.0325, 0.0, -0.035, -0.0175, 0.0, 0.0, 0.0575, 0.1225, 0.2275, 0.0175, 0.035, 0.0525, 0.0, 0.0325, 0.045, 0.0, 0.0, 0.0], [0.0, -0.04, -0.0025, 0.0, -0.045, 0.0025, 0.0, 0.0, 0.0275, 0.0325, 0.0175, 0.0475, 0.045, 0.0425, 0.0, 0.0025, 0.015, 0.0, 0.0, 0.0], [0.0, -0.03, -0.005, 0.0, -0.04, 0.005, 0.0, 0.0, 0.055, 0.065, 0.035, 0.045, 0.09, 0.085, 0.0, 0.005, 0.03, 0.0, 0.0, 0.0], [0.0, -0.02, -0.0075, 0.0, -0.035, 0.0075, 0.0, 0.0, 0.0825, 0.0975, 0.0525, 0.0425, 0.085, 0.1275, 0.0, 0.0075, 0.045, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, -0.01, 0.0025, 0.0, -0.005, -0.0025, 0.0, 0.0, 0.0225, 0.0175, 0.0325, 0.0025, 0.005, 0.0075, 0.0, 0.0475, 0.035, 0.0, 0.0, 0.0], [0.0, -0.01, 0.015, 0.0, -0.03, -0.015, 0.0, 0.0, 0.035, 0.055, 0.045, 0.015, 0.03, 0.045, 0.0, 0.035, 0.21, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]], "corr": [[null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, 1.0, 0.1147, null, 0.6667, -0.1147, null, null, -0.0503, -0.1572, -0.1048, -0.4588, -0.25, -0.14, null, -0.1147, -0.0546, null, null, null], [null, 0.1147, 1.0, null, 0.0765, 0.0526, null, null, 0.2536, -0.1683, -0.3126, -0.0526, -0.0765, -0.0964, null, 0.0526, 0.1502, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, 0.6667, 0.0765, null, 1.0, -0.0765, null, null, -0.0335, -0.1048, -0.2446, -0.6882, -0.4444, -0.3267, null, -0.0765, -0.2182, null, null, null], [null, -0.1147, 0.0526, null, -0.0765, 1.0, null, null, 0.2075, 0.1683, -0.1683, 0.0526, 0.0765, 0.0964, null, -0.0526, -0.1502, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, -0.0503, 0.2536, null, -0.0335, 0.2075, null, null, 1.0, 0.8112, 0.2423, 0.2536, 0.3685, 0.4644, null, 0.2075, 0.1535, null, null, null], [null, -0.1572, -0.1683, null, -0.1048, 0.1683, null, null, 0.8112, 1.0, 0.5385, 0.3126, 0.4543, 0.5725, null, 0.1683, 0.2516, null, null, null], [null, -0.1048, -0.3126, null, -0.2446, -0.1683, null, null, 0.2423, 0.5385, 1.0, 0.1683, 0.2446, 0.3083, null, 0.3126, 0.2059, null, null, null], [null, -0.4588, -0.0526, null, -0.6882, 0.0526, null, null, 0.2536, 0.3126, 0.1683, 1.0, 0.6882, 0.5461, null, 0.0526, 0.1502, null, null, null], [null, -0.25, -0.0765, null, -0.4444, 0.0765, null, null, 0.3685, 0.4543, 0.2446, 0.6882, 1.0, 0.7935, null, 0.0765, 0.2182, null, null, null], [null, -0.14, -0.0964, null, -0.3267, 0.0964, null, null, 0.4644, 0.5725, 0.3083, 0.5461, 0.7935, 1.0, null, 0.0964, 0.275, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, -0.1147, 0.0526, null, -0.0765, -0.0526, null, null, 0.2075, 0.1683, 0.3126, 0.0526, 0.0765, 0.0964, null, 1.0, 0.3504, null, null, null], [null, -0.0546, 0.1502, null, -0.2182, -0.1502, null, null, 0.1535, 0.2516, 0.2059, 0.1502, 0.2182, 0.275, null, 0.3504, 1.0, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]]}}</script>
+<script>
+(function () {
+  "use strict";
+  const D = JSON.parse(document.getElementById("D").textContent);
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const f = (x, n) => x.toFixed(n === undefined ? 4 : n);
+
+  /* ---------------- tables ---------------- */
+  function stats(rows, key) {
+    const v = rows.map(r => r[key]), n = v.length, m = v.reduce((a, b) => a + b, 0) / n;
+    const s = Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / (n - 1));
+    return { m, s, lo: Math.min(...v), hi: Math.max(...v) };
+  }
+  function passTable(target, rows, title, ens) {
+    const cols = [["tp", "TP", 0], ["fp", "FP", 0], ["fn", "FN", 0], ["tn", "TN", 0],
+                  ["precision", "P", 4], ["recall", "R", 4], ["f1", "F1", 4], ["mcc", "MCC", 4]];
+    let h = '<table><caption>' + title + '</caption><thead><tr><th>pass</th>' +
+      cols.map(c => "<th>" + c[1] + "</th>").join("") + "</tr></thead><tbody>";
+    const f1s = rows.map(r => r.f1), best = Math.max(...f1s), worst = Math.min(...f1s);
+    rows.forEach(r => {
+      h += "<tr><td>" + r.pass + "</td>" + cols.map(c => {
+        let cls = "";
+        if (c[0] === "f1") cls = r.f1 === best ? ' class="best"' : (r.f1 === worst ? ' class="worst"' : "");
+        return "<td" + cls + ">" + (c[2] ? f(r[c[0]], c[2]) : r[c[0]].toLocaleString()) + "</td>";
+      }).join("") + "</tr>";
+    });
+    h += '<tr class="sum"><td>mean</td>' + cols.map(c => {
+      const s = stats(rows, c[0]);
+      return "<td>" + (c[2] ? f(s.m, c[2]) : s.m.toFixed(1)) + "</td>";
+    }).join("") + "</tr>";
+    h += '<tr class="sum"><td>sd</td>' + cols.map(c => {
+      const s = stats(rows, c[0]);
+      return '<td class="dim">' + (c[2] ? f(s.s, c[2]) : s.s.toFixed(1)) + "</td>";
+    }).join("") + "</tr>";
+    h += '<tr class="sum"><td>range</td>' + cols.map(c => {
+      const s = stats(rows, c[0]);
+      return '<td class="dim">' + (c[2] ? f(s.lo, c[2]) + "–" + f(s.hi, c[2]) : s.lo.toLocaleString() + "–" + s.hi.toLocaleString()) + "</td>";
+    }).join("") + "</tr>";
+    h += '<tr class="sum"><td>20-vote</td>' + cols.map(c =>
+      "<td>" + (c[2] ? f(ens[c[0]], c[2]) : ens[c[0]].toLocaleString()) + "</td>").join("") + "</tr>";
+    h += "</tbody></table>";
+    document.getElementById(target).innerHTML = h;
+  }
+  // shipped 3-way ensemble (reproduces the logged report exactly)
+  const shippedI = { tp: 278, fp: 510, fn: 320, tn: 2930, precision: 0.352791878, recall: 0.464882943, f1: 0.401154401, mcc: 0.2838 };
+  const shippedB = { tp: 284, fp: 514, fn: 1736, tn: 23208, precision: 0.355889724, recall: 0.140594059, f1: 0.201561391, mcc: 0.1845 };
+  passTable("tbl-intra", D.per_pass_intra,
+    "Intra-sentence pairs · universe 4,038 · gold positives 598. Best F1 marked ▲, worst ▼. Last row is the shipped 20-vote ensemble.", shippedI);
+  passTable("tbl-binary", D.per_pass_binary,
+    "All pairs (binary) · universe 25,742 · gold positives 2,020. Same 20 passes, scored over the full candidate space.", shippedB);
+
+  const docs = D.docsd.slice(0, 10);
+  let dh = '<table><caption>The ten least stable documents: intra F1 across the 20 passes.</caption><thead><tr><th>document</th><th>intra pairs</th><th>gold+</th><th>F1 mean</th><th>F1 sd</th><th>ensemble F1</th></tr></thead><tbody>';
+  docs.forEach(r => {
+    dh += "<tr><td>" + r.doc + "</td><td>" + r.pairs + "</td><td>" + r.gold + "</td><td>" +
+      f(r.f1_mean) + '</td><td class="mark">' + f(r.f1_sd) + "</td><td>" + f(r.ens_f1) + "</td></tr>";
+  });
+  dh += "</tbody></table>";
+  document.getElementById("tbl-doc").innerHTML = dh;
+
+  /* ---------------- chart plumbing ---------------- */
+  function frame(box, w, h, pad, label) {
+    const wrap = document.getElementById(box);
+    const svg = el("svg", { viewBox: "0 0 " + w + " " + h, role: "img", "aria-label": label || "chart", preserveAspectRatio: "xMidYMid meet" });
+    wrap.appendChild(svg);
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    wrap.appendChild(tip);
+    // position from the container's own box: offsetX/offsetY on an SVG child is
+    // relative to that child, which would scatter the tooltip across the plot.
+    const show = (ev, html) => {
+      tip.innerHTML = html; tip.style.opacity = 1;
+      const r = wrap.getBoundingClientRect();
+      const x = ev.clientX - r.left + wrap.scrollLeft;
+      const y = ev.clientY - r.top;
+      const maxX = wrap.scrollLeft + wrap.clientWidth - tip.offsetWidth - 6;
+      tip.style.left = Math.max(wrap.scrollLeft + 4, Math.min(x + 14, maxX)) + "px";
+      tip.style.top = Math.max(4, y - tip.offsetHeight - 12) + "px";
+    };
+    const hide = () => { tip.style.opacity = 0; };
+    return { svg, pad, w, h, show, hide, wrap };
+  }
+  function axes(g, xs, ys, fmtx, fmty, xlab, ylab) {
+    const { svg, pad, w, h } = g;
+    const grid = css("--rule"), ink3 = css("--ink-3"), ink2 = css("--ink-2");
+    ys.forEach(t => {
+      svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: t.p, y2: t.p, stroke: grid, "stroke-width": 1 }));
+      const tx = el("text", { x: pad.l - 8, y: t.p + 3.5, "text-anchor": "end", "font-size": 10, fill: ink3 });
+      tx.textContent = fmty(t.v); svg.appendChild(tx);
+    });
+    xs.forEach(t => {
+      svg.appendChild(el("line", { x1: t.p, x2: t.p, y1: h - pad.b, y2: h - pad.b + 4, stroke: grid, "stroke-width": 1 }));
+      const tx = el("text", { x: t.p, y: h - pad.b + 16, "text-anchor": "middle", "font-size": 10, fill: ink3 });
+      tx.textContent = fmtx(t.v); svg.appendChild(tx);
+    });
+    svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: h - pad.b, y2: h - pad.b, stroke: css("--rule-strong"), "stroke-width": 1 }));
+    if (xlab) { const t = el("text", { x: (pad.l + w - pad.r) / 2, y: h - 4, "text-anchor": "middle", "font-size": 10.5, fill: ink2 }); t.textContent = xlab; g.svg.appendChild(t); }
+    if (ylab) { const t = el("text", { x: 12, y: (pad.t + h - pad.b) / 2, "text-anchor": "middle", "font-size": 10.5, fill: ink2, transform: "rotate(-90 12 " + (pad.t + h - pad.b) / 2 + ")" }); t.textContent = ylab; g.svg.appendChild(t); }
+  }
+
+  /* ---------------- chart 1: precision vs recall ---------------- */
+  (function () {
+    const w = 1000, h = 470, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-pr", w, h, pad, "Scatter of precision against recall: 20 individual passes, the vote-threshold curve, and the shipped ensemble.");
+    const X = [0.20, 0.44], Y = [0.10, 0.95];
+    const sx = v => pad.l + (v - X[0]) / (X[1] - X[0]) * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const xt = [], yt = [];
+    for (let v = 0.20; v <= 0.441; v += 0.04) xt.push({ v, p: sx(v) });
+    for (let v = 0.1; v <= 0.951; v += 0.1) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => f(v, 2), v => f(v, 2), "precision", "recall");
+    // iso-F1 contours
+    [0.25, 0.30, 0.35, 0.40, 0.45].forEach(F => {
+      let d = "", started = false;
+      for (let p = X[0]; p <= X[1]; p += 0.002) {
+        const r = (F * p) / (2 * p - F);
+        if (r < Y[0] || r > Y[1] || r <= 0) { started = false; continue; }
+        d += (started ? "L" : "M") + sx(p) + " " + sy(r); started = true;
+      }
+      if (d) {
+        g.svg.appendChild(el("path", { d, fill: "none", stroke: css("--rule"), "stroke-width": 1, "stroke-dasharray": "3 3" }));
+        const r0 = (F * (X[1] - 0.005)) / (2 * (X[1] - 0.005) - F);
+        if (r0 > Y[0] && r0 < Y[1]) {
+          const t = el("text", { x: sx(X[1] - 0.005) - 2, y: sy(r0) - 5, "text-anchor": "end", "font-size": 9.5, fill: css("--ink-3") });
+          t.textContent = "F1 " + f(F, 2); g.svg.appendChild(t);
+        }
+      }
+    });
+    // vote curve
+    const pts = D.calib_intra.filter(r => r.k >= 1);
+    let d = "";
+    pts.forEach((r, i) => { d += (i ? "L" : "M") + sx(r.cum_p) + " " + sy(r.cum_r); });
+    g.svg.appendChild(el("path", { d, fill: "none", stroke: css("--s2"), "stroke-width": 2, "stroke-linejoin": "round" }));
+    pts.forEach(r => {
+      const c = el("circle", { cx: sx(r.cum_p), cy: sy(r.cum_r), r: 4, fill: css("--s2"), stroke: css("--panel"), "stroke-width": 2 });
+      c.addEventListener("mousemove", e => g.show(e,
+        "<b>k ≥ " + r.k + "</b><br>P " + f(r.cum_p) + " · R " + f(r.cum_r) + "<br>F1 " + f(r.cum_f1) + " · " + r.cum_n.toLocaleString() + " predicted"));
+      c.addEventListener("mouseleave", g.hide);
+      g.svg.appendChild(c);
+    });
+    [1, 6, 11, 20].forEach(k => {
+      const r = pts.find(p => p.k === k);
+      const left = (k === 20 || k === 11);
+      const t = el("text", { x: sx(r.cum_p) + (left ? -10 : 9), y: sy(r.cum_r) + (k === 1 ? 14 : -10), "text-anchor": left ? "end" : "start", "font-size": 10.5, fill: css("--s2") });
+      t.textContent = "k≥" + k; g.svg.appendChild(t);
+    });
+    // passes
+    D.per_pass_intra.forEach(r => {
+      const c = el("circle", { cx: sx(r.precision), cy: sy(r.recall), r: 5, fill: css("--s1"), stroke: css("--panel"), "stroke-width": 2 });
+      c.addEventListener("mousemove", e => g.show(e,
+        "<b>pass " + r.pass + "</b><br>TP " + r.tp + " · FP " + r.fp + " · FN " + r.fn +
+        "<br>P " + f(r.precision) + " · R " + f(r.recall) + "<br>F1 " + f(r.f1)));
+      c.addEventListener("mouseleave", g.hide);
+      g.svg.appendChild(c);
+    });
+    // shipped ensemble
+    const E = { p: 0.352791878, r: 0.464882943 };
+    g.svg.appendChild(el("circle", { cx: sx(E.p), cy: sy(E.r), r: 9, fill: "none", stroke: css("--s3"), "stroke-width": 2.5 }));
+    const ec = el("circle", { cx: sx(E.p), cy: sy(E.r), r: 4.5, fill: css("--s3"), stroke: css("--panel"), "stroke-width": 1.5 });
+    ec.addEventListener("mousemove", e => g.show(e,
+      "<b>shipped ensemble</b><br>3-way argmax, tie→norel<br>TP 278 · FP 510 · FN 320<br>P 0.3528 · R 0.4649 · F1 0.4012"));
+    ec.addEventListener("mouseleave", g.hide);
+    g.svg.appendChild(ec);
+    const lt = el("text", { x: sx(E.p) + 14, y: sy(E.r) + 4, "font-size": 10.5, fill: css("--s3") });
+    lt.textContent = "shipped"; g.svg.appendChild(lt);
+    const pt = el("text", { x: sx(0.2865), y: sy(0.424) + 4, "font-size": 10.5, fill: css("--s1"), "text-anchor": "middle" });
+    pt.textContent = "20 passes"; g.svg.appendChild(pt);
+  })();
+
+  /* ---------------- chart 2: F1 vs threshold ---------------- */
+  (function () {
+    const w = 1000, h = 340, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-thresh", w, h, pad, "Line chart of F1 against the minimum vote threshold k, for intra and binary.");
+    const Y = [0.05, 0.46];
+    const sx = k => pad.l + (k - 1) / 19 * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const xt = [], yt = [];
+    for (let k = 1; k <= 20; k++) xt.push({ v: k, p: sx(k) });
+    for (let v = 0.05; v <= 0.461; v += 0.05) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => v, v => f(v, 2), "minimum causal votes required (k)", "F1");
+    [["intra", D.calib_intra, css("--s1")], ["binary", D.calib_binary, css("--s2")]].forEach(([nm, tbl, col]) => {
+      const pts = tbl.filter(r => r.k >= 1);
+      let d = "";
+      pts.forEach((r, i) => { d += (i ? "L" : "M") + sx(r.k) + " " + sy(r.cum_f1); });
+      g.svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
+      pts.forEach(r => {
+        const c = el("circle", { cx: sx(r.k), cy: sy(r.cum_f1), r: 4, fill: col, stroke: css("--panel"), "stroke-width": 1.5 });
+        c.addEventListener("mousemove", e => g.show(e,
+          "<b>" + nm + " · k ≥ " + r.k + "</b><br>F1 " + f(r.cum_f1) + "<br>P " + f(r.cum_p) + " · R " + f(r.cum_r)));
+        c.addEventListener("mouseleave", g.hide);
+        g.svg.appendChild(c);
+      });
+      const lb = el("text", { x: sx(20) - 6, y: sy(pts[pts.length - 1].cum_f1) - 10, "font-size": 11, fill: col, "text-anchor": "end" });
+      lb.textContent = nm; g.svg.appendChild(lb);
+    });
+    [[11, "majority (shipped)", css("--ink-3")], [6, "F1 optimum", css("--s3")]].forEach(([k, lab, col]) => {
+      g.svg.appendChild(el("line", { x1: sx(k), x2: sx(k), y1: pad.t, y2: h - pad.b, stroke: col, "stroke-width": 1.5, "stroke-dasharray": "4 4" }));
+      const t = el("text", { x: sx(k) + 6, y: pad.t + 12, "font-size": 10.5, fill: col });
+      t.textContent = lab; g.svg.appendChild(t);
+    });
+  })();
+
+  /* ---------------- chart 3: ensemble size ---------------- */
+  (function () {
+    const w = 1000, h = 330, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-size", w, h, pad, "Line chart of F1 against the number of passes voted, with plus or minus one standard deviation bands.");
+    const ms = Object.keys(D.curve).map(Number).sort((a, b) => a - b);
+    const Y = [0.15, 0.43];
+    const sx = m => pad.l + (m - 1) / 19 * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const xt = ms.map(m => ({ v: m, p: sx(m) })), yt = [];
+    for (let v = 0.15; v <= 0.431; v += 0.05) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => v, v => f(v, 2), "number of passes voted (m)", "F1");
+    [["intra", "intra_f1", "intra_sd", css("--s1")], ["binary", "binary_f1", "binary_sd", css("--s2")]].forEach(([nm, kf, ks, col]) => {
+      let up = "", dn = "";
+      ms.forEach((m, i) => {
+        const r = D.curve[m];
+        up += (i ? "L" : "M") + sx(m) + " " + sy(r[kf] + r[ks]);
+      });
+      for (let i = ms.length - 1; i >= 0; i--) {
+        const r = D.curve[ms[i]];
+        dn += "L" + sx(ms[i]) + " " + sy(r[kf] - r[ks]);
+      }
+      g.svg.appendChild(el("path", { d: up + dn + "Z", fill: col, opacity: .13, stroke: "none" }));
+      let d = "";
+      ms.forEach((m, i) => { d += (i ? "L" : "M") + sx(m) + " " + sy(D.curve[m][kf]); });
+      g.svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
+      ms.forEach(m => {
+        const r = D.curve[m];
+        const c = el("circle", { cx: sx(m), cy: sy(r[kf]), r: 4, fill: col, stroke: css("--panel"), "stroke-width": 1.5 });
+        c.addEventListener("mousemove", e => g.show(e,
+          "<b>" + nm + " · m = " + m + "</b><br>F1 " + f(r[kf]) + " ± " + f(r[ks]) + "<br>vote threshold k ≥ " + (Math.floor(m / 2) + 1)));
+        c.addEventListener("mouseleave", g.hide);
+        g.svg.appendChild(c);
+      });
+      const lb = el("text", { x: sx(20) - 6, y: sy(D.curve[20][kf]) - 12, "font-size": 11, fill: col, "text-anchor": "end" });
+      lb.textContent = nm; g.svg.appendChild(lb);
+    });
+  })();
+
+  /* ------------- charts 6 & 7: one document, incidence + covariance ------------- */
+  (function () {
+    const Mx = D.matrix, L = Mx.labels, N = L.length, P = Mx.n_passes;
+    const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    const short = i => L[i].a + "," + L[i].b;
+    const words = i => esc(L[i].ta) + " → " + esc(L[i].tb);
+    const dark = () => {
+      const t = document.documentElement.getAttribute("data-theme");
+      if (t) return t === "dark";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    };
+    // diverging blue<->red, grey midpoint, four steps per arm
+    const RAMP = {
+      light: { mid: "#f0efec", pos: ["#d8dce7", "#bac5e2", "#8ca5dc", "#2a78d6"],
+               neg: ["#edd8d5", "#eabcba", "#e79391", "#e34948"] },
+      dark:  { mid: "#383835", pos: ["#38527c", "#3865a4", "#3977c7", "#3987e5"],
+               neg: ["#7d4644", "#a55150", "#c85d5c", "#e66767"] }
+    };
+    const band = a => a < 0.2 ? 0 : a < 0.4 ? 1 : a < 0.6 ? 2 : 3;
+    const fillFor = r => {
+      const R = RAMP[dark() ? "dark" : "light"];
+      if (r === null || r === undefined) return null;
+      const a = Math.abs(r);
+      if (a < 0.05) return R.mid;
+      return (r > 0 ? R.pos : R.neg)[band(a)];
+    };
+    const relLum = hex => {
+      const v = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16) / 255)
+        .map(c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+      return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    };
+    const inkOn = hex => {
+      const l = relLum(hex);
+      return (l + 0.05) / 0.05 > (1.05) / (l + 0.05) ? "#0b0b0b" : "#ffffff";
+    };
+    const sentBreaks = [];
+    for (let i = 1; i < N; i++) if (L[i].sent !== L[i - 1].sent) sentBreaks.push(i);
+
+    /* ---- incidence grid: passes x relations ---- */
+    (function () {
+      const cw = 30, ch = 20, padL = 66, padT = 104, padR = 16, padB = 44;
+      const w = padL + N * cw + padR, h = padT + P * ch + padB;
+      const g = frame("c-grid", w, h, {},
+        "Grid of 20 passes by 20 candidate relations; a filled cell means the pass predicted that relation causal.");
+      L.forEach((l, i) => {
+        const x = padL + i * cw + cw / 2;
+        const t = el("text", { x, y: padT - 30, "font-size": 10.5, fill: css("--ink-2"),
+          "text-anchor": "start", transform: "rotate(-90 " + x + " " + (padT - 30) + ")" });
+        t.textContent = short(i); g.svg.appendChild(t);
+        if (l.gold) {
+          const d = el("text", { x, y: padT - 12, "text-anchor": "middle", "font-size": 10, fill: css("--s3") });
+          d.textContent = "◆"; g.svg.appendChild(d);
+        }
+      });
+      for (let p = 0; p < P; p++) {
+        const t = el("text", { x: padL - 10, y: padT + p * ch + 14, "text-anchor": "end",
+          "font-size": 10, fill: css("--ink-3") });
+        t.textContent = "pass " + p; g.svg.appendChild(t);
+        for (let i = 0; i < N; i++) {
+          const on = Mx.incidence[p][i] === 1;
+          const c = el("rect", { x: padL + i * cw + 2, y: padT + p * ch + 2,
+            width: cw - 4, height: ch - 4, rx: 2,
+            fill: on ? css("--s1") : css("--panel-2"),
+            stroke: on ? "none" : css("--rule"), "stroke-width": 1 });
+          c.addEventListener("mousemove", e => g.show(e,
+            "<b>pass " + p + " · " + short(i) + "</b><br>" + words(i) +
+            "<br>sentence " + L[i].sent + " · " + (on ? "predicted causal" : "not predicted") +
+            "<br>" + L[i].k + "/20 passes overall" + (L[i].gold ? " · gold causal" : "")));
+          c.addEventListener("mouseleave", g.hide);
+          g.svg.appendChild(c);
+        }
+        const tot = Mx.incidence[p].reduce((a, b) => a + b, 0);
+        const tt = el("text", { x: padL + N * cw + 6, y: padT + p * ch + 14, "font-size": 10, fill: css("--ink-3") });
+        tt.textContent = tot; g.svg.appendChild(tt);
+      }
+      sentBreaks.forEach(i => g.svg.appendChild(el("line", {
+        x1: padL + i * cw, x2: padL + i * cw, y1: padT - 46, y2: padT + P * ch,
+        stroke: css("--rule-strong"), "stroke-width": 1.5 })));
+      let start = 0;
+      [...sentBreaks, N].forEach(end => {
+        const t = el("text", { x: padL + (start + end) / 2 * cw, y: h - 22, "text-anchor": "middle",
+          "font-size": 11, fill: css("--ink-2") });
+        t.textContent = "sentence " + L[start].sent; g.svg.appendChild(t);
+        start = end;
+      });
+      const k = el("text", { x: padL + N * cw + 6, y: padT - 12, "font-size": 9.5, fill: css("--ink-3") });
+      k.textContent = "n"; g.svg.appendChild(k);
+    })();
+
+    /* ---- correlation matrix ---- */
+    (function () {
+      const lg = document.getElementById("c-mat-legend");
+      const R = RAMP[dark() ? "dark" : "light"];
+      const bands = [["−1.0 … −0.6", R.neg[3]], ["−0.6 … −0.4", R.neg[2]], ["−0.4 … −0.2", R.neg[1]],
+                     ["−0.2 … −0.05", R.neg[0]], ["≈ 0", R.mid], ["+0.05 … +0.2", R.pos[0]],
+                     ["+0.2 … +0.4", R.pos[1]], ["+0.4 … +0.6", R.pos[2]], ["+0.6 … +1.0", R.pos[3]]];
+      lg.innerHTML = bands.map(b =>
+        '<span><i style="background:' + b[1] + ';border:1px solid var(--rule)"></i>' + b[0] + "</span>").join("");
+
+      const cs = 30, padL = 232, padT = 128, padR = 16, padB = 34;
+      const w = padL + N * cs + padR, h = padT + N * cs + padB;
+      const g = frame("c-mat", w, h, {},
+        "Correlation matrix of the 20 candidate relations of document 1_15ecbplus across the 20 passes.");
+      L.forEach((l, i) => {
+        const rl = el("text", { x: padL - 10, y: padT + i * cs + cs / 2 + 4, "text-anchor": "end",
+          "font-size": 10.5, fill: l.gold ? css("--ink") : css("--ink-2") });
+        rl.textContent = "s" + l.sent + "  " + short(i) + "  " +
+          (l.ta.length > 11 ? l.ta.slice(0, 10) + "…" : l.ta) + "→" +
+          (l.tb.length > 11 ? l.tb.slice(0, 10) + "…" : l.tb);
+        g.svg.appendChild(rl);
+        const x = padL + i * cs + cs / 2;
+        const cl = el("text", { x, y: padT - 26, "font-size": 10.5, fill: css("--ink-2"),
+          "text-anchor": "start", transform: "rotate(-90 " + x + " " + (padT - 26) + ")" });
+        cl.textContent = short(i); g.svg.appendChild(cl);
+        const kk = el("text", { x, y: padT - 10, "text-anchor": "middle", "font-size": 9.5,
+          fill: l.gold ? css("--s3") : css("--ink-3") });
+        kk.textContent = l.k; g.svg.appendChild(kk);
+      });
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          const r = Mx.corr[i][j], cov = Mx.cov[i][j];
+          const x = padL + j * cs, y = padT + i * cs;
+          const fill = fillFor(r);
+          g.svg.appendChild(el("rect", { x: x + 1, y: y + 1, width: cs - 2, height: cs - 2, rx: 2,
+            fill: fill === null ? css("--panel-2") : fill,
+            stroke: i === j ? css("--ink-3") : css("--rule"), "stroke-width": i === j ? 1.5 : 1 }));
+          const tx = el("text", { x: x + cs / 2, y: y + cs / 2 + 3.5, "text-anchor": "middle",
+            "font-size": 9, fill: fill === null ? css("--ink-3") : inkOn(fill) });
+          tx.textContent = r === null ? "·" : (i === j ? "1" :
+            (Math.abs(r) < 0.005 ? "0" : (r > 0 ? "" : "−") + Math.abs(r).toFixed(2).slice(1)));
+          g.svg.appendChild(tx);
+          const hit = el("rect", { x, y, width: cs, height: cs, fill: "transparent" });
+          hit.addEventListener("mousemove", e => g.show(e,
+            "<b>" + short(i) + "</b> " + words(i) + " <i>(s" + L[i].sent + ", k=" + L[i].k + ")</i><br>" +
+            "<b>" + short(j) + "</b> " + words(j) + " <i>(s" + L[j].sent + ", k=" + L[j].k + ")</i><br>" +
+            (r === null ? "no variance — correlation undefined"
+                        : "r = " + (r >= 0 ? "+" : "") + r.toFixed(3) + " · cov = " +
+                          (cov >= 0 ? "+" : "") + cov.toFixed(4))));
+          hit.addEventListener("mouseleave", g.hide);
+          g.svg.appendChild(hit);
+        }
+      }
+      sentBreaks.forEach(i => {
+        g.svg.appendChild(el("line", { x1: padL + i * cs, x2: padL + i * cs, y1: padT - 44,
+          y2: padT + N * cs, stroke: css("--ink-3"), "stroke-width": 1.5 }));
+        g.svg.appendChild(el("line", { x1: padL - 220, x2: padL + N * cs, y1: padT + i * cs,
+          y2: padT + i * cs, stroke: css("--ink-3"), "stroke-width": 1.5 }));
+      });
+      const cap = el("text", { x: padL, y: h - 12, "font-size": 10.5, fill: css("--ink-2") });
+      cap.textContent = "column header shows how many of the 20 passes predicted that relation";
+      g.svg.appendChild(cap);
+    })();
+  })();
+
+  /* ---------------- chart 5: co-firing by relationship ---------------- */
+  (function () {
+    const rows = D.dep.classes;
+    const w = 1000, rowh = 46, pad = { l: 250, r: 70, t: 26, b: 40 };
+    const h = pad.t + pad.b + rows.length * rowh;
+    const g = frame("c-dep", w, h, pad,
+      "Bar chart of mean co-firing correlation by how two decisions are related.");
+    const X = [-0.05, 0.40];
+    const sx = v => pad.l + (v - X[0]) / (X[1] - X[0]) * (w - pad.l - pad.r);
+    const xt = [];
+    for (let v = 0; v <= 0.401; v += 0.1) xt.push({ v, p: sx(v) });
+    xt.unshift({ v: -0.05, p: sx(-0.05) });
+    // vertical gridlines, drawn by hand: this chart's categories run down the page
+    xt.forEach(t => {
+      g.svg.appendChild(el("line", { x1: t.p, x2: t.p, y1: pad.t - 8, y2: h - pad.b,
+        stroke: css("--rule"), "stroke-width": 1 }));
+      const tx = el("text", { x: t.p, y: h - pad.b + 16, "text-anchor": "middle", "font-size": 10, fill: css("--ink-3") });
+      tx.textContent = f(t.v, 2); g.svg.appendChild(tx);
+    });
+    g.svg.appendChild(el("line", { x1: sx(0), x2: sx(0), y1: pad.t - 8, y2: h - pad.b,
+      stroke: css("--rule-strong"), "stroke-width": 1.5 }));
+    const xl = el("text", { x: (pad.l + w - pad.r) / 2, y: h - 6, "text-anchor": "middle", "font-size": 10.5, fill: css("--ink-2") });
+    xl.textContent = "mean correlation across the 20 passes"; g.svg.appendChild(xl);
+    const nullT = el("text", { x: sx(0) + 6, y: pad.t - 12, "font-size": 10, fill: css("--ink-3") });
+    nullT.textContent = "permutation null ≈ 0"; g.svg.appendChild(nullT);
+    rows.forEach((r, i) => {
+      const y = pad.t + i * rowh + 6, bh = rowh - 20;
+      const x0 = sx(Math.min(0, r.r)), x1 = sx(Math.max(0, r.r));
+      g.svg.appendChild(el("rect", { x: x0, y, width: Math.max(1.5, x1 - x0), height: bh,
+        fill: css("--s1"), rx: 3 }));
+      const lab = el("text", { x: pad.l - 14, y: y + bh / 2 + 4, "text-anchor": "end", "font-size": 11.5, fill: css("--ink") });
+      lab.textContent = r.label; g.svg.appendChild(lab);
+      const val = el("text", { x: x1 + 9, y: y + bh / 2 + 4, "font-size": 11.5, fill: css("--ink-2") });
+      val.textContent = (r.r >= 0 ? "+" : "") + f(r.r, 3); g.svg.appendChild(val);
+      const hit = el("rect", { x: pad.l, y: y - 5, width: w - pad.l - pad.r, height: rowh - 6, fill: "transparent" });
+      hit.addEventListener("mousemove", e => g.show(e,
+        "<b>" + r.label + "</b><br>mean r = " + (r.r >= 0 ? "+" : "") + f(r.r, 4) +
+        "<br>" + r.n.toLocaleString() + " decision pairs"));
+      hit.addEventListener("mouseleave", g.hide);
+      g.svg.appendChild(hit);
+    });
+  })();
+
+  /* ---------------- chart 4: vote histogram ---------------- */
+  (function () {
+    const w = 1000, h = 330, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-hist", w, h, pad, "Stacked bar chart of intra pairs by causal vote count, split by gold label.");
+    const bins = D.calib_intra.filter(r => r.k >= 1);
+    const maxN = Math.max(...bins.map(r => r.n));
+    const Y = Math.ceil(maxN / 100) * 100;
+    const bw = (w - pad.l - pad.r) / bins.length;
+    const sx = i => pad.l + i * bw;
+    const sy = v => h - pad.b - v / Y * (h - pad.t - pad.b);
+    const xt = bins.map((r, i) => ({ v: r.k, p: sx(i) + bw / 2 })), yt = [];
+    for (let v = 0; v <= Y; v += 100) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => v, v => v, "causal votes out of 20 (k)", "intra pairs");
+    bins.forEach((r, i) => {
+      const x = sx(i) + 3, bwid = bw - 6;
+      const hneg = (h - pad.b) - sy(r.n - r.pos);
+      const hpos = (h - pad.b) - sy(r.pos);
+      g.svg.appendChild(el("rect", { x, y: sy(r.n), width: bwid, height: Math.max(0, hneg - 2), fill: css("--neutral-mark"), rx: 2 }));
+      g.svg.appendChild(el("rect", { x, y: h - pad.b - hpos, width: bwid, height: Math.max(0, hpos), fill: css("--s1"), rx: 2 }));
+      const hit = el("rect", { x: sx(i), y: pad.t, width: bw, height: h - pad.t - pad.b, fill: "transparent" });
+      hit.addEventListener("mousemove", e => g.show(e,
+        "<b>k = " + r.k + "</b><br>" + r.n.toLocaleString() + " pairs · " + r.pos + " gold causal<br>P(gold+|k) = " +
+        f(r.prec_at_k === null ? 0 : r.prec_at_k, 3)));
+      hit.addEventListener("mouseleave", g.hide);
+      g.svg.appendChild(hit);
+    });
+  })();
+})();
+</script>
+</body>
+</html>
