@@ -50,8 +50,10 @@ _defaults:
 
   few_shot: &few_shot
     enabled: true
-    n_examples: 3
-    pool_size: 100
+    n_examples: 1
+    pool_size: 40
+    shuffle_pool: true      # sample the pool from the whole split, not just its first pool_size docs
+    shuffle_pool_seed: 42    # bump for a different pool
     # "random" "similarity" "mentions" "bert" "smallest"
     selection: "random"
     density_stratify: false
@@ -95,15 +97,20 @@ experiments:
     overrides:
       <<: *base
       active_dataset: "event_story_line"
-      datasets: 
-        maven_ere:
+      datasets:
+        <<: *datasets
         event_story_line:
           max_examples: 50 # 233
           prompt: "esl_standard_eci_intra_lean"
-      few_shot: 
-        enabled: true
+      few_shot:
+        <<: *few_shot
         n_examples: 1
+        # distinct_fewshots needs n_runs x n_examples = 20 training docs, and k-fold drops
+        # the test doc's own fold (1/5 of the pool) before selecting: 20 would leave 16.
+        pool_size: 40
+        shuffle_pool: true
       experiment:
-          resampling: 
-            enabled: true
-            n_runs: 20
+        <<: *experiment
+        resampling:
+          <<: *resampling
+          n_runs: 20

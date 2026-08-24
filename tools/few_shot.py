@@ -16,7 +16,10 @@ triples, per doc["mention_sentence"], everywhere gold is shown to the model: the
 _format_examples/few_shot_examples tool's "Output:", the CoT-synthesis "correct labels are"
 hint, and the non-CoT "Output:" fallback used when cot_generation.enabled is false. It does not
 affect doc selection.
-The full training split is loaded lazily and cached in memory.
+The full training split is loaded lazily and cached in memory, then cut down to the first
+few_shot.pool_size docs. few_shot.shuffle_pool (bool) shuffles the split before that cut — seeded
+by few_shot.shuffle_pool_seed — so the pool is a random sample of the whole split instead of its
+opening docs, while staying identical across runs of the same experiment.
 
 Synthesized CoT is cached at two levels: _COT_CACHE (optionally persisted to
 few_shot.cot_generation.cache_path), keyed by doc id + a fingerprint of everything that
@@ -211,6 +214,14 @@ def _load_train_split() -> list:
         binary_undirected=data_cfg["binary_undirected"],
         shuffle_pair_list=data_cfg["shuffle_pair_list"],
     ))
+
+    if fs_cfg.get("shuffle_pool"):
+        # Draw the pool from anywhere in the split rather than taking its first pool_size docs.
+        # Seeded, so the pool is identical across runs of the same experiment; bump
+        # shuffle_pool_seed to draw a different one. Shuffling here (after parsing, before the
+        # truncation below) leaves doc["doc_idx"] — the doc's position in the split, which the
+        # k-fold filter in _select_examples reads — attached to its own doc.
+        random.Random(fs_cfg.get("shuffle_pool_seed", 0)).shuffle(docs)
 
     pool_size = fs_cfg.get("pool_size")
     if pool_size:

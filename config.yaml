@@ -112,7 +112,7 @@ experiment:
     enabled: false
     n_runs: 3         # Votes per document
     tie_breaking: "norel"
-    distinct_fewshots: false  # true: each resample run gets its own few-shot examples —
+    distinct_fewshots: true  # true: each resample run gets its own few-shot examples —
                               # selects n_runs * few_shot.n_examples docs and splits them
                               # round-robin across runs (pool must hold at least that many)
 
@@ -124,6 +124,12 @@ few_shot:
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
   pool_size: 100         # max training docs to load (null = full split); limits CoT generation cost
+  shuffle_pool: true    # true: shuffle the split before cutting it to pool_size, so the pool is a
+                         # random sample of the whole split instead of its first pool_size docs —
+                         # any doc in the split can be picked as a few-shot. Seeded by
+                         # shuffle_pool_seed, so the pool is identical across runs. No effect when
+                         # pool_size is null (the pool is already the full split).
+  shuffle_pool_seed: 042   # bump to draw a different pool (only read when shuffle_pool: true)
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
   selection: "random"   
     # "random"     — resample every call for variance
