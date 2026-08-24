@@ -21,11 +21,11 @@ model:
   # default_model_id: "inception/mercury-2" # Rate limits
   # default_model_id: "google/gemini-2.5-flash-lite-preview-09-2025"
   # default_model_id: "deepseek/deepseek-v4-pro"
-  # default_model_id: "deepseek/deepseek-v4-flash:nitro"
+  default_model_id: "deepseek/deepseek-v4-flash"
   # default_model_id: "deepseek/deepseek-v3.2-speciale"
   # default_model_id: "deepseek/deepseek-r1-distill-qwen-32b"
   # default_model_id: "deepseek/deepseek-v3.2:nitro"
-  default_model_id: "deepseek/deepseek-v3.2"
+  # default_model_id: "deepseek/deepseek-v3.2"
   # default_model_id: "qwen/qwen3.6-35b-a3b:nitro"
   # default_model_id: "qwen/qwen3-next-80b-a3b-thinking"
   # default_model_id: "qwen/qwen3-32b:nitro"
@@ -147,7 +147,7 @@ few_shot:
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
   cot_generation:
     enabled: true      # true: generate realistic CoT few-shots via LLM
-    blind: true        # true: generate the reasoning without showing the golds, then revise it
+    blind: false        # true: generate the reasoning without showing the golds, then revise it
                          # against them (blind -> correct); false (default): one gold-guided pass.
                          # Only applies to single-call prompts (no `steps:` in the active prompt
                          # YAML); multi-step task prompts are always gold-guided.

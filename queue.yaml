@@ -45,7 +45,7 @@ _defaults:
 
   cot_generation: &cot_generation
     enabled: true
-    blind: true
+    blind: false
     rewrite: true
 
   few_shot: &few_shot
@@ -88,95 +88,22 @@ experiments:
 
   # ───────────────────────────── Extras ───────────────────────────────
   
-  - name: "ctb_fs7"
-    overrides:
-      <<: *base
-      active_dataset: "causal_timebank"
-      few_shot:
-        <<: *few_shot
-        n_examples: 7
 
-  - name: "esl_fs7"
+
+
+  - name: "esc_many_resamp"
     overrides:
       <<: *base
       active_dataset: "event_story_line"
-      few_shot:
-        <<: *few_shot
-        n_examples: 7
-
-  - name: "maven_fs7"
-    overrides:
-      <<: *base
-      active_dataset: "maven_ere"
-      few_shot:
-        <<: *few_shot
-        n_examples: 7
-
-  - name: "ctb_res7"
-    overrides:
-      <<: *base
-      active_dataset: "causal_timebank"
+      datasets: 
+        maven_ere:
+        event_story_line:
+          max_examples: 50 # 233
+          prompt: "esl_standard_eci_intra_lean"
+      few_shot: 
+        enabled: true
+        n_examples: 1
       experiment:
-        <<: *experiment
-        resampling:
-          <<: *resampling
-          n_runs: 7
-
-  - name: "esl_res7"
-    overrides:
-      <<: *base
-      active_dataset: "event_story_line"
-      experiment:
-        <<: *experiment
-        resampling:
-          <<: *resampling
-          n_runs: 7
-  
-  - name: "maven_res7"
-    overrides:
-      <<: *base
-      active_dataset: "maven_ere"
-      experiment:
-        <<: *experiment
-        resampling:
-          <<: *resampling
-          n_runs: 7
-
-  - name: "ctb_sel_mentions"
-    overrides:
-      <<: *base
-      active_dataset: "causal_timebank"
-      few_shot:
-        <<: *few_shot
-        selection: "mentions"
-
-  - name: "esl_sel_mentions"
-    overrides:
-      <<: *base
-      active_dataset: "event_story_line"
-      few_shot:
-        <<: *few_shot
-        selection: "mentions"
-  
-  - name: "maven_sel_mentions"
-    overrides:
-      <<: *base
-      active_dataset: "maven_ere"
-      few_shot:
-        <<: *few_shot
-        selection: "mentions"
-  
-  - name: "maven_base"
-    overrides:
-      <<: *base
-      active_dataset: "maven_ere"
-  
-  - name: "ctb_base"
-    overrides:
-      <<: *base
-      active_dataset: "causal_timebank"
-
-  - name: "esl_base"
-    overrides:
-      <<: *base
-      active_dataset: "event_story_line"
+          resampling: 
+            enabled: true
+            n_runs: 20
