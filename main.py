@@ -36,37 +36,52 @@ from scripts.analysis.distance_histogram import generate_run_histograms
 # =============================================================================
 
 def _iter_json_arrays(text: str):
-    """Yield every balanced, top-level ``[...]`` block in ``text``, in order.
+    """Yield balanced ``[...]`` blocks in ``text``, **last one first**.
 
-    String-aware, so a ``]`` inside a JSON string value does not close a block,
-    and depth-aware, so nested brackets are handled. This lets us enumerate every
-    candidate array (empty or populated) instead of relying on a regex that can
-    only see one shape.
+    Walks back from the last ``]`` to its matching ``[`` by bracket depth alone,
+    then continues before that block for the next candidate. Deliberately not
+    string-aware: the previous forward scan tracked quotes, and a single unpaired
+    ``"`` anywhere in the model's prose — "Nothing bad is going to happen" style
+    quoting is routine in generated CoT — left the scanner believing the real
+    answer array was inside a string, so it yielded nothing at all and the pass
+    was discarded. Brackets inside a JSON string would fool the depth count here,
+    but ``json.loads`` in the caller is the arbiter: a slice that does not parse
+    is skipped and an earlier ``]`` is tried, so a bad match costs a candidate,
+    never the whole response.
     """
-    depth = 0
-    in_str = False
-    escaped = False
-    start = None
-    for i, ch in enumerate(text):
-        if in_str:
-            if escaped:
-                escaped = False
-            elif ch == "\\":
-                escaped = True
-            elif ch == '"':
-                in_str = False
+    end = len(text)
+    while True:
+        close = text.rfind("]", 0, end)
+        if close == -1:
+            return
+        depth = 0
+        open_at = -1
+        for i in range(close, -1, -1):
+            ch = text[i]
+            if ch == "]":
+                depth += 1
+            elif ch == "[":
+                depth -= 1
+                if depth == 0:
+                    open_at = i
+                    break
+        if open_at == -1:
+            # Depth never balanced: either a genuinely unmatched ``]``, or a ``]``
+            # sitting inside a JSON string value, which the depth count cannot see.
+            # Offer the widest few slices and let json.loads decide; bounded so a
+            # bracket-heavy reasoning block cannot turn this quadratic.
+            tried = 0
+            probe = close
+            while tried < 8:
+                probe = text.rfind("[", 0, probe)
+                if probe == -1:
+                    break
+                yield text[probe : close + 1]
+                tried += 1
+            end = close
             continue
-        if ch == '"':
-            in_str = True
-        elif ch == "[":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "]" and depth > 0:
-            depth -= 1
-            if depth == 0 and start is not None:
-                yield text[start : i + 1]
-                start = None
+        yield text[open_at : close + 1]
+        end = open_at
 
 
 def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
@@ -80,20 +95,26 @@ def parse_llm_json(message: BaseMessage) -> List[Tuple[str, str, str]]:
     """
     content = message.content
     try:
-        arrays = []
+        # _iter_json_arrays yields last-first, so the first array that parses is
+        # the final one in the response — the answer. A stray `[]` in the reasoning
+        # must not win over it, so keep scanning backwards until something is
+        # populated; fall back to `[]` only when every array found is empty, which
+        # is a legitimate "no relations" result.
+        data = None
+        found_any = False
         for block in _iter_json_arrays(content):
             try:
-                arrays.append(json.loads(block))
+                arr = json.loads(block)
             except json.JSONDecodeError:
                 continue  # not JSON (e.g. prose "[see below]") — skip it
-        if not arrays:
+            found_any = True
+            if arr:
+                data = arr
+                break
+        if not found_any:
             raise ValueError("No JSON array found in output")
-
-        # The real answer is the final populated array; a stray `[]` in the
-        # reasoning must not win over it. Fall back to `[]` only when every
-        # array found is empty — that is a legitimate "no relations" result.
-        populated = [a for a in arrays if a]
-        data = populated[-1] if populated else []
+        if data is None:
+            data = []
 
         triples = []
         for item in data:
@@ -159,15 +180,43 @@ async def run_single_inference(graph_ainvoke, system_prompt, user_prompt, steps:
         "step_responses": step_responses,
     }
 
+# Caps how many LLM calls are in flight at once, across every document and every
+# resample pass. It has to live here rather than around a whole document: a document
+# fans out `n_runs` calls with asyncio.gather, so a semaphore held at the document
+# level multiplies — concurrency 50 with n_runs 20 put 1000 calls on the wire at once,
+# which pushed median call latency to 625s against a 2400s timeout while delivering
+# only 1.7x the throughput of 100 in flight.
+_LLM_SLOTS: asyncio.Semaphore | None = None
+_LLM_LIMIT: int = 0
+
+
+def set_llm_concurrency(limit: int) -> None:
+    """Sizes the shared in-flight budget. Call once, before any inference starts."""
+    global _LLM_SLOTS, _LLM_LIMIT
+    _LLM_LIMIT = max(1, int(limit))
+    _LLM_SLOTS = asyncio.Semaphore(_LLM_LIMIT)
+
+
+def _llm_slots() -> asyncio.Semaphore:
+    # Lazily sized if a caller (a script, a test) never went through main().
+    global _LLM_SLOTS
+    if _LLM_SLOTS is None:
+        set_llm_concurrency(_LLM_LIMIT or 10)
+    return _LLM_SLOTS
+
+
 async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, steps: list = None, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
         try:
-            return await asyncio.wait_for(
-                run_single_inference(graph_ainvoke, system_prompt, user_prompt, steps, few_shot_pairs, reprompt_str),
-                timeout=timeout,
-            )
+            # The slot is held for one attempt only: a retry goes back of the queue
+            # instead of occupying the budget through its backoff.
+            async with _llm_slots():
+                return await asyncio.wait_for(
+                    run_single_inference(graph_ainvoke, system_prompt, user_prompt, steps, few_shot_pairs, reprompt_str),
+                    timeout=timeout,
+                )
         except (ValueError, asyncio.TimeoutError) as e:
             print(f'[{doc_id}] Failed inference attempt {attempt}: {e}')
             last_error = e
@@ -354,13 +403,23 @@ async def process_document_resampled(doc, config, graph_ainvoke):
 
 async def run_docs_concurrent(docs: List[Dict], config: Dict, graph_ainvoke, label: str = "") -> List[Dict]:
     """Run inference concurrently over a list of docs and return results."""
-    semaphore = asyncio.Semaphore(config["experiment"].get("concurrency", 10))
+    limit = config["experiment"].get("concurrency", 10)
+    set_llm_concurrency(limit)
+    rs_cfg = config["experiment"]["resampling"]
+    n_runs = rs_cfg["n_runs"] if rs_cfg["enabled"] else 1
+    # `concurrency` is now the LLM-call budget (see set_llm_concurrency). This second
+    # bound exists only so we don't build every document's prompts up front; it is sized
+    # to keep the call budget saturated, never to throttle it.
+    doc_limit = max(2, -(-limit // max(1, n_runs)) * 2)
+    doc_semaphore = asyncio.Semaphore(doc_limit)
+    print(f"Concurrency: {limit} LLM calls in flight (n_runs={n_runs}, "
+          f"{doc_limit} documents open at a time)", flush=True)
     completed = 0
     total = len(docs)
 
     async def sem_task(doc):
         nonlocal completed
-        async with semaphore:
+        async with doc_semaphore:
             result = await process_document_resampled(doc, config, graph_ainvoke)
         completed += 1
         kfold_cfg_ = config["datasets"][config["active_dataset"]]["kfold"]

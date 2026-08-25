@@ -105,7 +105,7 @@ experiment:
     # - "bare_causes"
     # - "eci"
     # - "reprompt"
-  concurrency: 50
+  concurrency: 50 # 50
   retries: 3          # How many times to retry a failed sample
   timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
@@ -129,7 +129,7 @@ few_shot:
                          # any doc in the split can be picked as a few-shot. Seeded by
                          # shuffle_pool_seed, so the pool is identical across runs. No effect when
                          # pool_size is null (the pool is already the full split).
-  shuffle_pool_seed: 042   # bump to draw a different pool (only read when shuffle_pool: true)
+  shuffle_pool_seed: 42   # bump to draw a different pool (only read when shuffle_pool: true)
   systematic: true      # true: auto-inject before LLM call; false: agent calls the tool
   selection: "random"   
     # "random"     — resample every call for variance

@@ -26,7 +26,7 @@ _defaults:
   tools_config: &tools_config
     eci_extractor:
       model_id: "deepseek/deepseek-v3.2"
-      concurrency: 10
+      concurrency: 50
 
   resampling: &resampling
     enabled: true
@@ -51,7 +51,7 @@ _defaults:
   few_shot: &few_shot
     enabled: true
     n_examples: 1
-    pool_size: 40
+    pool_size: 140
     shuffle_pool: true      # sample the pool from the whole split, not just its first pool_size docs
     shuffle_pool_seed: 42    # bump for a different pool
     # "random" "similarity" "mentions" "bert" "smallest"
@@ -90,9 +90,6 @@ experiments:
 
   # ───────────────────────────── Extras ───────────────────────────────
   
-
-
-
   - name: "esc_many_resamp"
     overrides:
       <<: *base
@@ -107,10 +104,10 @@ experiments:
         n_examples: 1
         # distinct_fewshots needs n_runs x n_examples = 20 training docs, and k-fold drops
         # the test doc's own fold (1/5 of the pool) before selecting: 20 would leave 16.
-        pool_size: 40
+        pool_size: 140
         shuffle_pool: true
       experiment:
         <<: *experiment
         resampling:
           <<: *resampling
-          n_runs: 20
+          n_runs: 100
