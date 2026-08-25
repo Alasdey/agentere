@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What the Few-Shot Examples Changed</title>
+<style>
+:root {
+  color-scheme: light;
+  --ground:      #f5f7f9;
+  --panel:       #ffffff;
+  --panel-2:     #eef1f5;
+  --ink:         #10151b;
+  --ink-2:       #56616e;
+  --ink-3:       #7d8794;
+  --rule:        #dbe1e8;
+  --rule-strong: #b9c3ce;
+  --s1:          #2a78d6;
+  --s2:          #eb6834;
+  --s3:          #1baf7a;
+  --neutral-mark:#c3ccd6;
+  --flag:        #b34a1c;
+  --shadow:      0 1px 2px rgba(16,21,27,.06), 0 8px 24px -12px rgba(16,21,27,.18);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #11151a;
+    --panel:       #171d24;
+    --panel-2:     #1e252e;
+    --ink:         #e9edf2;
+    --ink-2:       #a2aeba;
+    --ink-3:       #7e8a97;
+    --rule:        #29323d;
+    --rule-strong: #3b4653;
+    --s1:          #3987e5;
+    --s2:          #d95926;
+    --s3:          #199e70;
+    --neutral-mark:#414c58;
+    --flag:        #e2884f;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #11151a;
+  --panel:       #171d24;
+  --panel-2:     #1e252e;
+  --ink:         #e9edf2;
+  --ink-2:       #a2aeba;
+  --ink-3:       #7e8a97;
+  --rule:        #29323d;
+  --rule-strong: #3b4653;
+  --s1:          #3987e5;
+  --s2:          #d95926;
+  --s3:          #199e70;
+  --neutral-mark:#414c58;
+  --flag:        #e2884f;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px 120px; }
+.prose { max-width: 68ch; }
+p { margin: 0 0 1em; }
+a { color: var(--s1); }
+
+/* ---------- masthead ---------- */
+.mast {
+  border-bottom: 1px solid var(--rule);
+  padding: 56px 0 30px;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.eyebrow {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-3); margin: 0;
+}
+h1 {
+  font-family: var(--serif); font-weight: 600; font-size: clamp(34px, 5vw, 52px);
+  line-height: 1.05; letter-spacing: -.015em; margin: 0; text-wrap: balance;
+}
+.standfirst { font-size: 20px; line-height: 1.5; color: var(--ink-2); max-width: 60ch; margin: 0; }
+.runbar {
+  display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: var(--mono);
+  font-size: 12px; color: var(--ink-2); padding-top: 6px;
+}
+.runbar b { color: var(--ink); font-weight: 500; }
+
+/* ---------- tiles ---------- */
+.tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+  margin: 40px 0 8px; border-radius: 3px; overflow: hidden;
+}
+.tile { background: var(--panel); padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 4px; }
+.tile .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.tile .v { font-family: var(--mono); font-size: 27px; font-weight: 500; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile .n { font-size: 13.5px; color: var(--ink-2); font-family: var(--sans); line-height: 1.4; }
+
+/* ---------- sections ---------- */
+section { margin-top: 62px; }
+.shead { display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid var(--rule-strong); padding-bottom: 8px; margin-bottom: 26px; }
+.shead h2 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; margin: 0; }
+.shead .tag { margin-left: auto; }
+h3 { font-size: 19px; font-weight: 600; margin: 34px 0 10px; }
+.tag {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-2); border: 1px solid var(--rule-strong); border-radius: 2px;
+  padding: 3px 8px; white-space: nowrap;
+}
+.tag.hot { color: var(--flag); border-color: var(--flag); }
+
+/* ---------- callout ---------- */
+.callout {
+  background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--s2);
+  border-radius: 2px; padding: 16px 20px; margin: 24px 0; font-size: 16px;
+}
+.callout .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--s2); display: block; margin-bottom: 6px; }
+.callout p:last-child { margin-bottom: 0; }
+.callout.calm { border-left-color: var(--s1); }
+.callout.calm .lbl { color: var(--s1); }
+
+/* ---------- tables ---------- */
+.tablewrap { overflow-x: auto; margin: 22px 0; border: 1px solid var(--rule); border-radius: 3px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-family: var(--sans); font-size: 13px; color: var(--ink-2); padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+th, td { padding: 5px 12px; text-align: right; white-space: nowrap; }
+th {
+  font-weight: 500; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); border-bottom: 1px solid var(--rule-strong); position: sticky; top: 0; background: var(--panel);
+}
+th:first-child, td:first-child { text-align: left; }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+tbody tr.sum { border-top: 1px solid var(--rule-strong); background: var(--panel-2); }
+tbody tr.sum td { color: var(--ink); }
+td.dim { color: var(--ink-3); }
+td.best { font-weight: 600; color: var(--ink); }
+td.best::after { content: " \25B2"; font-size: 8px; vertical-align: 1.5px; color: var(--ink-3); }
+td.worst { color: var(--ink-3); }
+td.worst::after { content: " \25BC"; font-size: 8px; vertical-align: 1.5px; }
+td.mark { font-weight: 600; color: var(--ink); }
+
+/* ---------- charts ---------- */
+figure { margin: 30px 0 34px; background: var(--panel); border: 1px solid var(--rule); border-radius: 3px; padding: 20px 20px 14px; }
+figure .ftitle { font-family: var(--sans); font-size: 14.5px; font-weight: 600; margin-bottom: 2px; }
+figure .fsub { font-family: var(--sans); font-size: 13px; color: var(--ink-2); margin-bottom: 14px; max-width: 74ch; }
+figcaption { font-family: var(--sans); font-size: 12.5px; color: var(--ink-3); margin-top: 10px; line-height: 1.5; }
+.chartbox { position: relative; overflow-x: auto; }
+.chartbox svg { display: block; width: 100%; min-width: 700px; height: auto; }
+#c-grid svg, #c-mat svg { width: auto; min-width: 0; max-width: none; }
+svg text { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--sans); font-size: 12.5px; color: var(--ink-2); margin-bottom: 12px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.tip {
+  position: absolute; pointer-events: none; opacity: 0; transition: opacity .1s;
+  background: var(--panel); border: 1px solid var(--rule-strong); border-radius: 3px;
+  box-shadow: var(--shadow); padding: 7px 10px; font-family: var(--mono); font-size: 11.5px;
+  line-height: 1.5; color: var(--ink); white-space: nowrap; z-index: 5; font-variant-numeric: tabular-nums;
+}
+.tip b { font-weight: 600; }
+
+/* ---------- misc ---------- */
+ul.findings { list-style: none; padding: 0; margin: 18px 0; display: flex; flex-direction: column; gap: 14px; }
+ul.findings li { display: grid; grid-template-columns: 92px 1fr; gap: 16px; align-items: baseline; }
+ul.findings .num { font-family: var(--mono); font-size: 15px; color: var(--s1); text-align: right; font-variant-numeric: tabular-nums; }
+ul.findings .num.warn { color: var(--flag); }
+.prose ul.plain { padding-left: 1.15em; }
+.prose ul.plain li { margin-bottom: .5em; }
+code { font-family: var(--mono); font-size: .88em; background: var(--panel-2); padding: 1px 5px; border-radius: 2px; }
+hr.soft { border: 0; border-top: 1px solid var(--rule); margin: 34px 0; }
+.foot { margin-top: 70px; padding-top: 20px; border-top: 1px solid var(--rule); font-family: var(--sans); font-size: 13px; color: var(--ink-3); }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .wrap { padding: 0 18px 80px; }
+  ul.findings li { grid-template-columns: 1fr; gap: 2px; }
+  ul.findings .num { text-align: left; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="mast">
+  <p class="eyebrow">Resampling diagnostics · agentere · run 2 of 2</p>
+  <h1>What the few-shot examples changed</h1>
+  <p class="standfirst">Run <b>49b22b99</b> adds one generated-CoT example per pass, drawn fresh for every pass. All 979 recoverable passes were rebuilt from the traces. The example turns out to change how much the model says, not how well it says it — and that is exactly why voting finally works.</p>
+  <div class="runbar">
+    <span>run <b>49b22b99</b></span>
+    <span>ESL v0.9 · train[:50]</span>
+    <span>deepseek-v4-flash · <b>T=0</b></span>
+    <span>1 CoT example · <b>distinct per pass</b></span>
+    <span>pool 40 · fold-filtered</span>
+    <span>20 passes</span>
+    <span>vs baseline <b>498b3a7d</b></span>
+  </div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><span class="k">binary_intra, as logged</span><span class="v">0.434</span><span class="n">against 0.401 for the baseline — but six documents are missing from it</span></div>
+  <div class="tile"><span class="k">Like-for-like, 44 docs</span><span class="v">0.469</span><span class="n">baseline 0.408 on the same documents; Δ +0.061, bootstrap CI [+0.019, +0.102]</span></div>
+  <div class="tile"><span class="k">Ensemble gain</span><span class="v">+0.081</span><span class="n">over the mean single pass, against +0.024 for the baseline</span></div>
+  <div class="tile"><span class="k">Lost to a parser bug</span><span class="v">0.033</span><span class="n">F1 left on the floor by six documents that returned nothing</span></div>
+</div>
+
+<section>
+  <div class="shead"><h2>Read this before the headline</h2><span class="tag hot">6 of 50 documents are empty</span></div>
+  <div class="prose">
+    <p>Six documents contributed <b>zero</b> predictions to this run. <code>run_inference_with_retry</code> exhausted its retries on a pass, <code>asyncio.gather</code> propagated the failure, and the whole document fell through to the empty-result branch — the report's own <code>retry_failed_docs = 6</code>. Their 110 intra gold positives (<b>18.4%</b> of the corpus total) are counted as false negatives against a model that was never allowed to answer.</p>
+    <p>The cause is not the model. <code>_iter_json_arrays</code> tracks string state so a <code>]</code> inside a JSON string cannot close a block — but it counts every <code>"</code> in the response, including the ones in prose. When a pass writes <i>— "Nothing bad is going to happen" means the rehab prevents…</i> and the running quote count lands odd, the scanner believes the final answer array is inside a string, finds no arrays at all, and raises. <b>130 of 979 passes</b> died this way. The baseline run had none: its terser, unexemplified reasoning simply used fewer quotation marks. The few-shot CoT style caused the bug to fire.</p>
+  </div>
+  <div class="tablewrap" id="t-scen"></div>
+  <div class="callout">
+    <span class="lbl">What the bug is worth</span>
+    <p>Re-aggregating the six documents from the passes that did survive (11 to 19 of 20 each) puts the run at <b>0.4669</b> instead of 0.4340. The bug costs <b>0.033 F1</b> — almost exactly the entire headline margin over the baseline. Every comparison below therefore uses the <b>44 documents both runs completed</b>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Pass by pass, against the baseline</h2><span class="tag">44 documents · intra</span></div>
+  <div class="prose">
+    <p>Same 44 documents, same 3,302 candidate intra pairs, same 488 gold positives. The two runs land in very different places: few-shot trades precision for a lot of recall, and it is far less repeatable from pass to pass.</p>
+  </div>
+  <div class="tablewrap" id="t-pass"></div>
+  <div class="prose">
+    <p>Mean single-pass F1 is <b>0.3877</b> for few-shot and <b>0.3840</b> for the baseline — a difference of 0.004, nothing. One pass of few-shot prompting is not a better classifier. What changed is the spread: false positives per pass swing 612→1070 (sd 116) against 460→692 (sd 57), and recall runs 0.57→0.71 against 0.45→0.58.</p>
+  </div>
+  <figure>
+    <div class="ftitle">Where the passes sit, and where thresholded votes sit</div>
+    <div class="fsub">Dots are individual passes; lines sweep the vote threshold from k≥20 (top left) to k≥1 (bottom right). Ringed points are the shipped 20-vote ensembles.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>few-shot passes</span>
+      <span><i style="background:var(--s2)"></i>baseline passes</span>
+      <span><i style="background:var(--s3)"></i>vote-threshold curves</span>
+    </div>
+    <div class="chartbox" id="c-pr2"></div>
+    <figcaption>The few-shot cloud sits low and right — more said, less of it right. Its vote curve, however, bows further from the origin than the baseline's at every operating point above recall 0.45.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="shead"><h2>The finding: resampling stopped being pointless</h2><span class="tag hot">+0.081 vs +0.024</span></div>
+  <figure>
+    <div class="ftitle">Majority vote over m randomly chosen passes</div>
+    <div class="fsub">300 random subsets per m, ties to norel. Bands are ±1 sd over subsets.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>few-shot</span>
+      <span><i style="background:var(--s2)"></i>baseline</span>
+    </div>
+    <div class="chartbox" id="c-size2"></div>
+    <figcaption>The baseline saturates at m≈5 and then drifts sideways at 0.406 — the finding from the first audit. Few-shot climbs from 0.387 at m=1 to <b>0.466</b> at m=20 and has not flattened. Twenty passes was wasted budget on the baseline; here it is the cheapest F1 in the run, and more passes would still pay.</figcaption>
+  </figure>
+  <figure>
+    <div class="ftitle">F1 against the vote threshold</div>
+    <div class="fsub">The threshold that maximises F1, on the 44 live documents.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>few-shot</span>
+      <span><i style="background:var(--s2)"></i>baseline</span>
+    </div>
+    <div class="chartbox" id="c-thr2"></div>
+    <figcaption>Majority (k≥11) is the <i>optimum</i> for few-shot at 0.4655, so the threshold tuning the first audit recommended buys nothing here. The baseline still peaks early, at k≥7 → 0.444. Note what that means: the baseline needed a hand-tuned threshold to reach 0.444, while few-shot reaches 0.466 with the default rule.</figcaption>
+  </figure>
+  <ul class="findings">
+    <li><span class="num">0.98</span><span><b>The recall ceiling moved.</b> Gold positives proposed by at least one pass: 97.9% for few-shot against 90.2% for the baseline. Only 10 gold links are never proposed by any pass, down from 48.</span></li>
+    <li><span class="num">0.41</span><span><b>Misses stopped agreeing.</b> Jaccard between two passes' false-negative sets falls from <b>0.565</b> (baseline) to <b>0.412</b>. In the first audit the stable thing was what the model failed to see; that stability is what capped voting. Different examples now make different passes miss different links, which is precisely the raw material majority voting needs.</span></li>
+    <li><span class="num">0.79</span><span><b>The vote count ranks better.</b> AUC of the vote fraction rises from 0.764 to 0.793, and unanimous agreement is 43.7% precise against 36.8%.</span></li>
+  </ul>
+</section>
+
+<section>
+  <div class="shead"><h2>Which example you show changes how much, not how well</h2><span class="tag">z = +22 vs z = +1.2</span></div>
+  <div class="prose">
+    <p><code>_select_examples</code> draws its examples per evaluation document, so "pass 7" is a different example on every document and pass index carries nothing across documents. The shared factor is the <b>example document itself</b>: each of the 40 pool documents appears on 16–29 evaluation documents, which is enough to estimate its own effect. Residualising each cell within its evaluation document and grouping by example gives a clean random-effects estimate, tested against a null that re-shuffles which example went with which pass.</p>
+  </div>
+  <figure>
+    <div class="ftitle">Effect of each few-shot example on output volume</div>
+    <div class="fsub">Change in the number of relations predicted per document, relative to that document's own mean across passes. 40 example documents, ordered by effect.</div>
+    <div class="chartbox" id="c-shot"></div>
+    <figcaption>Observed variance of the per-example effect is <b>17.0</b> against a permutation null of 2.9 ± 0.6 — <b>z = +22.4</b>. Showing <code>24_4ecbplus</code> adds twelve predicted relations per document; showing <code>20_10ecbplus</code> removes eight. The example's own intra causal density explains part of it (r = +0.27): a densely annotated example licenses a chattier answer.</figcaption>
+  </figure>
+  <div class="callout calm">
+    <span class="lbl">And the part that matters</span>
+    <p>The same test on per-document <b>F1</b> gives observed variance 0.0010 against a null of 0.0008 ± 0.0002 — <b>z = +1.2, p = 0.14</b>. There is no detectable good or bad example. The few-shot draw is a <i>volume dial</i>, not a quality dial, and the twenty passes are twenty roughly-equally-good voters set to twenty different volumes. That is the textbook condition for majority voting to help, and it is why the gain jumped from +0.024 to +0.081 while the mean single pass did not move at all.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Is there a better subset of examples?</h2><span class="tag hot">no</span></div>
+  <div class="prose">
+    <p>A subset <i>S</i> is evaluated by restricting every document to the passes whose example is in <i>S</i> and voting with the framework's own rule — majority of whatever passes remain, ties to norel. Each of the 40 examples appears on 16–29 of the 44 documents, and each document draws 20 of them, so a subset of size m leaves <b>m/2 passes per document</b>. That confound has to be removed before any subset can be called good.</p>
+  </div>
+  <figure>
+    <div class="ftitle">Selected subsets, held out on documents they were not selected on</div>
+    <div class="fsub">Greedy forward selection on one half of the documents, scored on the other half; 60 random splits, both directions. Compared against a random subset of the same size, against ranking examples by their volume effect, and against keeping all 40.</div>
+    <div class="chartbox" id="c-sub"></div>
+    <figcaption>Every subset loses. Greedy selection is genuinely better than a coin flip at the same size (Δ +0.006 to +0.025, t = 2.7–5.9) but it never recovers the ground lost by voting with fewer passes. Ranking by volume effect — the one example property that <i>is</i> systematic — is worse than random. The in-sample optimum looks like a win (|S| = 20 → 0.4956 against 0.4655 for all 40); held out on fresh documents the same procedure gives <b>0.4487</b>, so that +0.030 was entirely overfitting, and it reverses to −0.016.</figcaption>
+  </figure>
+  <figure>
+    <div class="ftitle">It is the number of votes, not which examples they came from</div>
+    <div class="fsub">Subsets of examples versus the same number of passes chosen freely, ignoring which example each carried.</div>
+    <div class="legend">
+      <span><i style="background:var(--s1)"></i>subset of examples</span>
+      <span><i style="background:var(--s2)"></i>free choice of passes</span>
+    </div>
+    <div class="chartbox" id="c-match"></div>
+    <figcaption>The two curves are the same curve. At ten votes per document a chosen subset gives 0.4442 and freely chosen passes give 0.4429; at eight, 0.4385 against 0.4375. Example identity contributes nothing measurable once the vote count is held fixed — which is the same conclusion the per-example F1 test reached (z = +1.2) from the other direction.</figcaption>
+  </figure>
+  <div class="callout calm">
+    <span class="lbl">Where a smaller pool would be free</span>
+    <p>Decomposing a pass's output volume within its document: <b>27%</b> of the variance is attributable to which example was shown, <b>73%</b> is residual — the same example would still have produced a different answer. That share is an upper bound, since the 40 example effects were fitted on the same 880 cells. It means a pool of 8 examples spread over 20 passes would retain about <b>97%</b> of the current pass-to-pass diversity, and a pool of 4 about <b>93%</b>. If the CoT generation cost matters, cut the pool, not the passes. If F1 matters, add passes — the curve is still climbing at 20. What does not exist is a small set of specially good examples.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>So which examples are the good ones?</h2><span class="tag hot">no stable list</span></div>
+  <div class="prose">
+    <p>Greedy selection conflates an example's quality with the accident of which other examples it was picked alongside. A cleaner estimate: draw thousands of random subsets of a <b>fixed</b> size and, for each example, take the mean F1 of the subsets containing it minus the mean of those without. Subset size is held at 20, so the vote-count effect cancels and what remains is the example's own average marginal contribution.</p>
+    <p>The whole spread, best to worst, is <b>+0.0082 to −0.0053 F1</b>. No single example is worth anything on its own.</p>
+  </div>
+  <div class="tablewrap" id="t-top"></div>
+  <div class="prose">
+    <p>Selecting on this score does transfer, unlike greedy: estimated on half the documents and applied to the other half, the top 12 give <b>0.4508</b> against <b>0.4288</b> for a random 12 (t = +5.9) and 0.4182 for the bottom 12. That is worth roughly a doubling of the vote budget — top-12 at six votes per document beats a random 20 examples at ten. It is still below the 0.4647 you get by keeping all 40.</p>
+  </div>
+  <figure>
+    <div class="ftitle">The same score, estimated twice on disjoint halves of the corpus</div>
+    <div class="fsub">Each point is one example document: its marginal contribution measured on the even-numbered documents against the odd-numbered ones. If the ranking were a stable property of the example, the points would lie on the diagonal.</div>
+    <div class="chartbox" id="c-split"></div>
+    <figcaption>Spearman +0.32 on this split; across 25 random splits, +0.198 ± 0.162, and the top-12 lists share 4.4 of 12 members against 3.6 expected by chance. The <i>procedure</i> works; the <i>list</i> does not replicate. Treat the table above as one noisy draw, not as a set of specially good documents.</figcaption>
+  </figure>
+  <div class="prose">
+    <h3>And nothing about the documents predicts it</h3>
+    <p>Ten candidate characteristics were tested against the marginal contribution — none is significant, by Pearson, by Spearman, or by comparing the top ten against the bottom ten.</p>
+  </div>
+  <div class="tablewrap" id="t-feat"></div>
+  <div class="prose">
+    <p>The raw top-10 means initially looked suggestive — 43.9 candidate pairs against 65.2, and a CoT answer showing 32 relations against 61 — but every one of those features is heavily right-skewed (skew +1.2 to +3.1), and the medians reverse or flatten thedifference entirely. Splitting the examples into quartiles by size gives mean ΔF1 of −0.0002, +0.0006, −0.0008, +0.0004: nothing. Whatever makes an example marginally useful is not its length, its event count, its causal density, the share of its gold that is intra-sentence, or how many relations its demonstration shows.</p>
+    <p>Which leaves a practical rule: <b>you cannot pick good few-shot examples by inspection</b>. If you want the +0.02 that selection is worth at small pool sizes, you have to measure marginal contributions on held-out documents and accept that the resulting list is half noise. If you want the full 0.465, keep all forty and spend the budget on passes instead.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Dependence between pairs: unchanged</h2><span class="tag">still document-shaped</span></div>
+  <div class="prose">
+    <p>Everything the first audit found about pair dependence holds here, with the same magnitudes.</p>
+  </div>
+  <div class="tablewrap" id="t-dep"></div>
+  <div class="prose">
+    <p>The mirror is still a duplicated variable — 2 asymmetric decisions in 11,198. Within-document clustering is if anything stronger (15.6× the Poisson-binomial variance, against 10.3×), correlation between decisions in the same sentence is unchanged at +0.33, and correlation across documents is still zero. Few-shot examples added a per-pass volume factor; they did not touch the spatial structure. Document-clustered bootstrap gives the 44-document F1 as <b>0.4655 ± 0.0225</b>, and here clustering costs nothing relative to resampling decisions (design effect 0.97) because the extra variance is spread across documents rather than concentrated in a few.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><h2>Verdict</h2><span class="tag">actionable</span></div>
+  <ul class="findings">
+    <li><span class="num warn">1</span><span><b>Fix <code>_iter_json_arrays</code> first.</b> It is worth 0.033 F1 — the size of the whole few-shot effect as currently reported — and it silently deleted 12% of the corpus. Scanning from the last <code>]</code> backwards, or preferring a fenced <code>```json</code> block when one exists, removes the quote-parity dependence. Also worth decoupling the document from the pass: one failed pass should not discard the other nineteen (<code>asyncio.gather(..., return_exceptions=True)</code>).</span></li>
+    <li><span class="num">2</span><span><b>The few-shot gain is real</b> at +0.061 on matched documents, 95% CI [+0.019, +0.102], P(Δ&gt;0) = 0.997 under a document bootstrap. Report it that way, not as 0.434 vs 0.401.</span></li>
+    <li><span class="num">3</span><span><b>Keep 20 passes here.</b> The opposite of the baseline recommendation: the curve is still rising at m=20, so more passes would still pay. Spend on passes while the examples stay distinct.</span></li>
+    <li><span class="num">4</span><span><b>Drop the threshold tuning.</b> Majority is already optimal for this run; the k≥6 recommendation from the first audit was specific to the baseline's correlated voters.</span></li>
+    <li><span class="num">5</span><span><b>Do not go looking for the best example.</b> The per-example F1 effect is indistinguishable from noise (z = +1.2). Diversity of examples is doing the work, so selection effort is better spent guaranteeing spread than ranking candidates.</span></li>
+    <li><span class="num">6</span><span><b>One caveat on per-decision accuracy.</b> McNemar over individual decisions is 180 vs 220 <i>against</i> few-shot (p = 0.051): it is right about fewer pairs overall while scoring much better F1, because it says far more. If a downstream consumer cares about precision rather than recall, this run is not an improvement.</span></li>
+  </ul>
+</section>
+
+<p class="foot">Rebuilt from <code>mlruns/1/e9c6a371f42b4642a9523a476f62d95a</code> and <code>mlflow.db</code> (1,175 traces, 979 recoverable passes) · re-aggregation verified bit-identical to the logged report (4,284 rows, 0 mismatches) · baseline figures from the companion audit of run 498b3a7d.</p>
+
+</div>
+
+<script id="D" type="application/json">{"shot_effects": [{"doc": "24_4ecbplus.xml", "eff": 11.965217391304348, "n": 23, "density": 0.5}, {"doc": "16_2ecbplus.xml", "eff": 7.925, "n": 22, "density": 0.11261261261261261}, {"doc": "22_12ecbplus.xml", "eff": 7.686842105263159, "n": 19, "density": 0.2894736842105263}, {"doc": "16_1ecbplus.xml", "eff": 7.06206896551724, "n": 29, "density": 0.1917808219178082}, {"doc": "18_7ecbplus.xml", "eff": 5.904761904761904, "n": 21, "density": 0.14814814814814814}, {"doc": "12_3ecbplus.xml", "eff": 4.323076923076923, "n": 26, "density": 0.30303030303030304}, {"doc": "14_9ecbplus.xml", "eff": 4.071428571428571, "n": 21, "density": 0.2}, {"doc": "8_2ecbplus.xml", "eff": 3.9324999999999997, "n": 20, "density": 0.22972972972972974}, {"doc": "16_7ecbplus.xml", "eff": 2.626315789473685, "n": 19, "density": 0.16666666666666666}, {"doc": "19_5ecbplus.xml", "eff": 2.411764705882353, "n": 17, "density": 0.25217391304347825}, {"doc": "1_1ecbplus.xml", "eff": 2.227777777777778, "n": 18, "density": 0.10526315789473684}, {"doc": "19_3ecbplus.xml", "eff": 1.3499999999999999, "n": 24, "density": 0.35294117647058826}, {"doc": "7_8ecbplus.xml", "eff": 0.5294117647058825, "n": 17, "density": 0.13043478260869565}, {"doc": "7_7ecbplus.xml", "eff": 0.41874999999999984, "n": 16, "density": 0.2}, {"doc": "5_3ecbplus.xml", "eff": 0.026086956521739386, "n": 23, "density": 1.0}, {"doc": "32_7ecbplus.xml", "eff": 0.009615384615384599, "n": 26, "density": 0.0}, {"doc": "35_3ecbplus.xml", "eff": -0.04374999999999981, "n": 24, "density": 0.1276595744680851}, {"doc": "30_13ecbplus.xml", "eff": -0.25263157894736826, "n": 19, "density": 0.1076923076923077}, {"doc": "3_10ecbplus.xml", "eff": -0.5090909090909093, "n": 22, "density": 0.19101123595505617}, {"doc": "7_10ecbplus.xml", "eff": -0.9021739130434784, "n": 23, "density": 0.25}, {"doc": "32_5ecbplus.xml", "eff": -0.9071428571428573, "n": 28, "density": 0.13924050632911392}, {"doc": "18_2ecbplus.xml", "eff": -1.0545454545454545, "n": 22, "density": 0.23076923076923078}, {"doc": "12_9ecbplus.xml", "eff": -1.3477272727272727, "n": 22, "density": 0.12}, {"doc": "30_5ecbplus.xml", "eff": -1.476190476190476, "n": 21, "density": 0.16363636363636364}, {"doc": "1_21ecbplus.xml", "eff": -1.6413043478260863, "n": 23, "density": 0.16279069767441862}, {"doc": "16_3ecbplus.xml", "eff": -1.6694444444444445, "n": 18, "density": 0.25}, {"doc": "3_7ecbplus.xml", "eff": -1.7326923076923075, "n": 26, "density": 0.06060606060606061}, {"doc": "12_6ecbplus.xml", "eff": -1.9249999999999998, "n": 22, "density": 0.1875}, {"doc": "23_3ecbplus.xml", "eff": -2.032692307692308, "n": 26, "density": 0.27586206896551724}, {"doc": "14_8ecbplus.xml", "eff": -2.4149999999999996, "n": 20, "density": 0.21875}, {"doc": "24_7ecbplus.xml", "eff": -2.778260869565217, "n": 23, "density": 0.04878048780487805}, {"doc": "32_1ecbplus.xml", "eff": -2.858, "n": 25, "density": 0.20833333333333334}, {"doc": "8_8ecbplus.xml", "eff": -2.883333333333333, "n": 24, "density": 0.23809523809523808}, {"doc": "3_5ecbplus.xml", "eff": -3.466666666666667, "n": 24, "density": 0.23076923076923078}, {"doc": "1_12ecbplus.xml", "eff": -4.1475, "n": 20, "density": 0.0425531914893617}, {"doc": "20_4ecbplus.xml", "eff": -4.292307692307692, "n": 26, "density": 0.19148936170212766}, {"doc": "1_19ecbplus.xml", "eff": -4.880434782608696, "n": 23, "density": 0.12727272727272726}, {"doc": "30_10ecbplus.xml", "eff": -4.913888888888889, "n": 18, "density": 0.034482758620689655}, {"doc": "30_3ecbplus.xml", "eff": -6.595238095238094, "n": 21, "density": 0.12}, {"doc": "20_10ecbplus.xml", "eff": -8.210526315789474, "n": 19, "density": 0.13333333333333333}], "scenarios": [{"name": "as logged (6 documents empty)", "tp": 322, "fp": 564, "fn": 276, "p": 0.3634, "r": 0.5385, "f1": 0.434}, {"name": "parse bug repaired", "tp": 388, "fp": 676, "fn": 210, "p": 0.3647, "r": 0.6488, "f1": 0.4669}, {"name": "baseline 498b3a7d", "tp": 278, "fp": 510, "fn": 320, "p": 0.3528, "r": 0.4649, "f1": 0.4012}], "dead": ["1_14ecbplus.xml", "1_21ecbplus.xml", "1_2ecbplus.xml", "3_2ecbplus.xml", "4_8ecbplus.xml", "5_2ecbplus.xml"], "npass_dead": {"1_14ecbplus.xml": 18, "1_21ecbplus.xml": 15, "1_2ecbplus.xml": 18, "3_2ecbplus.xml": 18, "4_8ecbplus.xml": 11, "5_2ecbplus.xml": 19}, "per_pass_fs": [{"pass": 0, "tp": 330, "fp": 878, "fn": 158, "tn": 1936, "pred": 1208, "precision": 0.2731788079470199, "recall": 0.6762295081967213, "f1": 0.3891509433962264}, {"pass": 1, "tp": 276, "fp": 612, "fn": 212, "tn": 2202, "pred": 888, "precision": 0.3108108108108108, "recall": 0.5655737704918032, "f1": 0.4011627906976744}, {"pass": 2, "tp": 306, "fp": 838, "fn": 182, "tn": 1976, "pred": 1144, "precision": 0.2674825174825175, "recall": 0.6270491803278688, "f1": 0.37500000000000006}, {"pass": 3, "tp": 336, "fp": 936, "fn": 152, "tn": 1878, "pred": 1272, "precision": 0.2641509433962264, "recall": 0.6885245901639344, "f1": 0.3818181818181818}, {"pass": 4, "tp": 312, "fp": 812, "fn": 176, "tn": 2002, "pred": 1124, "precision": 0.2775800711743772, "recall": 0.639344262295082, "f1": 0.3870967741935484}, {"pass": 5, "tp": 328, "fp": 686, "fn": 160, "tn": 2128, "pred": 1014, "precision": 0.3234714003944773, "recall": 0.6721311475409836, "f1": 0.4367509986684421}, {"pass": 6, "tp": 304, "fp": 708, "fn": 184, "tn": 2106, "pred": 1012, "precision": 0.30039525691699603, "recall": 0.6229508196721312, "f1": 0.4053333333333333}, {"pass": 7, "tp": 292, "fp": 674, "fn": 196, "tn": 2140, "pred": 966, "precision": 0.3022774327122153, "recall": 0.5983606557377049, "f1": 0.4016506189821183}, {"pass": 8, "tp": 300, "fp": 880, "fn": 188, "tn": 1934, "pred": 1180, "precision": 0.2542372881355932, "recall": 0.6147540983606558, "f1": 0.3597122302158273}, {"pass": 9, "tp": 300, "fp": 802, "fn": 188, "tn": 2012, "pred": 1102, "precision": 0.27223230490018147, "recall": 0.6147540983606558, "f1": 0.3773584905660377}, {"pass": 10, "tp": 300, "fp": 880, "fn": 188, "tn": 1934, "pred": 1180, "precision": 0.2542372881355932, "recall": 0.6147540983606558, "f1": 0.3597122302158273}, {"pass": 11, "tp": 300, "fp": 778, "fn": 188, "tn": 2036, "pred": 1078, "precision": 0.2782931354359926, "recall": 0.6147540983606558, "f1": 0.3831417624521073}, {"pass": 12, "tp": 329, "fp": 837, "fn": 159, "tn": 1977, "pred": 1166, "precision": 0.28216123499142365, "recall": 0.6741803278688525, "f1": 0.3978234582829504}, {"pass": 13, "tp": 328, "fp": 1070, "fn": 160, "tn": 1744, "pred": 1398, "precision": 0.23462088698140202, "recall": 0.6721311475409836, "f1": 0.3478260869565218}, {"pass": 14, "tp": 322, "fp": 832, "fn": 166, "tn": 1982, "pred": 1154, "precision": 0.27902946273830154, "recall": 0.6598360655737705, "f1": 0.392204628501827}, {"pass": 15, "tp": 284, "fp": 700, "fn": 204, "tn": 2114, "pred": 984, "precision": 0.2886178861788618, "recall": 0.5819672131147541, "f1": 0.3858695652173913}, {"pass": 16, "tp": 296, "fp": 744, "fn": 192, "tn": 2070, "pred": 1040, "precision": 0.2846153846153846, "recall": 0.6065573770491803, "f1": 0.387434554973822}, {"pass": 17, "tp": 328, "fp": 786, "fn": 160, "tn": 2028, "pred": 1114, "precision": 0.29443447037701975, "recall": 0.6721311475409836, "f1": 0.4094881398252185}, {"pass": 18, "tp": 300, "fp": 706, "fn": 188, "tn": 2108, "pred": 1006, "precision": 0.2982107355864811, "recall": 0.6147540983606558, "f1": 0.40160642570281124}, {"pass": 19, "tp": 346, "fp": 1018, "fn": 142, "tn": 1796, "pred": 1364, "precision": 0.2536656891495601, "recall": 0.7090163934426229, "f1": 0.37365010799136067}], "per_pass_bl": [{"pass": 0, "tp": 236, "fp": 542, "fn": 252, "tn": 2272, "pred": 778, "precision": 0.3033419023136247, "recall": 0.48360655737704916, "f1": 0.37282780410742494}, {"pass": 1, "tp": 264, "fp": 604, "fn": 224, "tn": 2210, "pred": 868, "precision": 0.30414746543778803, "recall": 0.5409836065573771, "f1": 0.3893805309734514}, {"pass": 2, "tp": 218, "fp": 533, "fn": 270, "tn": 2281, "pred": 751, "precision": 0.29027962716378164, "recall": 0.44672131147540983, "f1": 0.35189669087974174}, {"pass": 3, "tp": 258, "fp": 508, "fn": 230, "tn": 2306, "pred": 766, "precision": 0.3368146214099217, "recall": 0.5286885245901639, "f1": 0.41148325358851673}, {"pass": 4, "tp": 244, "fp": 565, "fn": 244, "tn": 2249, "pred": 809, "precision": 0.3016069221260816, "recall": 0.5, "f1": 0.37625289128758677}, {"pass": 5, "tp": 246, "fp": 630, "fn": 242, "tn": 2184, "pred": 876, "precision": 0.2808219178082192, "recall": 0.5040983606557377, "f1": 0.36070381231671556}, {"pass": 6, "tp": 246, "fp": 514, "fn": 242, "tn": 2300, "pred": 760, "precision": 0.3236842105263158, "recall": 0.5040983606557377, "f1": 0.3942307692307692}, {"pass": 7, "tp": 254, "fp": 578, "fn": 234, "tn": 2236, "pred": 832, "precision": 0.30528846153846156, "recall": 0.5204918032786885, "f1": 0.38484848484848483}, {"pass": 8, "tp": 274, "fp": 658, "fn": 214, "tn": 2156, "pred": 932, "precision": 0.2939914163090129, "recall": 0.5614754098360656, "f1": 0.38591549295774646}, {"pass": 9, "tp": 228, "fp": 498, "fn": 260, "tn": 2316, "pred": 726, "precision": 0.3140495867768595, "recall": 0.4672131147540984, "f1": 0.3756177924217463}, {"pass": 10, "tp": 282, "fp": 656, "fn": 206, "tn": 2158, "pred": 938, "precision": 0.3006396588486141, "recall": 0.5778688524590164, "f1": 0.39551192145862557}, {"pass": 11, "tp": 258, "fp": 547, "fn": 230, "tn": 2267, "pred": 805, "precision": 0.3204968944099379, "recall": 0.5286885245901639, "f1": 0.39907192575406036}, {"pass": 12, "tp": 278, "fp": 586, "fn": 210, "tn": 2228, "pred": 864, "precision": 0.32175925925925924, "recall": 0.569672131147541, "f1": 0.41124260355029585}, {"pass": 13, "tp": 226, "fp": 460, "fn": 262, "tn": 2354, "pred": 686, "precision": 0.3294460641399417, "recall": 0.46311475409836067, "f1": 0.3850085178875639}, {"pass": 14, "tp": 254, "fp": 562, "fn": 234, "tn": 2252, "pred": 816, "precision": 0.3112745098039216, "recall": 0.5204918032786885, "f1": 0.38957055214723924}, {"pass": 15, "tp": 244, "fp": 590, "fn": 244, "tn": 2224, "pred": 834, "precision": 0.29256594724220625, "recall": 0.5, "f1": 0.36913767019667176}, {"pass": 16, "tp": 257, "fp": 559, "fn": 231, "tn": 2255, "pred": 816, "precision": 0.31495098039215685, "recall": 0.5266393442622951, "f1": 0.3941717791411043}, {"pass": 17, "tp": 248, "fp": 572, "fn": 240, "tn": 2242, "pred": 820, "precision": 0.3024390243902439, "recall": 0.5081967213114754, "f1": 0.37920489296636084}, {"pass": 18, "tp": 272, "fp": 692, "fn": 216, "tn": 2122, "pred": 964, "precision": 0.2821576763485477, "recall": 0.5573770491803278, "f1": 0.37465564738292007}, {"pass": 19, "tp": 250, "fp": 582, "fn": 238, "tn": 2232, "pred": 832, "precision": 0.3004807692307692, "recall": 0.5122950819672131, "f1": 0.37878787878787873}], "ens": {"few-shot": {"f1": 0.46870451237263466, "p": 0.36343115124153497, "r": 0.6598360655737705, "tp": 322, "fp": 564, "fn": 166, "mean_pass": 0.38768956609956134, "sd_pass": 0.01995672444883235, "best_k": 11, "best_f1": 0.46551724137931033}, "baseline": {"f1": 0.4082332761578044, "p": 0.35103244837758113, "r": 0.48770491803278687, "tp": 238, "fp": 440, "fn": 250, "mean_pass": 0.38397604559424525, "sd_pass": 0.015074346335861107, "best_k": 7, "best_f1": 0.444141689373297}}, "thresh": {"few-shot": [{"k": 1, "n": 2628, "p": 0.18188736681887366, "r": 0.9795081967213115, "f1": 0.306803594351733}, {"k": 2, "n": 2230, "p": 0.20807174887892377, "r": 0.9508196721311475, "f1": 0.34142752023546724}, {"k": 3, "n": 2046, "p": 0.2238514173998045, "r": 0.9385245901639344, "f1": 0.36148382004735596}, {"k": 4, "n": 1872, "p": 0.23504273504273504, "r": 0.9016393442622951, "f1": 0.3728813559322034}, {"k": 5, "n": 1708, "p": 0.25175644028103045, "r": 0.8811475409836066, "f1": 0.3916211293260473}, {"k": 6, "n": 1586, "p": 0.26229508196721313, "r": 0.8524590163934426, "f1": 0.4011571841851495}, {"k": 7, "n": 1414, "p": 0.2828854314002829, "r": 0.819672131147541, "f1": 0.4206098843322818}, {"k": 8, "n": 1280, "p": 0.2984375, "r": 0.7827868852459017, "f1": 0.43212669683257926}, {"k": 9, "n": 1136, "p": 0.31514084507042256, "r": 0.7336065573770492, "f1": 0.4408866995073892}, {"k": 10, "n": 1024, "p": 0.333984375, "r": 0.7008196721311475, "f1": 0.45238095238095233}, {"k": 11, "n": 904, "p": 0.3584070796460177, "r": 0.6639344262295082, "f1": 0.46551724137931033}, {"k": 12, "n": 809, "p": 0.36711990111248455, "r": 0.6086065573770492, "f1": 0.4579799537393986}, {"k": 13, "n": 740, "p": 0.36486486486486486, "r": 0.5532786885245902, "f1": 0.43973941368078173}, {"k": 14, "n": 660, "p": 0.3575757575757576, "r": 0.48360655737704916, "f1": 0.4111498257839721}, {"k": 15, "n": 600, "p": 0.36333333333333334, "r": 0.44672131147540983, "f1": 0.40073529411764713}, {"k": 16, "n": 516, "p": 0.39147286821705424, "r": 0.4139344262295082, "f1": 0.402390438247012}, {"k": 17, "n": 424, "p": 0.41037735849056606, "r": 0.35655737704918034, "f1": 0.3815789473684211}, {"k": 18, "n": 348, "p": 0.40229885057471265, "r": 0.28688524590163933, "f1": 0.33492822966507174}, {"k": 19, "n": 286, "p": 0.3776223776223776, "r": 0.22131147540983606, "f1": 0.2790697674418604}, {"k": 20, "n": 183, "p": 0.4371584699453552, "r": 0.16393442622950818, "f1": 0.23845007451564826}], "baseline": [{"k": 1, "n": 2006, "p": 0.2193419740777667, "r": 0.9016393442622951, "f1": 0.35284683239775455}, {"k": 2, "n": 1642, "p": 0.2496954933008526, "r": 0.8401639344262295, "f1": 0.38497652582159625}, {"k": 3, "n": 1444, "p": 0.2659279778393352, "r": 0.7868852459016393, "f1": 0.39751552795031053}, {"k": 4, "n": 1268, "p": 0.29652996845425866, "r": 0.7704918032786885, "f1": 0.428246013667426}, {"k": 5, "n": 1162, "p": 0.31153184165232356, "r": 0.7418032786885246, "f1": 0.43878787878787884}, {"k": 6, "n": 1066, "p": 0.3227016885553471, "r": 0.7049180327868853, "f1": 0.4427284427284428}, {"k": 7, "n": 980, "p": 0.3326530612244898, "r": 0.6680327868852459, "f1": 0.444141689373297}, {"k": 8, "n": 887, "p": 0.3269447576099211, "r": 0.5942622950819673, "f1": 0.42181818181818187}, {"k": 9, "n": 792, "p": 0.3383838383838384, "r": 0.5491803278688525, "f1": 0.41875}, {"k": 10, "n": 738, "p": 0.33875338753387535, "r": 0.5122950819672131, "f1": 0.40783034257748774}, {"k": 11, "n": 684, "p": 0.347953216374269, "r": 0.48770491803278687, "f1": 0.4061433447098976}, {"k": 12, "n": 628, "p": 0.3503184713375796, "r": 0.45081967213114754, "f1": 0.3942652329749104}, {"k": 13, "n": 590, "p": 0.34915254237288135, "r": 0.42213114754098363, "f1": 0.38218923933209653}, {"k": 14, "n": 528, "p": 0.3484848484848485, "r": 0.3770491803278688, "f1": 0.36220472440944884}, {"k": 15, "n": 485, "p": 0.3463917525773196, "r": 0.3442622950819672, "f1": 0.3453237410071942}, {"k": 16, "n": 441, "p": 0.3469387755102041, "r": 0.3135245901639344, "f1": 0.32938643702906345}, {"k": 17, "n": 374, "p": 0.37433155080213903, "r": 0.28688524590163933, "f1": 0.32482598607888635}, {"k": 18, "n": 326, "p": 0.3803680981595092, "r": 0.2540983606557377, "f1": 0.30466830466830475}, {"k": 19, "n": 258, "p": 0.3488372093023256, "r": 0.18442622950819673, "f1": 0.2412868632707775}, {"k": 20, "n": 174, "p": 0.367816091954023, "r": 0.13114754098360656, "f1": 0.19335347432024166}]}, "curve": {"few-shot": {"1": {"f1": 0.38729350724234524, "sd": 0.018993338101255617}, "2": {"f1": 0.3942397031354425, "sd": 0.017785742563478247}, "3": {"f1": 0.4166062969834432, "sd": 0.013350772211704142}, "5": {"f1": 0.4260958963815734, "sd": 0.01159805258072877}, "7": {"f1": 0.4347463224040257, "sd": 0.009885972499840657}, "9": {"f1": 0.4401420941733897, "sd": 0.009023640489455927}, "11": {"f1": 0.44559752566183913, "sd": 0.009167437628300296}, "13": {"f1": 0.4495679852288824, "sd": 0.0076469475865124205}, "15": {"f1": 0.4532670600940651, "sd": 0.006979324829576175}, "17": {"f1": 0.4560807672337619, "sd": 0.006050120816450652}, "19": {"f1": 0.45867150191962935, "sd": 0.003424446834436387}, "20": {"f1": 0.46551724137931033, "sd": 0.0}}, "baseline": {"1": {"f1": 0.3838307528512981, "sd": 0.015410685464069295}, "2": {"f1": 0.3581305072700263, "sd": 0.021114057261108505}, "3": {"f1": 0.400166784894765, "sd": 0.013060822972606722}, "5": {"f1": 0.40609880059177567, "sd": 0.01133787013361842}, "7": {"f1": 0.40592667148554706, "sd": 0.010962461633970473}, "9": {"f1": 0.4062691776916217, "sd": 0.009387708633630875}, "11": {"f1": 0.4071709728373987, "sd": 0.008873054472354303}, "13": {"f1": 0.4073943635169997, "sd": 0.007445263970522511}, "15": {"f1": 0.4063682334512301, "sd": 0.0062682541039526946}, "17": {"f1": 0.4062435968113924, "sd": 0.005510001330681124}, "19": {"f1": 0.4069913205893997, "sd": 0.0027280676590138923}, "20": {"f1": 0.4061433447098976, "sd": 0.0}}}, "calib": {"few-shot": {"auc": 0.793246152143265, "brier": 0.18135826771653543, "ceiling": 0.9795081967213115, "k0": 674, "k20": 183}, "baseline": {"auc": 0.7643883189439221, "brier": 0.16512492428831013, "ceiling": 0.9016393442622951, "k0": 1296, "k20": 174}}, "headtohead": {"delta": 0.06047123621483025, "lo": 0.018556005398110698, "hi": 0.10243130484822338, "p_gt0": 0.997, "mcnemar_n01": 180, "mcnemar_n10": 220}, "dep_fs": {"within_ratio": 15.564072930971188, "r_sent": 0.32753784882898007, "r_doc": 0.266118472809671, "r_diff": 0.005111476152289589}, "dep_bl": {"within_ratio": 10.343016747459217, "r_sent": 0.3464921619975301, "r_doc": 0.24590743976312296, "r_diff": 0.0001222973758660403}, "err": {"few-shot": {"fp_j": 0.41668602034277263, "fn_j": 0.41230610757087033}, "baseline": {"fp_j": 0.46288540679655027, "fn_j": 0.5648765901942885}}, "shot_effect": {"vol": {"obs": 17.01050723199915, "null": 2.943747065352275, "z": 22.364274651139507}, "f1": {"obs": 0.000995160361158683, "null": 0.0007957143553529814, "z": 1.1652723484774496}}, "density_r": 0.27414788453524586, "mirror_asym": 0.0001786033220217896, "deff": 0.9745810813138819, "subset": {"rand": {"2": {"mean": 0.34974404960556965, "sd": 0.034048758248574396, "max": 0.42424242424242425, "min": 0.23057644110275688, "cov": 0.9825, "empty": 11.02}, "4": {"mean": 0.39302197604306627, "sd": 0.02488486146505163, "max": 0.4574961360123648, "min": 0.3384615384615385, "cov": 1.9936363636363637, "empty": 2.32}, "6": {"mean": 0.40978855789065266, "sd": 0.020411716106633636, "max": 0.45714285714285713, "min": 0.351493848857645, "cov": 3.00875, "empty": 0.525}, "8": {"mean": 0.4171805402735197, "sd": 0.019886379891024715, "max": 0.4759358288770054, "min": 0.3586206896551724, "cov": 3.997159090909091, "empty": 0.07}, "10": {"mean": 0.42690553730631414, "sd": 0.017594108363178974, "max": 0.46745562130177515, "min": 0.37410071942446044, "cov": 4.986363636363637, "empty": 0.015}, "12": {"mean": 0.43047441842786127, "sd": 0.015475224536930118, "max": 0.4673748103186647, "min": 0.3861111111111111, "cov": 6.001363636363638, "empty": 0.0}, "16": {"mean": 0.43870022173344725, "sd": 0.013791659385000625, "max": 0.48033707865168535, "min": 0.39270687237026647, "cov": 7.997045454545455, "empty": 0.0}, "20": {"mean": 0.4436099508065757, "sd": 0.010823534504245181, "max": 0.47144948755490484, "min": 0.40995607613469986, "cov": 10.006363636363636, "empty": 0.0}, "24": {"mean": 0.4470899639284421, "sd": 0.011508587429641367, "max": 0.490674318507891, "min": 0.41867469879518077, "cov": 12.01409090909091, "empty": 0.0}, "30": {"mean": 0.45427041448232175, "sd": 0.009038733542846336, "max": 0.48467153284671527, "min": 0.4259520451339915, "cov": 14.98215909090909, "empty": 0.0}, "40": {"mean": 0.46551724137931033, "sd": 0.0, "max": 0.46551724137931033, "min": 0.46551724137931033, "cov": 20.0, "empty": 0.0}}, "full": 0.46551724137931033, "greedy": [{"m": 1, "ex": "32_5ecbplus.xml", "f1": 0.3897435897435897}, {"m": 2, "ex": "30_5ecbplus.xml", "f1": 0.45161290322580644}, {"m": 3, "ex": "7_7ecbplus.xml", "f1": 0.4659606656580938}, {"m": 4, "ex": "12_6ecbplus.xml", "f1": 0.4742268041237114}, {"m": 5, "ex": "1_1ecbplus.xml", "f1": 0.4808575803981623}, {"m": 6, "ex": "30_3ecbplus.xml", "f1": 0.48690292758089376}, {"m": 7, "ex": "16_2ecbplus.xml", "f1": 0.48338368580060415}, {"m": 8, "ex": "20_10ecbplus.xml", "f1": 0.48}, {"m": 9, "ex": "30_13ecbplus.xml", "f1": 0.48307692307692307}, {"m": 10, "ex": "16_7ecbplus.xml", "f1": 0.47692307692307684}, {"m": 11, "ex": "5_3ecbplus.xml", "f1": 0.47289156626506024}, {"m": 12, "ex": "20_4ecbplus.xml", "f1": 0.46929133858267713}, {"m": 13, "ex": "14_8ecbplus.xml", "f1": 0.4698608964451314}, {"m": 14, "ex": "8_8ecbplus.xml", "f1": 0.47040498442367595}, {"m": 15, "ex": "7_8ecbplus.xml", "f1": 0.4748858447488585}, {"m": 16, "ex": "7_10ecbplus.xml", "f1": 0.4776119402985074}, {"m": 17, "ex": "12_3ecbplus.xml", "f1": 0.4919472913616398}, {"m": 18, "ex": "8_2ecbplus.xml", "f1": 0.49421965317919064}, {"m": 19, "ex": "3_10ecbplus.xml", "f1": 0.49421965317919064}, {"m": 20, "ex": "30_10ecbplus.xml", "f1": 0.4956011730205278}, {"m": 21, "ex": "22_12ecbplus.xml", "f1": 0.4956011730205278}, {"m": 22, "ex": "35_3ecbplus.xml", "f1": 0.4928774928774929}, {"m": 23, "ex": "14_9ecbplus.xml", "f1": 0.4928774928774929}, {"m": 24, "ex": "19_5ecbplus.xml", "f1": 0.4922644163150493}, {"m": 25, "ex": "32_1ecbplus.xml", "f1": 0.4901408450704225}, {"m": 26, "ex": "1_21ecbplus.xml", "f1": 0.4899713467048711}, {"m": 27, "ex": "12_9ecbplus.xml", "f1": 0.48787446504992876}, {"m": 28, "ex": "18_7ecbplus.xml", "f1": 0.48373408769448367}, {"m": 29, "ex": "18_2ecbplus.xml", "f1": 0.48587570621468934}, {"m": 30, "ex": "1_19ecbplus.xml", "f1": 0.4818577648766328}, {"m": 31, "ex": "16_3ecbplus.xml", "f1": 0.4768786127167631}, {"m": 32, "ex": "32_7ecbplus.xml", "f1": 0.4765957446808511}, {"m": 33, "ex": "23_3ecbplus.xml", "f1": 0.48115942028985514}, {"m": 34, "ex": "24_4ecbplus.xml", "f1": 0.4798850574712644}, {"m": 35, "ex": "1_12ecbplus.xml", "f1": 0.4705882352941177}, {"m": 36, "ex": "19_3ecbplus.xml", "f1": 0.4707560627674751}, {"m": 37, "ex": "24_7ecbplus.xml", "f1": 0.4727793696275071}, {"m": 38, "ex": "3_7ecbplus.xml", "f1": 0.46704871060171926}, {"m": 39, "ex": "16_1ecbplus.xml", "f1": 0.46648044692737434}, {"m": 40, "ex": "3_5ecbplus.xml", "f1": 0.46551724137931033}], "cv": {"4": {"greedy": {"mean": 0.4149867232630226, "sd": 0.035985419610099795}, "random": {"mean": 0.38993479069186443, "sd": 0.04003325472427621}, "all": {"mean": 0.464747233447918, "sd": 0.023796750143007923}, "topvol": {"mean": 0.3688127235329317, "sd": 0.023477776392302578}, "botvol": {"mean": 0.34664975037019186, "sd": 0.03630626788905221}}, "8": {"greedy": {"mean": 0.43101955203416664, "sd": 0.0296484744740084}, "random": {"mean": 0.42287941966703063, "sd": 0.03190659514180348}, "all": {"mean": 0.464747233447918, "sd": 0.023796750143007923}, "topvol": {"mean": 0.3907704579031531, "sd": 0.024035652385274685}, "botvol": {"mean": 0.39067237963215556, "sd": 0.030958361102281236}}, "12": {"greedy": {"mean": 0.4377099586032224, "sd": 0.0307185809563629}, "random": {"mean": 0.42347441517605106, "sd": 0.027879069166140025}, "all": {"mean": 0.464747233447918, "sd": 0.023796750143007923}, "topvol": {"mean": 0.4039496807440981, "sd": 0.023584735696013843}, "botvol": {"mean": 0.4046258292657149, "sd": 0.032984078170186955}}, "16": {"greedy": {"mean": 0.4451323949155515, "sd": 0.02975059629302835}, "random": {"mean": 0.43524836972471387, "sd": 0.029335783068906073}, "all": {"mean": 0.464747233447918, "sd": 0.023796750143007923}, "topvol": {"mean": 0.41936596018386685, "sd": 0.025087485573364966}, "botvol": {"mean": 0.4153011741332665, "sd": 0.029814230634109946}}, "20": {"greedy": {"mean": 0.44867637406133387, "sd": 0.03112288126392926}, "random": {"mean": 0.4429010330823419, "sd": 0.029301191088485497}, "all": {"mean": 0.464747233447918, "sd": 0.023796750143007923}, "topvol": {"mean": 0.43185468693936957, "sd": 0.023855729049913406}, "botvol": {"mean": 0.4233288099851278, "sd": 0.027767716872872984}}}, "matched": [{"votes": 2, "subset": 0.3882, "free": 0.395}, {"votes": 4, "subset": 0.4192, "free": 0.4215}, {"votes": 6, "subset": 0.4303, "free": 0.4348}, {"votes": 8, "subset": 0.4385, "free": 0.4375}, {"votes": 10, "subset": 0.4442, "free": 0.4429}, {"votes": 12, "subset": 0.4481, "free": 0.4471}, {"votes": 15, "subset": 0.453, "free": 0.452}, {"votes": 20, "subset": 0.4655, "free": 0.4655}], "var": {"tot": 68.46423444976077, "explained": 18.514888874267093, "resid": 49.94934557549367}, "greedy_vs_random": {"4": {"d": 0.0251, "t": 5.9}, "8": {"d": 0.0081, "t": 2.8}, "12": {"d": 0.0142, "t": 5.9}, "16": {"d": 0.0099, "t": 4.0}, "20": {"d": 0.0058, "t": 2.7}}}, "which": {"delta": {"12_3ecbplus.xml": 0.004404227033411645, "12_6ecbplus.xml": -0.00026185735365058527, "12_9ecbplus.xml": -0.0020016659474683673, "14_8ecbplus.xml": 0.00166885646457271, "14_9ecbplus.xml": 0.0005358543638989688, "16_1ecbplus.xml": -0.00023388315249134317, "16_2ecbplus.xml": -0.0030131577858964476, "16_3ecbplus.xml": -0.0019531578184383003, "16_7ecbplus.xml": -0.0007673296428430398, "18_2ecbplus.xml": -0.0026093722642905326, "18_7ecbplus.xml": -0.0019423477702859016, "19_3ecbplus.xml": -0.0002846467716750567, "19_5ecbplus.xml": -0.0024880514969264356, "1_12ecbplus.xml": -0.004033312391320265, "1_19ecbplus.xml": -0.005292116404514213, "1_1ecbplus.xml": 0.002599795053340015, "1_21ecbplus.xml": -0.00363399827304689, "20_10ecbplus.xml": 0.002982725972033806, "20_4ecbplus.xml": 0.0016234079843809868, "22_12ecbplus.xml": 0.00034181181488673884, "23_3ecbplus.xml": 0.000978274406552071, "24_4ecbplus.xml": -0.003214791259441463, "24_7ecbplus.xml": -0.00036968206833903894, "30_10ecbplus.xml": -0.00023439401942088045, "30_13ecbplus.xml": 0.00017040005991086904, "30_3ecbplus.xml": 0.00034459236290740325, "30_5ecbplus.xml": 0.008246362070643387, "32_1ecbplus.xml": 0.0035056198507166236, "32_5ecbplus.xml": 0.002889902112870657, "32_7ecbplus.xml": 0.0013801891779025022, "35_3ecbplus.xml": -0.003037938567254317, "3_10ecbplus.xml": 0.001367588690449395, "3_5ecbplus.xml": -0.003600097321512341, "3_7ecbplus.xml": -0.005199339614981258, "5_3ecbplus.xml": -0.0014938271917844248, "7_10ecbplus.xml": 0.005912576977018691, "7_7ecbplus.xml": 0.00021071698824115526, "7_8ecbplus.xml": 0.002257704227583035, "8_2ecbplus.xml": 0.006081493612914657, "8_8ecbplus.xml": -0.0018433309656917252}, "feat": {"12_3ecbplus.xml": {"mentions": 15, "sentences": 3, "tokens": 446, "cand_intra": 33, "gold_intra": 10, "gold_all": 26, "density": 0.30303030303030304, "intra_share": 0.38461538461538464, "topic": 12, "cot_pairs": 28, "cot_chars": 7384}, "12_6ecbplus.xml": {"mentions": 8, "sentences": 2, "tokens": 461, "cand_intra": 16, "gold_intra": 3, "gold_all": 6, "density": 0.1875, "intra_share": 0.5, "topic": 12, "cot_pairs": 8, "cot_chars": 5043}, "12_9ecbplus.xml": {"mentions": 12, "sentences": 3, "tokens": 454, "cand_intra": 25, "gold_intra": 3, "gold_all": 5, "density": 0.12, "intra_share": 0.6, "topic": 12, "cot_pairs": 6, "cot_chars": 8354}, "14_8ecbplus.xml": {"mentions": 24, "sentences": 7, "tokens": 433, "cand_intra": 32, "gold_intra": 7, "gold_all": 43, "density": 0.21875, "intra_share": 0.16279069767441862, "topic": 14, "cot_pairs": 22, "cot_chars": 7309}, "14_9ecbplus.xml": {"mentions": 17, "sentences": 4, "tokens": 151, "cand_intra": 30, "gold_intra": 6, "gold_all": 21, "density": 0.2, "intra_share": 0.2857142857142857, "topic": 14, "cot_pairs": 22, "cot_chars": 5720}, "16_1ecbplus.xml": {"mentions": 32, "sentences": 7, "tokens": 771, "cand_intra": 73, "gold_intra": 14, "gold_all": 63, "density": 0.1917808219178082, "intra_share": 0.2222222222222222, "topic": 16, "cot_pairs": 74, "cot_chars": 11777}, "16_2ecbplus.xml": {"mentions": 48, "sentences": 9, "tokens": 553, "cand_intra": 222, "gold_intra": 25, "gold_all": 137, "density": 0.11261261261261261, "intra_share": 0.18248175182481752, "topic": 16, "cot_pairs": 274, "cot_chars": 20289}, "16_3ecbplus.xml": {"mentions": 8, "sentences": 2, "tokens": 302, "cand_intra": 12, "gold_intra": 3, "gold_all": 6, "density": 0.25, "intra_share": 0.5, "topic": 16, "cot_pairs": 14, "cot_chars": 4465}, "16_7ecbplus.xml": {"mentions": 16, "sentences": 4, "tokens": 1124, "cand_intra": 42, "gold_intra": 7, "gold_all": 17, "density": 0.16666666666666666, "intra_share": 0.4117647058823529, "topic": 16, "cot_pairs": 28, "cot_chars": 7492}, "18_2ecbplus.xml": {"mentions": 13, "sentences": 3, "tokens": 564, "cand_intra": 26, "gold_intra": 6, "gold_all": 12, "density": 0.23076923076923078, "intra_share": 0.5, "topic": 18, "cot_pairs": 14, "cot_chars": 3395}, "18_7ecbplus.xml": {"mentions": 17, "sentences": 3, "tokens": 725, "cand_intra": 54, "gold_intra": 8, "gold_all": 18, "density": 0.14814814814814814, "intra_share": 0.4444444444444444, "topic": 18, "cot_pairs": 52, "cot_chars": 6118}, "19_3ecbplus.xml": {"mentions": 25, "sentences": 5, "tokens": 751, "cand_intra": 51, "gold_intra": 18, "gold_all": 63, "density": 0.35294117647058826, "intra_share": 0.2857142857142857, "topic": 19, "cot_pairs": 120, "cot_chars": 11577}, "19_5ecbplus.xml": {"mentions": 32, "sentences": 4, "tokens": 1565, "cand_intra": 115, "gold_intra": 29, "gold_all": 95, "density": 0.25217391304347825, "intra_share": 0.30526315789473685, "topic": 19, "cot_pairs": 156, "cot_chars": 18459}, "1_12ecbplus.xml": {"mentions": 24, "sentences": 6, "tokens": 266, "cand_intra": 47, "gold_intra": 2, "gold_all": 4, "density": 0.0425531914893617, "intra_share": 0.5, "topic": 1, "cot_pairs": 16, "cot_chars": 5383}, "1_19ecbplus.xml": {"mentions": 30, "sentences": 7, "tokens": 272, "cand_intra": 55, "gold_intra": 7, "gold_all": 24, "density": 0.12727272727272726, "intra_share": 0.2916666666666667, "topic": 1, "cot_pairs": 14, "cot_chars": 5737}, "1_1ecbplus.xml": {"mentions": 32, "sentences": 7, "tokens": 237, "cand_intra": 76, "gold_intra": 8, "gold_all": 18, "density": 0.10526315789473684, "intra_share": 0.4444444444444444, "topic": 1, "cot_pairs": 36, "cot_chars": 5566}, "1_21ecbplus.xml": {"mentions": 21, "sentences": 6, "tokens": 163, "cand_intra": 43, "gold_intra": 7, "gold_all": 11, "density": 0.16279069767441862, "intra_share": 0.6363636363636364, "topic": 1, "cot_pairs": 22, "cot_chars": 4179}, "20_10ecbplus.xml": {"mentions": 7, "sentences": 2, "tokens": 196, "cand_intra": 15, "gold_intra": 2, "gold_all": 5, "density": 0.13333333333333333, "intra_share": 0.4, "topic": 20, "cot_pairs": 2, "cot_chars": 2320}, "20_4ecbplus.xml": {"mentions": 20, "sentences": 4, "tokens": 681, "cand_intra": 47, "gold_intra": 9, "gold_all": 36, "density": 0.19148936170212766, "intra_share": 0.25, "topic": 20, "cot_pairs": 22, "cot_chars": 4740}, "22_12ecbplus.xml": {"mentions": 17, "sentences": 4, "tokens": 965, "cand_intra": 38, "gold_intra": 11, "gold_all": 18, "density": 0.2894736842105263, "intra_share": 0.6111111111111112, "topic": 22, "cot_pairs": 52, "cot_chars": 7970}, "23_3ecbplus.xml": {"mentions": 20, "sentences": 6, "tokens": 361, "cand_intra": 29, "gold_intra": 8, "gold_all": 16, "density": 0.27586206896551724, "intra_share": 0.5, "topic": 23, "cot_pairs": 22, "cot_chars": 6554}, "24_4ecbplus.xml": {"mentions": 7, "sentences": 4, "tokens": 309, "cand_intra": 4, "gold_intra": 2, "gold_all": 9, "density": 0.5, "intra_share": 0.2222222222222222, "topic": 24, "cot_pairs": 18, "cot_chars": 5099}, "24_7ecbplus.xml": {"mentions": 18, "sentences": 4, "tokens": 301, "cand_intra": 41, "gold_intra": 2, "gold_all": 13, "density": 0.04878048780487805, "intra_share": 0.15384615384615385, "topic": 24, "cot_pairs": 10, "cot_chars": 6214}, "30_10ecbplus.xml": {"mentions": 38, "sentences": 8, "tokens": 339, "cand_intra": 87, "gold_intra": 3, "gold_all": 15, "density": 0.034482758620689655, "intra_share": 0.2, "topic": 30, "cot_pairs": 16, "cot_chars": 5919}, "30_13ecbplus.xml": {"mentions": 43, "sentences": 8, "tokens": 288, "cand_intra": 130, "gold_intra": 14, "gold_all": 47, "density": 0.1076923076923077, "intra_share": 0.2978723404255319, "topic": 30, "cot_pairs": 44, "cot_chars": 8638}, "30_3ecbplus.xml": {"mentions": 30, "sentences": 8, "tokens": 261, "cand_intra": 50, "gold_intra": 6, "gold_all": 23, "density": 0.12, "intra_share": 0.2608695652173913, "topic": 30, "cot_pairs": 14, "cot_chars": 5085}, "30_5ecbplus.xml": {"mentions": 33, "sentences": 8, "tokens": 508, "cand_intra": 55, "gold_intra": 9, "gold_all": 38, "density": 0.16363636363636364, "intra_share": 0.23684210526315788, "topic": 30, "cot_pairs": 32, "cot_chars": 7022}, "32_1ecbplus.xml": {"mentions": 19, "sentences": 7, "tokens": 623, "cand_intra": 24, "gold_intra": 5, "gold_all": 14, "density": 0.20833333333333334, "intra_share": 0.35714285714285715, "topic": 32, "cot_pairs": 28, "cot_chars": 6573}, "32_5ecbplus.xml": {"mentions": 50, "sentences": 14, "tokens": 563, "cand_intra": 79, "gold_intra": 11, "gold_all": 35, "density": 0.13924050632911392, "intra_share": 0.3142857142857143, "topic": 32, "cot_pairs": 34, "cot_chars": 12114}, "32_7ecbplus.xml": {"mentions": 7, "sentences": 3, "tokens": 100, "cand_intra": 5, "gold_intra": 0, "gold_all": 0, "density": 0.0, "intra_share": 0.0, "topic": 32, "cot_pairs": 2, "cot_chars": 2099}, "35_3ecbplus.xml": {"mentions": 46, "sentences": 11, "tokens": 774, "cand_intra": 94, "gold_intra": 12, "gold_all": 13, "density": 0.1276595744680851, "intra_share": 0.9230769230769231, "topic": 35, "cot_pairs": 22, "cot_chars": 7775}, "3_10ecbplus.xml": {"mentions": 36, "sentences": 7, "tokens": 296, "cand_intra": 89, "gold_intra": 17, "gold_all": 63, "density": 0.19101123595505617, "intra_share": 0.2698412698412698, "topic": 3, "cot_pairs": 42, "cot_chars": 7087}, "3_5ecbplus.xml": {"mentions": 15, "sentences": 6, "tokens": 190, "cand_intra": 13, "gold_intra": 3, "gold_all": 17, "density": 0.23076923076923078, "intra_share": 0.17647058823529413, "topic": 3, "cot_pairs": 34, "cot_chars": 5634}, "3_7ecbplus.xml": {"mentions": 18, "sentences": 5, "tokens": 160, "cand_intra": 33, "gold_intra": 2, "gold_all": 18, "density": 0.06060606060606061, "intra_share": 0.1111111111111111, "topic": 3, "cot_pairs": 36, "cot_chars": 4791}, "5_3ecbplus.xml": {"mentions": 2, "sentences": 1, "tokens": 32, "cand_intra": 1, "gold_intra": 1, "gold_all": 1, "density": 1.0, "intra_share": 1.0, "topic": 5, "cot_pairs": 0, "cot_chars": 978}, "7_10ecbplus.xml": {"mentions": 18, "sentences": 5, "tokens": 194, "cand_intra": 28, "gold_intra": 7, "gold_all": 13, "density": 0.25, "intra_share": 0.5384615384615384, "topic": 7, "cot_pairs": 16, "cot_chars": 5977}, "7_7ecbplus.xml": {"mentions": 23, "sentences": 6, "tokens": 937, "cand_intra": 35, "gold_intra": 7, "gold_all": 14, "density": 0.2, "intra_share": 0.5, "topic": 7, "cot_pairs": 26, "cot_chars": 7483}, "7_8ecbplus.xml": {"mentions": 19, "sentences": 6, "tokens": 209, "cand_intra": 23, "gold_intra": 3, "gold_all": 5, "density": 0.13043478260869565, "intra_share": 0.6, "topic": 7, "cot_pairs": 6, "cot_chars": 4401}, "8_2ecbplus.xml": {"mentions": 26, "sentences": 5, "tokens": 816, "cand_intra": 74, "gold_intra": 17, "gold_all": 60, "density": 0.22972972972972974, "intra_share": 0.2833333333333333, "topic": 8, "cot_pairs": 120, "cot_chars": 22823}, "8_8ecbplus.xml": {"mentions": 23, "sentences": 5, "tokens": 976, "cand_intra": 42, "gold_intra": 10, "gold_all": 24, "density": 0.23809523809523808, "intra_share": 0.4166666666666667, "topic": 8, "cot_pairs": 34, "cot_chars": 8291}}, "order": ["30_5ecbplus.xml", "8_2ecbplus.xml", "7_10ecbplus.xml", "12_3ecbplus.xml", "32_1ecbplus.xml", "20_10ecbplus.xml", "32_5ecbplus.xml", "1_1ecbplus.xml", "7_8ecbplus.xml", "14_8ecbplus.xml", "20_4ecbplus.xml", "32_7ecbplus.xml", "3_10ecbplus.xml", "23_3ecbplus.xml", "14_9ecbplus.xml", "30_3ecbplus.xml", "22_12ecbplus.xml", "7_7ecbplus.xml", "30_13ecbplus.xml", "16_1ecbplus.xml", "30_10ecbplus.xml", "12_6ecbplus.xml", "19_3ecbplus.xml", "24_7ecbplus.xml", "16_7ecbplus.xml", "5_3ecbplus.xml", "8_8ecbplus.xml", "18_7ecbplus.xml", "16_3ecbplus.xml", "12_9ecbplus.xml", "19_5ecbplus.xml", "18_2ecbplus.xml", "16_2ecbplus.xml", "35_3ecbplus.xml", "24_4ecbplus.xml", "3_5ecbplus.xml", "1_21ecbplus.xml", "1_12ecbplus.xml", "3_7ecbplus.xml", "1_19ecbplus.xml"], "cv": {"top_8": [0.44852941176470584, 0.43317972350230416, 0.45012787723785164, 0.4528301886792453, 0.46056782334384855, 0.40555555555555556, 0.43701799485861187, 0.42011834319526625, 0.4335664335664336, 0.432258064516129, 0.4204545454545454, 0.4079320113314448, 0.4624624624624624, 0.43099273607748184, 0.43902439024390244, 0.4649859943977591, 0.47432762836185827, 0.47104247104247104, 0.47619047619047616, 0.3780487804878049, 0.37640449438202245, 0.4804804804804805, 0.4666666666666666, 0.4012738853503185, 0.45092838196286467, 0.4, 0.4912280701754386, 0.4300341296928328, 0.4316109422492401, 0.4750733137829912, 0.4525139664804469, 0.44642857142857145, 0.43116883116883115, 0.4, 0.43386243386243384, 0.4309392265193371, 0.44299674267100975, 0.4085510688836104, 0.43870967741935485, 0.48901098901098894], "rand_8": [0.43678160919540227, 0.42786069651741293, 0.39080459770114945, 0.4235294117647058, 0.43684210526315786, 0.41578947368421054, 0.41498559077809793, 0.3988919667590028, 0.4493670886075949, 0.40718562874251496, 0.3472668810289389, 0.40512820512820513, 0.44387755102040816, 0.44324324324324327, 0.4124293785310735, 0.4148606811145511, 0.4098671726755218, 0.38518518518518524, 0.44936708860759494, 0.41012658227848103, 0.4111675126903553, 0.4777070063694267, 0.46153846153846156, 0.3703703703703704, 0.4380403458213256, 0.35883905013192613, 0.4038834951456311, 0.43934426229508194, 0.40498442367601245, 0.47674418604651164, 0.427860696517413, 0.3961661341853035, 0.4161073825503356, 0.43609022556390975, 0.37383177570093457, 0.4359673024523161, 0.4270462633451958, 0.3926940639269407, 0.4315068493150685, 0.42140468227424743], "bot_8": [0.43902439024390244, 0.3846153846153846, 0.42944785276073616, 0.42748091603053434, 0.426829268292683, 0.37327188940092165, 0.4626865671641791, 0.45910290237467016, 0.41355932203389834, 0.4019370460048426, 0.411764705882353, 0.4417475728155339, 0.36470588235294116, 0.38436482084690554, 0.40366972477064217, 0.4244604316546763, 0.3793738489871087, 0.4298245614035088, 0.40506329113924056, 0.4050632911392405, 0.3672316384180791, 0.5068493150684932, 0.44767441860465107, 0.37869822485207105, 0.4392156862745098, 0.39337474120082816, 0.4196891191709845, 0.37106918238993714, 0.360248447204969, 0.40909090909090906, 0.411764705882353, 0.42073170731707327, 0.45762711864406774, 0.4063745019920319, 0.41077441077441074, 0.40268456375838924, 0.4155844155844156, 0.4177777777777778, 0.3884892086330935, 0.4186046511627907], "top_12": [0.45090909090909087, 0.4292237442922375, 0.4766839378238342, 0.459214501510574, 0.48502994011976047, 0.4421052631578947, 0.4371859296482412, 0.4638554216867469, 0.4404494382022472, 0.4554455445544555, 0.41432225063938627, 0.4207492795389049, 0.45121951219512196, 0.4878048780487806, 0.46647230320699706, 0.4409448818897637, 0.4633569739952719, 0.4444444444444444, 0.4764542936288088, 0.4198250728862974, 0.3861386138613861, 0.5126582278481012, 0.4761904761904763, 0.39999999999999997, 0.47513812154696133, 0.41595441595441596, 0.48484848484848486, 0.43816254416961126, 0.4248366013071896, 0.4948979591836735, 0.45317220543806647, 0.4444444444444444, 0.467866323907455, 0.427710843373494, 0.43859649122807015, 0.43529411764705883, 0.4666666666666667, 0.42562929061784893, 0.43918918918918914, 0.4972375690607735], "rand_12": [0.40816326530612246, 0.3817204301075269, 0.43059490084985835, 0.4297082228116711, 0.4542772861356932, 0.4521276595744681, 0.416452442159383, 0.44057971014492747, 0.3887468030690537, 0.43809523809523815, 0.4437086092715232, 0.46276595744680854, 0.4117647058823529, 0.4297994269340974, 0.4759206798866856, 0.4155124653739612, 0.41564792176039117, 0.44000000000000006, 0.4705882352941176, 0.3772609819121447, 0.3844492440604751, 0.49090909090909096, 0.4705882352941176, 0.3858520900321543, 0.4271844660194175, 0.39080459770114945, 0.4476190476190476, 0.43533123028391163, 0.36950146627565983, 0.4676616915422886, 0.4084084084084084, 0.41509433962264153, 0.42886597938144333, 0.39436619718309857, 0.4353312302839117, 0.44247787610619477, 0.463768115942029, 0.4347826086956521, 0.4120879120879121, 0.46376811594202894], "bot_12": [0.43598615916955014, 0.40243902439024387, 0.41317365269461076, 0.4462809917355372, 0.45161290322580644, 0.4039900249376559, 0.4791666666666667, 0.45346062052505964, 0.4304635761589404, 0.42744063324538256, 0.4061302681992337, 0.45194805194805193, 0.39541547277936967, 0.41818181818181815, 0.39312039312039315, 0.4, 0.4294478527607362, 0.43404255319148943, 0.42339832869080785, 0.37078651685393255, 0.34402332361516036, 0.46905537459283386, 0.48, 0.37665782493368694, 0.4693140794223827, 0.41036717062634986, 0.428927680798005, 0.359621451104101, 0.35542168674698793, 0.44171779141104295, 0.42813455657492355, 0.3696969696969697, 0.4411764705882353, 0.40625, 0.4140127388535032, 0.4137931034482759, 0.4497991967871486, 0.4168260038240918, 0.35335689045936397, 0.4347826086956522], "top_20": [0.4655737704918033, 0.42696629213483145, 0.45652173913043476, 0.456973293768546, 0.4676923076923077, 0.4282115869017632, 0.47282608695652173, 0.44510385756676557, 0.4369369369369369, 0.43750000000000006, 0.42774566473988446, 0.44148936170212766, 0.4263322884012539, 0.49076517150395776, 0.43626062322946174, 0.46796657381615586, 0.47432762836185827, 0.42990654205607476, 0.4883720930232559, 0.44507042253521134, 0.42512077294685985, 0.5236593059936908, 0.5124378109452736, 0.3946488294314381, 0.46796657381615603, 0.4000000000000001, 0.4626865671641791, 0.4518272425249169, 0.4378698224852071, 0.4735516372795969, 0.4772117962466488, 0.46153846153846156, 0.47921760391198037, 0.4459930313588851, 0.4318181818181818, 0.47293447293447294, 0.45283018867924524, 0.4368932038834952, 0.45117845117845123, 0.4723618090452261], "rand_20": [0.45751633986928103, 0.4232558139534884, 0.48710601719197705, 0.44162436548223355, 0.46070460704607047, 0.44, 0.45977011494252873, 0.41860465116279066, 0.4832904884318766, 0.4166666666666667, 0.4336569579288026, 0.4580152671755725, 0.4175824175824176, 0.43269230769230765, 0.4419889502762431, 0.43767313019390586, 0.4406779661016949, 0.4472843450479233, 0.4900284900284901, 0.41643835616438357, 0.416243654822335, 0.49664429530201337, 0.48, 0.39769452449567727, 0.4560260586319218, 0.4154589371980676, 0.43644067796610164, 0.44673539518900346, 0.39766081871345027, 0.49867374005305043, 0.45528455284552843, 0.4367088607594937, 0.44123711340206184, 0.40909090909090906, 0.4268292682926829, 0.47482014388489213, 0.4599303135888501, 0.44104803493449785, 0.40993788819875776, 0.4584382871536524], "bot_20": [0.42142857142857143, 0.43523316062176165, 0.414985590778098, 0.41643835616438357, 0.43729903536977494, 0.443298969072165, 0.4666666666666667, 0.4, 0.46625766871165647, 0.40229885057471265, 0.4501845018450184, 0.44124700239808157, 0.4068767908309455, 0.42408376963350786, 0.42500000000000004, 0.4361370716510904, 0.4523281596452328, 0.432, 0.45272206303724927, 0.39344262295081966, 0.37726098191214474, 0.4938271604938272, 0.46361185983827496, 0.37640449438202245, 0.47794117647058826, 0.4200913242009132, 0.4299065420560747, 0.4066666666666667, 0.3932584269662921, 0.44837758112094395, 0.41551246537396125, 0.41758241758241754, 0.44642857142857145, 0.4143426294820716, 0.4076433121019108, 0.44444444444444436, 0.44366197183098594, 0.42384105960264906, 0.4012345679012346, 0.4444444444444444]}, "featstats": [["mentions", 0.061436376612397196, 0.7064763230335277, 24.3, 25.4], ["sentences", 0.09776477972348493, 0.5484046543949217, 6.4, 6.1], ["tokens", -0.002499240838461342, 0.9877885616402048, 422.5, 481.6], ["cand_intra", -0.07222444686040638, 0.6578511035097903, 43.9, 65.2], ["gold_intra", 0.0722468079723871, 0.6577516612404646, 7.9, 9.5], ["gold_all", 0.03532567779684393, 0.8286743990600862, 25.7, 34.0], ["density", -0.01411445884360026, 0.9311156884833235, 0.18817515098956095, 0.18472072387052058], ["intra_share", -0.10837511633298041, 0.5056319808693904, 0.37219160752208486, 0.38486560573954076], ["cot_pairs", -0.07716509570987765, 0.636023363314719, 32.4, 60.6], ["cot_chars", 0.11948953806738481, 0.46271003698774255, 8148.9, 8074.1]], "split_scatter": [{"ex": "12_3ecbplus.xml", "a": 0.005023929336608113, "b": 0.0038822879471104854}, {"ex": "12_6ecbplus.xml", "a": -0.0012311090644131495, "b": 0.002292092101643106}, {"ex": "12_9ecbplus.xml", "a": -0.001703053957611056, "b": -0.0018283899753653299}, {"ex": "14_8ecbplus.xml", "a": 0.0018820074172971601, "b": 0.0013466762415673683}, {"ex": "14_9ecbplus.xml", "a": 0.004018263175288805, "b": -0.0035632406649193094}, {"ex": "16_1ecbplus.xml", "a": 0.002596792004928794, "b": -0.004636194638614366}, {"ex": "16_2ecbplus.xml", "a": -0.0036066368287593353, "b": -0.0039172619321500846}, {"ex": "16_3ecbplus.xml", "a": -0.0028534795735298824, "b": -0.0017569648447510744}, {"ex": "16_7ecbplus.xml", "a": -0.0005248091701074986, "b": -0.0011209598232850282}, {"ex": "18_2ecbplus.xml", "a": -0.005003459644297936, "b": 0.0012648833229549905}, {"ex": "18_7ecbplus.xml", "a": -0.0008954673952170644, "b": -0.003557721836839167}, {"ex": "19_3ecbplus.xml", "a": 0.0003317108727770024, "b": -0.0014592351638877399}, {"ex": "19_5ecbplus.xml", "a": -0.0033818260772742748, "b": -0.0006815478609283332}, {"ex": "1_12ecbplus.xml", "a": -0.0036535406757770006, "b": -0.002984503459893262}, {"ex": "1_19ecbplus.xml", "a": -0.0056909188985281856, "b": -0.0051480692389880844}, {"ex": "1_1ecbplus.xml", "a": 0.004842817706639191, "b": -1.4868918681409937e-05}, {"ex": "1_21ecbplus.xml", "a": -0.005145801053054566, "b": -0.0020670528753577444}, {"ex": "20_10ecbplus.xml", "a": 0.003959136512030004, "b": 0.0007579793173250193}, {"ex": "20_4ecbplus.xml", "a": -0.0005477113295387914, "b": 0.006854848990579532}, {"ex": "22_12ecbplus.xml", "a": 0.0009864170170871822, "b": 0.001464702034660481}, {"ex": "23_3ecbplus.xml", "a": 0.0052351805049762334, "b": -0.004657279704952666}, {"ex": "24_4ecbplus.xml", "a": -0.004939550359812139, "b": -0.0008254614474113575}, {"ex": "24_7ecbplus.xml", "a": -0.0016489913809481505, "b": 0.00022006162941595742}, {"ex": "30_10ecbplus.xml", "a": -0.00182183750287368, "b": 0.0012440882074698512}, {"ex": "30_13ecbplus.xml", "a": 0.0006701869974563013, "b": 0.0018825446997564055}, {"ex": "30_3ecbplus.xml", "a": 0.0017368760880633882, "b": -0.001431001284378508}, {"ex": "30_5ecbplus.xml", "a": 0.01089633557488201, "b": 0.0041568019766778375}, {"ex": "32_1ecbplus.xml", "a": 0.00292643746287663, "b": 0.0026302308644432504}, {"ex": "32_5ecbplus.xml", "a": -0.0026593335240996385, "b": 0.01101839884713729}, {"ex": "32_7ecbplus.xml", "a": 0.004564133649821833, "b": -0.004407543272180514}, {"ex": "35_3ecbplus.xml", "a": -0.001248296941056437, "b": -0.005890447502574003}, {"ex": "3_10ecbplus.xml", "a": 0.0002689680332185196, "b": 0.0036591643136787977}, {"ex": "3_5ecbplus.xml", "a": -0.0031276913401397377, "b": -0.002635785709749483}, {"ex": "3_7ecbplus.xml", "a": -0.006476714051271981, "b": -0.004386307176774851}, {"ex": "5_3ecbplus.xml", "a": -0.0015562799446642295, "b": -0.003657081049011912}, {"ex": "7_10ecbplus.xml", "a": 0.005474321973317486, "b": 0.006215775930123457}, {"ex": "7_7ecbplus.xml", "a": -0.00034594288033035214, "b": 0.00039715480068064357}, {"ex": "7_8ecbplus.xml", "a": 0.000554343182463668, "b": 0.0038651837178309}, {"ex": "8_2ecbplus.xml", "a": 0.00590246187682536, "b": 0.006040673859341261}, {"ex": "8_8ecbplus.xml", "a": -0.003803854392331829, "b": 0.0014343138792915489}], "split_spearman": 0.3165103189493434, "stability": {"spearman_mean": 0.198, "spearman_sd": 0.162, "top12_overlap": 4.4, "top12_chance": 3.6}, "cv_table": {"8": {"top": 0.4394, "rand": 0.4181, "bot": 0.4128, "t": 4.4}, "12": {"top": 0.4508, "rand": 0.4288, "bot": 0.4182, "t": 5.9}, "20": {"top": 0.4539, "rand": 0.444, "bot": 0.4291, "t": 2.8}}}}</script>
+<script>
+(function () {
+  "use strict";
+  const D = JSON.parse(document.getElementById("D").textContent);
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, a) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const f = (x, n) => Number(x).toFixed(n === undefined ? 4 : n);
+
+  function frame(box, w, h, pad, label) {
+    const wrap = document.getElementById(box);
+    const svg = el("svg", { viewBox: "0 0 " + w + " " + h, role: "img",
+      "aria-label": label || "chart", preserveAspectRatio: "xMidYMid meet" });
+    wrap.appendChild(svg);
+    const tip = document.createElement("div"); tip.className = "tip"; wrap.appendChild(tip);
+    const show = (ev, html) => {
+      tip.innerHTML = html; tip.style.opacity = 1;
+      const r = wrap.getBoundingClientRect();
+      const x = ev.clientX - r.left + wrap.scrollLeft, y = ev.clientY - r.top;
+      const maxX = wrap.scrollLeft + wrap.clientWidth - tip.offsetWidth - 6;
+      tip.style.left = Math.max(wrap.scrollLeft + 4, Math.min(x + 14, maxX)) + "px";
+      tip.style.top = Math.max(4, y - tip.offsetHeight - 12) + "px";
+    };
+    return { svg, w, h, pad, show, hide: () => { tip.style.opacity = 0; } };
+  }
+  function axes(g, xs, ys, fx, fy, xlab, ylab) {
+    const { svg, pad, w, h } = g, grid = css("--rule"), i3 = css("--ink-3"), i2 = css("--ink-2");
+    ys.forEach(t => {
+      svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: t.p, y2: t.p, stroke: grid, "stroke-width": 1 }));
+      const x = el("text", { x: pad.l - 8, y: t.p + 3.5, "text-anchor": "end", "font-size": 10, fill: i3 });
+      x.textContent = fy(t.v); svg.appendChild(x);
+    });
+    xs.forEach(t => {
+      svg.appendChild(el("line", { x1: t.p, x2: t.p, y1: h - pad.b, y2: h - pad.b + 4, stroke: grid, "stroke-width": 1 }));
+      const x = el("text", { x: t.p, y: h - pad.b + 16, "text-anchor": "middle", "font-size": 10, fill: i3 });
+      x.textContent = fx(t.v); svg.appendChild(x);
+    });
+    svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: h - pad.b, y2: h - pad.b,
+      stroke: css("--rule-strong"), "stroke-width": 1 }));
+    if (xlab) { const t = el("text", { x: (pad.l + w - pad.r) / 2, y: h - 4, "text-anchor": "middle", "font-size": 10.5, fill: i2 }); t.textContent = xlab; svg.appendChild(t); }
+    if (ylab) { const yy = (pad.t + h - pad.b) / 2; const t = el("text", { x: 12, y: yy, "text-anchor": "middle", "font-size": 10.5, fill: i2, transform: "rotate(-90 12 " + yy + ")" }); t.textContent = ylab; svg.appendChild(t); }
+  }
+
+  /* ---- scenario table ---- */
+  (function () {
+    let h = '<table><caption>The same 20-vote ensemble scored three ways. All 50 documents except where stated.</caption>' +
+      '<thead><tr><th>scenario</th><th>TP</th><th>FP</th><th>FN</th><th>P</th><th>R</th><th>F1</th></tr></thead><tbody>';
+    D.scenarios.forEach((s, i) => {
+      h += "<tr" + (i === 1 ? ' class="sum"' : "") + "><td>" + s.name + "</td><td>" + s.tp + "</td><td>" + s.fp +
+        "</td><td>" + s.fn + "</td><td>" + f(s.p) + "</td><td>" + f(s.r) + "</td><td>" + f(s.f1) + "</td></tr>";
+    });
+    h += "</tbody></table>";
+    document.getElementById("t-scen").innerHTML = h;
+  })();
+
+  /* ---- per-pass table ---- */
+  (function () {
+    const A = D.per_pass_fs, B = D.per_pass_bl;
+    const st = (rows, k) => {
+      const v = rows.map(r => r[k]), m = v.reduce((a, b) => a + b, 0) / v.length;
+      return { m, s: Math.sqrt(v.reduce((a, b) => a + (b - m) * (b - m), 0) / (v.length - 1)),
+               lo: Math.min(...v), hi: Math.max(...v) };
+    };
+    let h = '<table><caption>Per-pass confusion on the 44 documents both runs completed. Left: few-shot. Right: baseline 498b3a7d.</caption><thead><tr><th>pass</th>' +
+      '<th>TP</th><th>FP</th><th>FN</th><th>P</th><th>R</th><th>F1</th><th>·</th>' +
+      '<th>TP</th><th>FP</th><th>FN</th><th>P</th><th>R</th><th>F1</th></tr></thead><tbody>';
+    A.forEach((a, i) => {
+      const b = B[i];
+      h += "<tr><td>" + a.pass + "</td>" +
+        [a.tp, a.fp, a.fn].map(v => "<td>" + v + "</td>").join("") +
+        [a.precision, a.recall, a.f1].map(v => "<td>" + f(v) + "</td>").join("") +
+        '<td class="dim">|</td>' +
+        [b.tp, b.fp, b.fn].map(v => '<td class="dim">' + v + "</td>").join("") +
+        [b.precision, b.recall, b.f1].map(v => '<td class="dim">' + f(v) + "</td>").join("") + "</tr>";
+    });
+    const row = (lab, fn2) => {
+      h += '<tr class="sum"><td>' + lab + "</td>" +
+        ["tp", "fp", "fn"].map(k => "<td>" + fn2(st(A, k), 1) + "</td>").join("") +
+        ["precision", "recall", "f1"].map(k => "<td>" + fn2(st(A, k), 4) + "</td>").join("") +
+        "<td>|</td>" +
+        ["tp", "fp", "fn"].map(k => "<td>" + fn2(st(B, k), 1) + "</td>").join("") +
+        ["precision", "recall", "f1"].map(k => "<td>" + fn2(st(B, k), 4) + "</td>").join("") + "</tr>";
+    };
+    row("mean", (s, d) => f(s.m, d));
+    row("sd", (s, d) => f(s.s, d));
+    h += '<tr class="sum"><td>20-vote</td>' +
+      ["tp", "fp", "fn"].map(k => "<td>" + D.ens["few-shot"][k] + "</td>").join("") +
+      ["p", "r", "f1"].map(k => "<td>" + f(D.ens["few-shot"][k]) + "</td>").join("") + "<td>|</td>" +
+      ["tp", "fp", "fn"].map(k => "<td>" + D.ens["baseline"][k] + "</td>").join("") +
+      ["p", "r", "f1"].map(k => "<td>" + f(D.ens["baseline"][k]) + "</td>").join("") + "</tr>";
+    h += "</tbody></table>";
+    document.getElementById("t-pass").innerHTML = h;
+  })();
+
+  /* ---- dependence table ---- */
+  (function () {
+    const rows = [
+      ["mirrored directions disagreeing", (100 * D.mirror_asym).toFixed(3) + "%", "0.01%"],
+      ["within-document overdispersion", f(D.dep_fs.within_ratio, 1) + "×", f(D.dep_bl.within_ratio, 1) + "×"],
+      ["mean r, same sentence", "+" + f(D.dep_fs.r_sent, 3), "+" + f(D.dep_bl.r_sent, 3)],
+      ["mean r, same document", "+" + f(D.dep_fs.r_doc, 3), "+" + f(D.dep_bl.r_doc, 3)],
+      ["mean r, different documents", "+" + f(D.dep_fs.r_diff, 3), "+" + f(D.dep_bl.r_diff, 3)],
+      ["false-positive set Jaccard", f(D.err["few-shot"].fp_j, 3), f(D.err["baseline"].fp_j, 3)],
+      ["false-negative set Jaccard", f(D.err["few-shot"].fn_j, 3), f(D.err["baseline"].fn_j, 3)],
+      ["vote-fraction AUC", f(D.calib["few-shot"].auc, 3), f(D.calib["baseline"].auc, 3)],
+      ["recall ceiling (any pass proposes it)", f(D.calib["few-shot"].ceiling, 3), f(D.calib["baseline"].ceiling, 3)]
+    ];
+    let h = '<table><caption>Dependence and error structure, 44 documents, undirected intra decisions.</caption>' +
+      "<thead><tr><th>measure</th><th>few-shot</th><th>baseline</th></tr></thead><tbody>";
+    rows.forEach(r => { h += "<tr><td>" + r[0] + "</td><td>" + r[1] + '</td><td class="dim">' + r[2] + "</td></tr>"; });
+    h += "</tbody></table>";
+    document.getElementById("t-dep").innerHTML = h;
+  })();
+
+  /* ---- precision-recall clouds ---- */
+  (function () {
+    const w = 1000, h = 460, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-pr2", w, h, pad, "Precision against recall for both runs' passes and vote-threshold curves.");
+    const X = [0.20, 0.42], Y = [0.20, 1.0];
+    const sx = v => pad.l + (v - X[0]) / (X[1] - X[0]) * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const xt = [], yt = [];
+    for (let v = 0.20; v <= 0.421; v += 0.04) xt.push({ v, p: sx(v) });
+    for (let v = 0.2; v <= 1.001; v += 0.1) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => f(v, 2), v => f(v, 1), "precision", "recall");
+    [0.30, 0.35, 0.40, 0.45, 0.50].forEach(F => {
+      let d = "", on = false;
+      for (let p = X[0]; p <= X[1]; p += 0.002) {
+        const r = (F * p) / (2 * p - F);
+        if (r < Y[0] || r > Y[1] || r <= 0) { on = false; continue; }
+        d += (on ? "L" : "M") + sx(p) + " " + sy(r); on = true;
+      }
+      if (d) {
+        g.svg.appendChild(el("path", { d, fill: "none", stroke: css("--rule"), "stroke-width": 1, "stroke-dasharray": "3 3" }));
+        const r0 = (F * (X[1] - 0.004)) / (2 * (X[1] - 0.004) - F);
+        if (r0 > Y[0] && r0 < Y[1]) {
+          const t = el("text", { x: sx(X[1] - 0.004) - 2, y: sy(r0) - 5, "text-anchor": "end", "font-size": 9.5, fill: css("--ink-3") });
+          t.textContent = "F1 " + f(F, 2); g.svg.appendChild(t);
+        }
+      }
+    });
+    [["few-shot", D.thresh["few-shot"], css("--s1")], ["baseline", D.thresh["baseline"], css("--s2")]].forEach(([nm, tbl, col]) => {
+      let d = "";
+      tbl.forEach((r, i) => { d += (i ? "L" : "M") + sx(r.p) + " " + sy(r.r); });
+      g.svg.appendChild(el("path", { d, fill: "none", stroke: css("--s3"), "stroke-width": 2,
+        "stroke-dasharray": nm === "baseline" ? "6 4" : "none", "stroke-linejoin": "round" }));
+      tbl.forEach(r => {
+        const c = el("circle", { cx: sx(r.p), cy: sy(r.r), r: 3.5, fill: css("--s3"), stroke: css("--panel"), "stroke-width": 1.5 });
+        c.addEventListener("mousemove", e => g.show(e, "<b>" + nm + " · k ≥ " + r.k + "</b><br>P " + f(r.p) +
+          " · R " + f(r.r) + "<br>F1 " + f(r.f1)));
+        c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+      });
+      const last = tbl[0];
+      const t = el("text", { x: sx(last.p) + 8, y: sy(last.r) + 4, "font-size": 10.5, fill: css("--s3") });
+      t.textContent = nm + " votes"; g.svg.appendChild(t);
+    });
+    [["few-shot", D.per_pass_fs, css("--s1")], ["baseline", D.per_pass_bl, css("--s2")]].forEach(([nm, rows, col]) => {
+      rows.forEach(r => {
+        const c = el("circle", { cx: sx(r.precision), cy: sy(r.recall), r: 5, fill: col, stroke: css("--panel"), "stroke-width": 2 });
+        c.addEventListener("mousemove", e => g.show(e, "<b>" + nm + " pass " + r.pass + "</b><br>TP " + r.tp +
+          " · FP " + r.fp + " · FN " + r.fn + "<br>P " + f(r.precision) + " · R " + f(r.recall) + "<br>F1 " + f(r.f1)));
+        c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+      });
+    });
+    [["few-shot", D.ens["few-shot"], css("--s1")], ["baseline", D.ens["baseline"], css("--s2")]].forEach(([nm, e, col]) => {
+      g.svg.appendChild(el("circle", { cx: sx(e.p), cy: sy(e.r), r: 9, fill: "none", stroke: col, "stroke-width": 2.5 }));
+      const c = el("circle", { cx: sx(e.p), cy: sy(e.r), r: 4, fill: col, stroke: css("--panel"), "stroke-width": 1.5 });
+      c.addEventListener("mousemove", ev => g.show(ev, "<b>" + nm + " 20-vote ensemble</b><br>TP " + e.tp + " · FP " +
+        e.fp + " · FN " + e.fn + "<br>P " + f(e.p) + " · R " + f(e.r) + "<br>F1 " + f(e.f1)));
+      c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+      const t = el("text", { x: sx(e.p) + 14, y: sy(e.r) + 4, "font-size": 10.5, fill: col });
+      t.textContent = nm + " ensemble"; g.svg.appendChild(t);
+    });
+  })();
+
+  /* ---- ensemble size ---- */
+  (function () {
+    const w = 1000, h = 340, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-size2", w, h, pad, "F1 against number of passes voted, both runs.");
+    const ms = Object.keys(D.curve["few-shot"]).map(Number).sort((a, b) => a - b);
+    const Y = [0.34, 0.48];
+    const sx = m => pad.l + (m - 1) / 19 * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const yt = []; for (let v = 0.34; v <= 0.481; v += 0.02) yt.push({ v, p: sy(v) });
+    axes(g, ms.map(m => ({ v: m, p: sx(m) })), yt, v => v, v => f(v, 2), "number of passes voted (m)", "F1");
+    [["few-shot", css("--s1")], ["baseline", css("--s2")]].forEach(([nm, col]) => {
+      const C = D.curve[nm];
+      let up = "", dn = "";
+      ms.forEach((m, i) => { up += (i ? "L" : "M") + sx(m) + " " + sy(C[m].f1 + C[m].sd); });
+      for (let i = ms.length - 1; i >= 0; i--) dn += "L" + sx(ms[i]) + " " + sy(C[ms[i]].f1 - C[ms[i]].sd);
+      g.svg.appendChild(el("path", { d: up + dn + "Z", fill: col, opacity: .13 }));
+      let d = "";
+      ms.forEach((m, i) => { d += (i ? "L" : "M") + sx(m) + " " + sy(C[m].f1); });
+      g.svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
+      ms.forEach(m => {
+        const c = el("circle", { cx: sx(m), cy: sy(C[m].f1), r: 4, fill: col, stroke: css("--panel"), "stroke-width": 1.5 });
+        c.addEventListener("mousemove", e => g.show(e, "<b>" + nm + " · m = " + m + "</b><br>F1 " + f(C[m].f1) +
+          " ± " + f(C[m].sd) + "<br>threshold k ≥ " + (Math.floor(m / 2) + 1)));
+        c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+      });
+      const t = el("text", { x: sx(20) - 8, y: sy(C[20].f1) - 12, "font-size": 11, fill: col, "text-anchor": "end" });
+      t.textContent = nm; g.svg.appendChild(t);
+    });
+  })();
+
+  /* ---- threshold ---- */
+  (function () {
+    const w = 1000, h = 320, pad = { l: 52, r: 24, t: 14, b: 40 };
+    const g = frame("c-thr2", w, h, pad, "F1 against vote threshold for both runs.");
+    const Y = [0.18, 0.50];
+    const sx = k => pad.l + (k - 1) / 19 * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const xt = []; for (let k = 1; k <= 20; k++) xt.push({ v: k, p: sx(k) });
+    const yt = []; for (let v = 0.20; v <= 0.501; v += 0.05) yt.push({ v, p: sy(v) });
+    axes(g, xt, yt, v => v, v => f(v, 2), "minimum causal votes required (k)", "F1");
+    [["few-shot", css("--s1")], ["baseline", css("--s2")]].forEach(([nm, col]) => {
+      const tbl = D.thresh[nm];
+      let d = "";
+      tbl.forEach((r, i) => { d += (i ? "L" : "M") + sx(r.k) + " " + sy(r.f1); });
+      g.svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2, "stroke-linejoin": "round" }));
+      let best = tbl[0];
+      tbl.forEach(r => {
+        if (r.f1 > best.f1) best = r;
+        const c = el("circle", { cx: sx(r.k), cy: sy(r.f1), r: 4, fill: col, stroke: css("--panel"), "stroke-width": 1.5 });
+        c.addEventListener("mousemove", e => g.show(e, "<b>" + nm + " · k ≥ " + r.k + "</b><br>F1 " + f(r.f1) +
+          "<br>P " + f(r.p) + " · R " + f(r.r)));
+        c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+      });
+      g.svg.appendChild(el("circle", { cx: sx(best.k), cy: sy(best.f1), r: 8.5, fill: "none", stroke: col, "stroke-width": 2 }));
+      const t = el("text", { x: sx(best.k), y: sy(best.f1) - 15, "font-size": 10.5, fill: col, "text-anchor": "middle" });
+      t.textContent = nm + " best k≥" + best.k; g.svg.appendChild(t);
+    });
+  })();
+
+  /* ---- per-example volume effect ---- */
+  (function () {
+    const rows = D.shot_effects, n = rows.length;
+    const w = 1000, h = 360, pad = { l: 52, r: 24, t: 16, b: 58 };
+    const g = frame("c-shot", w, h, pad, "Effect of each few-shot example document on the number of relations predicted.");
+    const lo = Math.min(...rows.map(r => r.eff)) - 1, hi = Math.max(...rows.map(r => r.eff)) + 1;
+    const bw = (w - pad.l - pad.r) / n;
+    const sy = v => pad.t + (hi - v) / (hi - lo) * (h - pad.t - pad.b);
+    const yt = []; for (let v = -8; v <= 12.1; v += 4) yt.push({ v, p: sy(v) });
+    axes(g, [], yt, v => v, v => (v > 0 ? "+" : "") + v, "", "extra relations predicted per document");
+    g.svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: sy(0), y2: sy(0), stroke: css("--rule-strong"), "stroke-width": 1.5 }));
+    rows.forEach((r, i) => {
+      const x = pad.l + i * bw + 2, y0 = sy(0), y1 = sy(r.eff);
+      g.svg.appendChild(el("rect", { x, y: Math.min(y0, y1), width: Math.max(1, bw - 4),
+        height: Math.max(1.5, Math.abs(y1 - y0)), rx: 2, fill: r.eff >= 0 ? css("--s1") : css("--s2") }));
+      const hit = el("rect", { x: pad.l + i * bw, y: pad.t, width: bw, height: h - pad.t - pad.b, fill: "transparent" });
+      hit.addEventListener("mousemove", e => g.show(e, "<b>" + r.doc.replace(".xml", "") + "</b><br>" +
+        (r.eff >= 0 ? "+" : "") + f(r.eff, 1) + " relations vs the document mean<br>used on " + r.n +
+        " documents · own intra density " + f(r.density, 2)));
+      hit.addEventListener("mouseleave", g.hide); g.svg.appendChild(hit);
+    });
+    [[0, "start"], [n - 1, "end"]].forEach(([i, anch]) => {
+      const t = el("text", { x: pad.l + i * bw + bw / 2, y: h - 32, "font-size": 10, fill: css("--ink-3"), "text-anchor": "middle" });
+      t.textContent = rows[i].doc.replace("ecbplus.xml", ""); g.svg.appendChild(t);
+    });
+    const lab = el("text", { x: (pad.l + w - pad.r) / 2, y: h - 12, "text-anchor": "middle", "font-size": 10.5, fill: css("--ink-2") });
+    lab.textContent = "40 few-shot example documents, ordered by effect"; g.svg.appendChild(lab);
+  })();
+
+  /* ---- subset CV: grouped bars ---- */
+  (function () {
+    const S = D.subset, sizes = ["4", "8", "12", "16", "20"];
+    const series = [["greedy", "greedy-selected"], ["random", "random subset"],
+                    ["topvol", "top volume effect"], ["botvol", "bottom volume effect"]];
+    const cols = [css("--s1"), css("--s2"), css("--s3"), css("--neutral-mark")];
+    const w = 1000, h = 380, pad = { l: 56, r: 24, t: 16, b: 66 };
+    const g = frame("c-sub", w, h, pad, "Held-out F1 of selected example subsets by subset size.");
+    const Y = [0.32, 0.50];
+    const gw = (w - pad.l - pad.r) / sizes.length;
+    const bw = (gw - 26) / series.length;
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const yt = []; for (let v = 0.32; v <= 0.501; v += 0.02) yt.push({ v, p: sy(v) });
+    axes(g, sizes.map((s, i) => ({ v: s, p: pad.l + i * gw + gw / 2 })), yt,
+         v => "|S| = " + v, v => f(v, 2), "number of example documents kept", "held-out F1");
+    const all = S.cv["4"].all.mean;
+    g.svg.appendChild(el("line", { x1: pad.l, x2: w - pad.r, y1: sy(all), y2: sy(all),
+      stroke: css("--ink-3"), "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+    const at = el("text", { x: w - pad.r - 4, y: sy(all) - 7, "text-anchor": "end", "font-size": 10.5, fill: css("--ink-2") });
+    at.textContent = "all 40 examples · " + f(all); g.svg.appendChild(at);
+    sizes.forEach((s, i) => {
+      series.forEach(([k, lab], j) => {
+        const r = S.cv[s][k], x = pad.l + i * gw + 13 + j * bw;
+        const y = sy(r.mean), y0 = h - pad.b;
+        g.svg.appendChild(el("rect", { x: x + 1, y, width: bw - 3, height: Math.max(1, y0 - y),
+          rx: 2, fill: cols[j] }));
+        g.svg.appendChild(el("line", { x1: x + bw / 2, x2: x + bw / 2, y1: sy(r.mean - r.sd),
+          y2: sy(r.mean + r.sd), stroke: css("--ink-3"), "stroke-width": 1.2 }));
+        const hit = el("rect", { x, y: pad.t, width: bw, height: h - pad.t - pad.b, fill: "transparent" });
+        hit.addEventListener("mousemove", e => g.show(e, "<b>" + lab + " · |S| = " + s + "</b><br>held-out F1 " +
+          f(r.mean) + " ± " + f(r.sd) + "<br>all 40 on the same folds: " + f(all) +
+          "<br>Δ " + (r.mean - all >= 0 ? "+" : "") + f(r.mean - all)));
+        hit.addEventListener("mouseleave", g.hide);
+        g.svg.appendChild(hit);
+      });
+    });
+    series.forEach(([k, lab], j) => {
+      const x = pad.l + j * 220;
+      g.svg.appendChild(el("rect", { x, y: h - 26, width: 11, height: 11, rx: 2, fill: cols[j] }));
+      const t = el("text", { x: x + 17, y: h - 16, "font-size": 11, fill: css("--ink-2") });
+      t.textContent = lab; g.svg.appendChild(t);
+    });
+  })();
+
+  /* ---- matched votes-per-document ---- */
+  (function () {
+    const M = D.subset.matched;
+    const w = 1000, h = 330, pad = { l: 56, r: 24, t: 16, b: 42 };
+    const g = frame("c-match", w, h, pad, "F1 against votes per document, subsets of examples versus freely chosen passes.");
+    const Y = [0.37, 0.48];
+    const sx = v => pad.l + (v - 2) / 18 * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - Y[0]) / (Y[1] - Y[0]) * (h - pad.t - pad.b);
+    const yt = []; for (let v = 0.38; v <= 0.481; v += 0.02) yt.push({ v, p: sy(v) });
+    axes(g, M.map(r => ({ v: r.votes, p: sx(r.votes) })), yt, v => v, v => f(v, 2),
+         "votes per document", "F1");
+    [["subset", css("--s1"), "subset of examples"], ["free", css("--s2"), "free choice of passes"]]
+      .forEach(([k, col, lab]) => {
+        let d = "";
+        M.forEach((r, i) => { d += (i ? "L" : "M") + sx(r.votes) + " " + sy(r[k]); });
+        g.svg.appendChild(el("path", { d, fill: "none", stroke: col, "stroke-width": 2,
+          "stroke-dasharray": k === "free" ? "6 4" : "none", "stroke-linejoin": "round" }));
+        M.forEach(r => {
+          const c = el("circle", { cx: sx(r.votes), cy: sy(r[k]), r: 4.5, fill: col,
+            stroke: css("--panel"), "stroke-width": 1.5 });
+          c.addEventListener("mousemove", e => g.show(e, "<b>" + lab + "</b><br>" + r.votes +
+            " votes/document<br>F1 " + f(r[k]) + "<br>the other route: " + f(r[k === "subset" ? "free" : "subset"])));
+          c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+        });
+      });
+  })();
+
+
+  /* ---- top examples table ---- */
+  (function () {
+    const W = D.which, F = W.feat;
+    let h = '<table><caption>The twelve highest marginal contributions, estimated on all 44 documents. ΔF1 is the mean F1 of size-20 subsets containing the example minus those without it.</caption>' +
+      '<thead><tr><th>#</th><th>example</th><th>ΔF1</th><th>mentions</th><th>sentences</th>' +
+      '<th>candidate intra</th><th>gold intra</th><th>density</th><th>CoT shows</th></tr></thead><tbody>';
+    W.order.slice(0, 12).forEach((e, i) => {
+      const x = F[e];
+      h += "<tr><td>" + (i + 1) + "</td><td>" + e.replace(".xml", "") + '</td><td class="mark">+' +
+        f(W.delta[e]) + "</td><td>" + x.mentions + "</td><td>" + x.sentences + "</td><td>" + x.cand_intra +
+        "</td><td>" + x.gold_intra + "</td><td>" + f(x.density, 2) + "</td><td>" + x.cot_pairs + " pairs</td></tr>";
+    });
+    const worst = W.order[W.order.length - 1];
+    h += '<tr class="sum"><td>40</td><td>' + worst.replace(".xml", "") + "</td><td>" + f(W.delta[worst]) +
+      "</td><td>" + F[worst].mentions + "</td><td>" + F[worst].sentences + "</td><td>" + F[worst].cand_intra +
+      "</td><td>" + F[worst].gold_intra + "</td><td>" + f(F[worst].density, 2) + "</td><td>" +
+      F[worst].cot_pairs + " pairs</td></tr>";
+    h += "</tbody></table>";
+    document.getElementById("t-top").innerHTML = h;
+  })();
+
+  /* ---- feature table ---- */
+  (function () {
+    const rows = D.which.featstats;
+    const nice = { mentions: "event mentions", sentences: "sentences", tokens: "document length (tokens)",
+      cand_intra: "candidate intra pairs", gold_intra: "gold intra links", gold_all: "gold links, all",
+      density: "intra causal density", intra_share: "share of gold that is intra",
+      cot_pairs: "relations shown in its CoT", cot_chars: "length of its CoT" };
+    let h = '<table><caption>Every candidate explanation, tested against the marginal contribution. n = 40 examples.</caption>' +
+      "<thead><tr><th>characteristic</th><th>Pearson r</th><th>p</th><th>top-10 mean</th><th>bottom-10 mean</th></tr></thead><tbody>";
+    rows.forEach(r => {
+      h += "<tr><td>" + (nice[r[0]] || r[0]) + "</td><td>" + (r[1] >= 0 ? "+" : "") + f(r[1], 3) +
+        '</td><td class="dim">' + f(r[2], 2) + "</td><td>" + f(r[3], 2) + '</td><td class="dim">' + f(r[4], 2) + "</td></tr>";
+    });
+    h += "</tbody></table>";
+    document.getElementById("t-feat").innerHTML = h;
+  })();
+
+  /* ---- split-half scatter ---- */
+  (function () {
+    const P = D.which.split_scatter;
+    const w = 620, h = 470, pad = { l: 62, r: 20, t: 18, b: 46 };
+    const g = frame("c-split", w, h, pad, "Marginal contribution measured on one half of the documents against the other half.");
+    const vals = P.flatMap(p => [p.a, p.b]);
+    const lo = Math.min(...vals) * 1.1, hi = Math.max(...vals) * 1.1;
+    const sx = v => pad.l + (v - lo) / (hi - lo) * (w - pad.l - pad.r);
+    const sy = v => h - pad.b - (v - lo) / (hi - lo) * (h - pad.t - pad.b);
+    const ticks = [];
+    for (let v = -0.02; v <= 0.021; v += 0.01) if (v >= lo && v <= hi) ticks.push(v);
+    axes(g, ticks.map(v => ({ v, p: sx(v) })), ticks.map(v => ({ v, p: sy(v) })),
+         v => (v > 0 ? "+" : "") + f(v, 2), v => (v > 0 ? "+" : "") + f(v, 2),
+         "ΔF1 measured on even-numbered documents", "ΔF1 on odd-numbered documents");
+    g.svg.appendChild(el("line", { x1: sx(lo), y1: sy(lo), x2: sx(hi), y2: sy(hi),
+      stroke: css("--ink-3"), "stroke-width": 1.2, "stroke-dasharray": "5 4" }));
+    g.svg.appendChild(el("line", { x1: sx(lo), x2: sx(hi), y1: sy(0), y2: sy(0), stroke: css("--rule"), "stroke-width": 1 }));
+    g.svg.appendChild(el("line", { x1: sx(0), x2: sx(0), y1: sy(lo), y2: sy(hi), stroke: css("--rule"), "stroke-width": 1 }));
+    P.forEach(p => {
+      const agree = (p.a > 0) === (p.b > 0);
+      const c = el("circle", { cx: sx(p.a), cy: sy(p.b), r: 5,
+        fill: agree ? css("--s1") : css("--s2"), stroke: css("--panel"), "stroke-width": 1.5 });
+      c.addEventListener("mousemove", e => g.show(e, "<b>" + p.ex.replace(".xml", "") + "</b><br>even half " +
+        (p.a >= 0 ? "+" : "") + f(p.a) + "<br>odd half " + (p.b >= 0 ? "+" : "") + f(p.b) +
+        (agree ? "" : "<br>sign flips between halves")));
+      c.addEventListener("mouseleave", g.hide); g.svg.appendChild(c);
+    });
+    const t = el("text", { x: w - pad.r - 4, y: pad.t + 12, "text-anchor": "end", "font-size": 11, fill: css("--ink-2") });
+    t.textContent = "Spearman " + (D.which.split_spearman >= 0 ? "+" : "") + f(D.which.split_spearman, 2);
+    g.svg.appendChild(t);
+    const t2 = el("text", { x: w - pad.r - 4, y: pad.t + 28, "text-anchor": "end", "font-size": 10.5, fill: css("--s2") });
+    t2.textContent = P.filter(p => (p.a > 0) !== (p.b > 0)).length + " of 40 flip sign";
+    g.svg.appendChild(t2);
+  })();
+
+})();
+
+</script>
+</body>
+</html>
