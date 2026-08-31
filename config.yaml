@@ -105,7 +105,9 @@ experiment:
     # - "bare_causes"
     # - "eci"
     # - "reprompt"
-  concurrency: 50 # 50
+  concurrency: 50 # 50   # max LLM calls in flight, across all documents and passes
+  doc_concurrency: 10   # max documents open at once; only bounds how many prompts
+                        # are built ahead, not the call rate
   retries: 3          # How many times to retry a failed sample
   timeout: 2400       # Seconds before a single inference attempt is cancelled and retried
   resampling:
@@ -123,7 +125,7 @@ few_shot:
   split: "train"        # split to sample from (must exist in the active dataset's repo)
   n_examples: 3
   # pool_size: ~          # max training docs to load (null = full split); limits CoT generation cost
-  pool_size: 100         # max training docs to load (null = full split); limits CoT generation cost
+  pool_size: 140         # max training docs to load (null = full split); limits CoT generation cost
   shuffle_pool: true    # true: shuffle the split before cutting it to pool_size, so the pool is a
                          # random sample of the whole split instead of its first pool_size docs —
                          # any doc in the split can be picked as a few-shot. Seeded by

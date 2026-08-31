@@ -50,6 +50,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true
@@ -117,6 +119,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true
@@ -187,6 +191,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true
@@ -254,6 +260,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true
@@ -326,6 +334,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true
@@ -393,6 +403,8 @@ experiments:
           enabled: true
           distinct_fewshots: true 
           n_runs: 3
+        concurrency: 50        # max LLM calls in flight
+        doc_concurrency: 10    # max documents open at once
         retries: 3
       few_shot:
         enabled: true

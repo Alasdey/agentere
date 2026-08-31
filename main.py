@@ -405,15 +405,12 @@ async def run_docs_concurrent(docs: List[Dict], config: Dict, graph_ainvoke, lab
     """Run inference concurrently over a list of docs and return results."""
     limit = config["experiment"].get("concurrency", 10)
     set_llm_concurrency(limit)
-    rs_cfg = config["experiment"]["resampling"]
-    n_runs = rs_cfg["n_runs"] if rs_cfg["enabled"] else 1
-    # `concurrency` is now the LLM-call budget (see set_llm_concurrency). This second
-    # bound exists only so we don't build every document's prompts up front; it is sized
-    # to keep the call budget saturated, never to throttle it.
-    doc_limit = max(2, -(-limit // max(1, n_runs)) * 2)
+    # `concurrency` is the LLM-call budget (see set_llm_concurrency); `doc_concurrency`
+    # only bounds how many documents have their prompts built ahead of time.
+    doc_limit = config["experiment"].get("doc_concurrency", 10)
     doc_semaphore = asyncio.Semaphore(doc_limit)
-    print(f"Concurrency: {limit} LLM calls in flight (n_runs={n_runs}, "
-          f"{doc_limit} documents open at a time)", flush=True)
+    print(f"Concurrency: {limit} LLM calls in flight, "
+          f"{doc_limit} documents open at a time", flush=True)
     completed = 0
     total = len(docs)
 

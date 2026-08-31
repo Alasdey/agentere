@@ -41,6 +41,8 @@ _defaults:
       # - "eci_extractor_intra"
     enable_tools: false
     resampling: *resampling
+    concurrency: 50        # max LLM calls in flight
+    doc_concurrency: 10    # max documents open at once
     retries: 3
 
   cot_generation: &cot_generation
