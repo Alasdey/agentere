@@ -46,6 +46,14 @@ model:
   # default_model_id: "arcee-ai/trinity-large-preview:free"
   base_url: "https://openrouter.ai/api/v1"
   temperature: 0.0
+  # OpenRouter-style reasoning effort, sent as the top-level `reasoning_effort` field.
+  # deepseek-v4-flash advertises supported_efforts ["xhigh", "high"] with default_effort
+  # "high" — lower selectors (medium/low/minimal/none) are not offered by this model and
+  # get mapped up to the nearest supported level, so "high" and "xhigh" are the real
+  # choices. null omits the field, which leaves each provider free to apply its own
+  # default; pinning it removes that cross-provider variance. Both values are accepted by
+  # all 17 endpoints serving this model. Models without reasoning support ignore the field.
+  reasoning_effort: "high"
 
 # =============================================================================
 # GENERAL EXPERIMENT SETTINGS
@@ -59,9 +67,10 @@ mlflow:
 
 # ── LLM response cache ──
 # Prompt-keyed cache over the CoT-synthesis and tool sub-LLM calls. An entry is keyed on the
-# exact serialized message list plus the model id, temperature and bound tools, so a change to
-# any of those is automatically a miss. The main inference loop is built with cache=False and
-# is never served from here — reported F1 always comes from live calls.
+# exact serialized message list plus the model id, temperature, reasoning_effort and bound
+# tools, so a change to any of those is automatically a miss. The main inference loop is
+# built with cache=False and is never served from here — reported F1 always comes from
+# live calls.
 llm_cache:
   enabled: true
   path: "logs/llm_cache.sqlite"
@@ -153,6 +162,22 @@ few_shot:
   # bert_model: "all-MiniLM-L6-v2"  # used only when selection: "bert"
   bert_model: "all-roberta-large-v1"  # used only when selection: "bert"
   # repo_id: ~          # optional override; defaults to the active dataset's repo_id
+  human_rationales:
+    dir: "few_shot_rationales"  # directory of hand-written rationale files (~ to disable).
+                                 # One .txt/.md per training doc, named by doc id
+                                 # (1_15ecbplus.xml.txt). Everything after a line reading
+                                 # "Answer:" is used verbatim as the assistant turn, in place
+                                 # of the synthesized CoT — no LLM call, no decontamination.
+                                 # Multi-step prompts: separate turns with "--- Step 2 ---".
+    only: false                   # master switch. true: the few-shot pool is exactly the
+                                 # documents that have a rationale file, so those are the
+                                 # examples every prompt uses (few_shot.n_examples still
+                                 # decides how many are shown; selection/pool_size/
+                                 # shuffle_pool no longer apply).
+                                 # false: the files are ignored entirely and the pool and the
+                                 # CoT come from cot_generation as before — synthesis is
+                                 # never silently overridden for whichever docs the normal
+                                 # pool happens to draw.
   cot_generation:
     enabled: true      # true: generate realistic CoT few-shots via LLM
     blind: false        # true: generate the reasoning without showing the golds, then revise it
@@ -165,8 +190,12 @@ few_shot:
                          # blind: false + rewrite: true is the former num_steps: 2 protocol,
                          # blind: true + rewrite: true the former num_steps: 3.
     cache_path: "logs/cot_cache.json"  # persist generated CoTs across runs (~ to disable). Keyed by
-                                   # doc id + a fingerprint of the model, prompt and gold-formatting
-                                   # config, so entries can never cross experiments.
+                                   # doc id + a fingerprint of the model (id, temperature and
+                                   # reasoning_effort), prompt and gold-formatting config, so entries
+                                   # can never cross experiments. Changing model.reasoning_effort
+                                   # therefore re-synthesizes the CoT rather than reusing one written
+                                   # at another effort; an unset effort keys separately from every
+                                   # set one, and reuses CoT generated while it was also unset.
     dump_dir: "logs/cot_dumps"  # write each synthesized CoT to <dump_dir>/<run>/<doc_id>.txt
                                    # (doc id + doc text + CoT), for manual inspection (~ to disable)
 

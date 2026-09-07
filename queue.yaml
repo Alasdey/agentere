@@ -21,7 +21,12 @@
 
 _defaults:
   model: &model
-    default_model_id: "deepseek/deepseek-v4-flash"
+    default_model_id: "deepseek/deepseek-v4-flash" 
+    temperature: 0.0
+    # "high" is the model's own default_effort; "xhigh" is the only other level it offers.
+    # Pinned explicitly so every pass of a resampling run asks all providers for the same
+    # effort instead of inheriting whatever default each one applies.
+    reasoning_effort: "high"
 
   tools_config: &tools_config
     eci_extractor:
@@ -42,7 +47,7 @@ _defaults:
     enable_tools: false
     resampling: *resampling
     concurrency: 50        # max LLM calls in flight
-    doc_concurrency: 10    # max documents open at once
+    doc_concurrency: 50    # max documents open at once
     retries: 3
 
   cot_generation: &cot_generation
@@ -61,6 +66,8 @@ _defaults:
     density_stratify: false
     intra_only: false
     cot_generation: *cot_generation
+    human_rationales:
+      only: false
 
   data: &data
     binary_undirected: false       # global: collapse causes/causedby → CAUSAL and deduplicate pairs at load time
@@ -92,6 +99,7 @@ experiments:
 
   # ───────────────────────────── Extras ───────────────────────────────
   
+  
   - name: "esc_many_resamp"
     overrides:
       <<: *base
@@ -99,17 +107,28 @@ experiments:
       datasets:
         <<: *datasets
         event_story_line:
-          max_examples: 50 # 233
+          max_examples: 20 # 233
           prompt: "esl_standard_eci_intra_lean"
       few_shot:
         <<: *few_shot
+        enabled: true
         n_examples: 1
         # distinct_fewshots needs n_runs x n_examples = 20 training docs, and k-fold drops
         # the test doc's own fold (1/5 of the pool) before selecting: 20 would leave 16.
-        pool_size: 140
+        pool_size: 5
         shuffle_pool: true
+        human_rationales:
+          only: false
       experiment:
         <<: *experiment
         resampling:
           <<: *resampling
           n_runs: 3
+      model:
+        <<: *model
+        # default_model_id: "openai/gpt-6-astra"
+        # default_model_id: "openai/gpt-5.6-sol"
+        default_model_id: "deepseek/deepseek-v4-flash" 
+        temperature: 0.0
+        # reasoning_effort: "xhigh"
+

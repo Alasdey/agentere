@@ -48,6 +48,7 @@ from utils.formatting import format_pair_lines, format_gold_output
 from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FOLD
 from utils.labels import NOREL_VARIANTS
 from utils.llm_cache import get_llm_cache
+from utils import human_rationales
 import utils.trace_dump as trace_dump
 
 from utils.runtime_config import get_cfg, register_reset
@@ -99,6 +100,7 @@ def _make_cot_graph():
     _, ainvoke = build_chat_graph(
         model_id=cfg["model"]["default_model_id"],
         temperature=cfg["model"]["temperature"],
+        reasoning_effort=cfg["model"].get("reasoning_effort"),
         base_url=cfg["model"]["base_url"],
         tools=get_enabled_tools(cfg["experiment"]["tools"] or []),
         enable_tools=cfg["experiment"]["enable_tools"],
@@ -110,6 +112,19 @@ def _make_cot_graph():
 register_reset(_make_cot_graph.cache_clear)
 
 
+def _hand_written() -> dict:
+    """{doc_id: [assistant turns]} for the hand-written rationales, or {} when they are off.
+
+    few_shot.human_rationales.only gates the whole feature: when it is false the files are
+    ignored altogether rather than silently replacing synthesis for whichever documents the
+    normal pool happens to select.
+    """
+    hr_cfg = get_cfg()["few_shot"].get("human_rationales") or {}
+    if not hr_cfg.get("only"):
+        return {}
+    return human_rationales.load(hr_cfg.get("dir"))
+
+
 # ── CoT cache key ─────────────────────────────────────────────────────────────
 
 def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) -> str:
@@ -119,26 +134,37 @@ def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) ->
     gold-formatting all change the bytes sent to the synthesis LLM, so all of them must
     change the key. Without it (the pre-fix behaviour, keyed on doc id and protocol alone)
     a shared cot_cache.json silently served CoT written by another model from another prompt.
+
+    reasoning_effort is in the fingerprint for the same reason, so a CoT is reused only when
+    it was written at the effort the current run asks for — "high" never stands in for
+    "xhigh", and neither stands in for an unset effort.
+
+    It is omitted from the dict when it is None rather than written as null, because None
+    means ChatOpenAI sends no reasoning_effort field at all (see build_chat_graph): the
+    request bytes are identical to those of every run made before the setting existed, so
+    the key must be too. That keeps entries generated then reachable from an unset run — and
+    only from an unset run. LangChain's own llm_string, which keys the LLM-level cache in
+    utils/llm_cache.py, drops the field when unset in exactly the same way.
     """
     cfg = get_cfg()
     active_ds = cfg["active_dataset"]
-    fingerprint = json.dumps(
-        {
-            "model_id": cfg["model"]["default_model_id"],
-            "temperature": cfg["model"]["temperature"],
-            "blind": blind,
-            "rewrite": rewrite,
-            "intra_only": intra_only,
-            "dataset": active_ds,
-            "system": cfg["prompt"]["system"],
-            "user_template": cfg["prompt"]["user_template"],
-            "steps": cfg["prompt"].get("steps"),
-            "binary_undirected": cfg["data"]["binary_undirected"],
-            "constrain_to_pair_list": cfg["datasets"][active_ds]["constrain_to_pair_list"],
-        },
-        sort_keys=True,
-        ensure_ascii=False,
-    )
+    reasoning_effort = cfg["model"].get("reasoning_effort")
+    fields = {
+        "model_id": cfg["model"]["default_model_id"],
+        "temperature": cfg["model"]["temperature"],
+        "blind": blind,
+        "rewrite": rewrite,
+        "intra_only": intra_only,
+        "dataset": active_ds,
+        "system": cfg["prompt"]["system"],
+        "user_template": cfg["prompt"]["user_template"],
+        "steps": cfg["prompt"].get("steps"),
+        "binary_undirected": cfg["data"]["binary_undirected"],
+        "constrain_to_pair_list": cfg["datasets"][active_ds]["constrain_to_pair_list"],
+    }
+    if reasoning_effort is not None:
+        fields["reasoning_effort"] = reasoning_effort
+    fingerprint = json.dumps(fields, sort_keys=True, ensure_ascii=False)
     return f"{doc_id}::{sha256(fingerprint.encode('utf-8')).hexdigest()[:16]}"
 
 
@@ -214,6 +240,24 @@ def _load_train_split() -> list:
         binary_undirected=data_cfg["binary_undirected"],
         shuffle_pair_list=data_cfg["shuffle_pair_list"],
     ))
+
+    hr_cfg = fs_cfg.get("human_rationales") or {}
+    if hr_cfg.get("only"):
+        hand = human_rationales.load(hr_cfg.get("dir"))
+        # The few-shot pool becomes exactly the documents that have a hand-written
+        # rationale, so those are the examples every prompt is built from.
+        kept = [d for d in docs if d.get("id", "") in hand]
+        missing = sorted(set(hand) - {d.get("id", "") for d in docs})
+        if missing:
+            print(f"[few_shot] rationale files with no matching doc in the "
+                  f"'{split}' split (ignored): {', '.join(missing)}")
+        if not kept:
+            raise ValueError(
+                f"[few_shot] human_rationales.only is set but none of the rationale files "
+                f"({', '.join(sorted(hand)) or 'none found'}) match a document id in the "
+                f"'{split}' split of {repo_id}"
+            )
+        return kept
 
     if fs_cfg.get("shuffle_pool"):
         # Draw the pool from anywhere in the split rather than taking its first pool_size docs.
@@ -325,6 +369,19 @@ async def _generate_cot_for_doc(
     length len(steps)+1 for multi-step mode). Results are cached in _COT_CACHE.
     """
     doc_id = doc.get("id", "")
+
+    # A hand-written rationale replaces synthesis outright: it is used verbatim, is not
+    # decontaminated, and never reaches the LLM or the CoT cache.
+    hand = _hand_written().get(doc_id)
+    if hand:
+        n_steps = len(steps) + 1 if steps else 1
+        if len(hand) != n_steps:
+            raise ValueError(
+                f"[few_shot] the rationale for {doc_id} has {len(hand)} step(s) but this "
+                f"prompt needs {n_steps} — separate turns with '--- Step N ---' lines"
+            )
+        return hand
+
     cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
@@ -475,6 +532,7 @@ async def get_few_shot_message_pairs(
     rewrite = cfg["few_shot"]["cot_generation"]["rewrite"]
     intra_only = cfg["few_shot"]["intra_only"]
     dump_dir = cfg["few_shot"]["cot_generation"]["dump_dir"]
+    hand_written = _hand_written()
 
     binary_undirected = cfg["data"]["binary_undirected"]
     constrain_to_pair_list = cfg["datasets"][active_ds]["constrain_to_pair_list"]
@@ -491,7 +549,19 @@ async def get_few_shot_message_pairs(
             gold_triples = _filter_same_sentence(gold_triples, doc["mention_sentence"])
         gold_output = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
 
-        if cot_enabled:
+        hand = hand_written.get(doc.get("id", ""))
+        if hand:
+            # A hand-written rationale is the assistant turn, whether or not CoT synthesis
+            # is enabled — supplying the reasoning is the whole point of the file.
+            n_steps = len(steps) + 1 if steps else 1
+            if len(hand) != n_steps:
+                raise ValueError(
+                    f"[few_shot] the rationale for {doc.get('id', '')} has {len(hand)} "
+                    f"step(s) but this prompt needs {n_steps} — separate turns with "
+                    f"'--- Step N ---' lines"
+                )
+            cot_responses = hand
+        elif cot_enabled:
             # Returns List[str]: one clean response per step (len=1 for single-call)
             cot_responses = await _generate_cot_for_doc(
                 doc, system_prompt, human_content, gold_output,
@@ -697,6 +767,7 @@ async def pregenerate_cot(
     kfold_cfg = cfg["datasets"][active_ds]["kfold"]
     n_folds = kfold_cfg["n_folds"] if kfold_cfg["enabled"] else 1
     intra_only = cfg["few_shot"]["intra_only"]
+    hand_written = _hand_written()
 
     # Scan all test docs to collect the unique training docs that will be used as few-shots.
     needed: dict = {}  # training doc_id -> doc
@@ -706,6 +777,8 @@ async def pregenerate_cot(
         CURRENT_DOC_FOLD.set(test_doc["doc_idx"] % n_folds if n_folds > 1 else -1)
         for fs_doc in _select_examples(_TRAIN_CACHE, n):
             doc_id = fs_doc.get("id", "")
+            if doc_id in hand_written:
+                continue
             cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc

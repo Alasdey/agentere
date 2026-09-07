@@ -26,6 +26,7 @@ def build_chat_graph(
     *,
     model_id: str,
     temperature: float = 0.0,
+    reasoning_effort: Optional[str] = None,
     base_url: Optional[str] = None,
     api_key: Optional[str] = None,
     tools: Optional[Sequence[BaseTool]] = None,
@@ -60,9 +61,12 @@ def build_chat_graph(
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY not found in environment or arguments.")
 
+    # ChatOpenAI drops reasoning_effort from the payload when it is None, so None means
+    # "send nothing" and the provider's own default applies — not "no reasoning".
     llm: BaseChatModel = ChatOpenAI(
         model=model_id,
         temperature=temperature,
+        reasoning_effort=reasoning_effort,
         api_key=api_key,
         base_url=base_url,
         **llm_kwargs,

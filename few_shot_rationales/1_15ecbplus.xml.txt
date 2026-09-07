@@ -1,0 +1,39 @@
+Text: 1_15ecbplus.xml
+http : / / www . starpulse . com / news / index . php / 2013 / 05 / 03 / lindsay _ lohan _ check _ into _ betty _ ford _ af Lindsay Lohan <10 Check Into> Betty Ford After <11 Fleeing> Other Rehab Facility May 3rd , 2013 2 : 00pm EDT After <12 leaving> rehab in Newport Beach , Calif . , less than an hour after <7 checking in> on Thursday , Lindsay Lohan <13 admitted> herself to the Betty Ford Center , <14 according> to TMZ . com . Her lawyer <1 negotiated> with court officials to <2 change> the venue of her 90 - day <8 treatment> , and the actress <3 traveled> to nearby Rancho Mirage to <4 register> as a patient . The actress <5 spent time> at the Betty Ford Center in 2010 ; however , a member of the staff ended up <6 suing> her for <9 assault> .
+
+Answer:
+This documents describe events surrounding legal issues with Lindsay Lohan and her court ordered rehabilitation.
+It is complex and confusing so let's take it one step at a time.
+Lindsay Lohan left the Betty Ford facility after fleeing another one in Newport Beach. She then checks out less than an hour after checking in. It is not clear when her lawyer negotiated with court officials relative to the other events (checking in, fleeing, etc). But that may not be necessary information for the causality identification. Though it is pretty self evident that the negotiation (1 negotiated) led to the authorisation to change (2 change) of facility. Let's put that aside for now. The end of the sentence indicates that the actress went to the Rancho Mirage facility after fleeing the Betty Ford Center. 
+The last sentence seems to be about another set of events entirely as it is said to describe events from 2010 while the rest of the article speaks about events from 2013. Three events are mentioned : Spending time in the Betty Ford Center, assaulting a staff member and that staff member suing Lindsay Lohan. It is also fairly straightforward that the assault caused the lawsuit or at least motivated it. After all without assault no lawsuit, and the lawsuit seems motivated primarily by the assault. 
+Spending time there was the context rather than the cause or consequence of the other events described from that year. Maybe those events from 2010 were a reason why Lindsay Lohan did not stay at the Betty Ford Center in 2013, but the text doesn't specify it or even imply it indirectly. This would be a simple conjecture, that while plausible is not in the substance of the text.
+It remains that the text talks mainly about Lindsay Lohan leaving the Betty Ford Center. Wait no, Rancho Mirage is the name of location in which there is the Betty Ford Center. This changes the interpretation of the text. There is now only two treatment facilities mentioned and there is only one event of leaving / fleeing / travelled.
+Let's remap the text to clarify the context. There is the URL first (http to ford _ af), then the title Lindsay Lohan check into Betty Ford … Rehab Facility. Then there is the date of the article May 3rd 2013 as shown in the url. Then there is the body (or rather the summary) of the article. 
+Now that we have that context: Lindsay Lohan was at a Facility in Newport Beach that she fled to go to the Betty Ford Center. 4 register, 13 admitted and 10 Checks Into are the same event. Arguably, Linsay leaving the previous facility caused her to go to a new one as the article makes it clear that it was a court ordered stay, her lawyer even had to get the transfer approved. Lindsay leaving the previous facility left her no choice but to get admitted into a new one. This is a little stretched and the causality might also be that her lawyer had no other choice but to negotiate with the court officials as she fled. No the text, while not explicit, makes it fairly clear that she travelled after her lawyer got the approval. Then there is only one causal relation between the event of her leaving the previous facility and getting admitted to the new one. Both events are mentioned multiple times though, which means as many causal relations as there are combinations of those mentions. 
+There doesn't seem to be more to this story. The 8 treatment is not directly involved in any other events, it is the reason for her stay, but less so then the court order (which is not even mentioned in the text, simply implied). 
+So there we are, the text's semantics should be fully covered.
+The relations are:
+[
+  {"pair": "1,2", "label": "causes"},
+  {"pair": "9,6", "label": "causes"},
+  {"pair": "12,4", "label": "causes"},
+  {"pair": "12,13", "label": "causes"},
+  {"pair": "12,10", "label": "causes"},
+  {"pair": "11,4", "label": "causes"},
+  {"pair": "11,13", "label": "causes"},
+  {"pair": "11,10", "label": "causes"},
+  {"pair": "3,4", "label": "causes"},
+  {"pair": "3,13", "label": "causes"},
+  {"pair": "3,10", "label": "causes"},
+  {"pair": "2,1", "label": "causedby"},
+  {"pair": "6,9", "label": "causedby"},
+  {"pair": "4,12", "label": "causedby"},
+  {"pair": "13,12", "label": "causedby"},
+  {"pair": "10,12", "label": "causedby"},
+  {"pair": "4,11", "label": "causedby"},
+  {"pair": "13,11", "label": "causedby"},
+  {"pair": "10,11", "label": "causedby"},
+  {"pair": "4,3", "label": "causedby"},
+  {"pair": "13,3", "label": "causedby"},
+  {"pair": "10,3", "label": "causedby"}
+]

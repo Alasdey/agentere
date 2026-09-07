@@ -106,7 +106,9 @@ To visualize the traces:
 ```bash
 uv run mlflow server --host 0.0.0.0 --allowed-hosts jupyterhub.pagoda.liris.cnrs.fr --cors-allowed-origins https://jupyterhub.pagoda.liris.cnrs.fr --backend-store-uri sqlite:///mlflow.db --port 5000
 ```
-
+```bash
+uv run mlflow server --host 0.0.0.0 --backend-store-uri sqlite:///mlflow.db --port 5000
+```
 ---
 
 ## Project layout

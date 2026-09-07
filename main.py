@@ -462,6 +462,7 @@ async def main(config=None):
     _, graph_ainvoke = build_chat_graph(
         model_id=config["model"]["default_model_id"],
         temperature=config["model"]["temperature"],
+        reasoning_effort=config["model"].get("reasoning_effort"),
         base_url=config["model"]["base_url"],
         tools=tools,
         enable_tools=config["experiment"]["enable_tools"],
