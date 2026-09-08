@@ -22,6 +22,7 @@ from utils.formatting import format_pair_lines, convert_to_binary_undirected
 from utils.labels import BINARY_LABELS, DIRECTED_LABELS, NOREL, NOREL_VARIANTS
 from utils.logger import log_experiment, make_run_stem, capture_git_state
 from utils.metrics import compute_ere_metrics
+from utils.syntax import annotate_docs, doc_text_with_syntax
 import contextlib
 import mlflow
 from utils.mlflow_tracker import log_run as mlflow_log_run, setup as mlflow_setup
@@ -254,7 +255,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             constrain_to_pair_list=constrain_to_pair_list,
         )
         prompt = prompt_cfg["user_template"].format(
-            doc_text=doc["doc_text"],
+            # doc, not doc_view: the syntax block is a pure function of the document, while
+            # doc_view carries the per-resample shuffled pair order.
+            doc_text=doc_text_with_syntax(doc),
             pair_lines=pair_lines,
             doc_id=doc["id"],
         )
@@ -510,6 +513,10 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
     )
 
     docs = list(dataset_iter)
+
+    # Attach the syntax block (no-op unless syntax.level is set) before CoT pre-generation and
+    # inference, so both see the same annotated text.
+    annotate_docs(docs)
 
     fs_cfg = config["few_shot"]
     if fs_cfg["enabled"] and fs_cfg["cot_generation"]["enabled"]:

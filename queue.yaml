@@ -75,6 +75,9 @@ _defaults:
     binary_default: "norel"
     novote_norel: true
 
+  syntax: &syntax
+    level: "off"    # "off" | "mentions" | "args" | "paths" — see config.yaml
+
   datasets: &datasets
     maven_ere:
       max_examples: 710 # 710
@@ -92,6 +95,7 @@ _defaults:
     experiment: *experiment
     few_shot: *few_shot
     data: *data
+    syntax: *syntax
     datasets: *datasets
 
 
@@ -103,6 +107,8 @@ experiments:
   - name: "esc_many_resamp"
     overrides:
       <<: *base
+      syntax:
+        level: "mentions"
       active_dataset: "event_story_line"
       datasets:
         <<: *datasets

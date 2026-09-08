@@ -36,6 +36,7 @@ Edit `config.yaml` to control what runs. The key knobs:
 | `experiment.resampling.enabled` | Run N passes per doc and take majority vote |
 | `few_shot.enabled` | Inject training examples before the LLM call |
 | `few_shot.selection` | `random` or `similarity` (TF-IDF cosine) |
+| `syntax.level` | Append a spaCy parse summary after the document text (`off`/`mentions`/`args`/`paths`) |
 | `llm_cache.enabled` | Replay identical CoT-synthesis and tool calls from disk instead of the API |
 
 Results land in `logs/allatonce/run_<timestamp>_<id>.json`.
@@ -85,6 +86,33 @@ Tools are LangGraph nodes the LLM can call during inference. They are defined in
 | `eci` | Identifies all mentions causally related to a target (linear-complexity alternative to pairwise) |
 
 Few-shot can also be injected **systematically** before the LLM call (bypassing the tool mechanism) by setting `few_shot.systematic: true`.
+
+---
+
+## Syntactic annotation
+
+`syntax.level` appends a spaCy-derived annotation block directly after the document text —
+in the prediction prompt, in the CoT-synthesis input and in the few-shot demonstrations
+alike, so the model sees the same format everywhere. No prompt file is edited; the block is
+spliced in by `utils/syntax.py`.
+
+| Level | Contents | Typical block size |
+|---|---|---|
+| `off` | Nothing. Prompts are byte-identical to runs made before the feature existed. | — |
+| `mentions` | Per event mention: lemma, POS, tense/verb-form/voice, dependency relation and head. | ~350 tok |
+| `args` | `mentions` + each mention's subject/object/oblique arguments + per-sentence connectives. | ~700 tok |
+| `paths` | `args` + the shortest dependency path between each same-sentence candidate pair. | ~1300 tok |
+
+spaCy parses the dataset's own `tokens` and `sentences`, never the `<ID surface>`-marked
+`doc_text` — so mention ids map to exact tokens and sentence membership matches
+`few_shot.intra_only`. `doc["doc_text"]` is never modified, keeping few-shot similarity
+selection and the analysis scripts on unannotated text.
+
+English only (`en_core_web_sm`); documents in any other language get no block, so MECI is
+annotated on its 87 English documents alone — read it via `per_lang_metrics`. If spaCy is
+missing the block is dropped everywhere and the run matches `off`. Blocks are capped at 8000
+characters per document. The rendered block is part of the CoT cache fingerprint, so turning
+the knob never replays a CoT written over unannotated text.
 
 ---
 

@@ -26,6 +26,14 @@ few_shot.cot_generation.cache_path), keyed by doc id + a fingerprint of everythi
 shapes the CoT — see _cot_cache_key — and, one level down, the prompt-keyed LLM cache in
 utils/llm_cache.py, which the CoT-synthesis graph built here carries. Inference itself is
 never cached; see main.py's build_chat_graph call.
+
+When config's syntax.level is set, every text this module puts in front of an LLM — the
+CoT-synthesis input, the systematic few-shot human turns, the few_shot_examples tool output
+and the CoT dumps — carries the utils/syntax.py annotation block appended after the document
+text, via doc_text_with_syntax. _load_train_split attaches it to the pool at both of its
+returns, after the pool_size cut, so only the pool is parsed and the TF-IDF/BERT selection
+indices above are still fitted on pristine doc_text. The rendered block is part of the
+_cot_cache_key fingerprint.
 """
 from __future__ import annotations
 
@@ -49,6 +57,7 @@ from utils.context import CURRENT_DOC_TEXT, CURRENT_DOC_MENTIONS, CURRENT_DOC_FO
 from utils.labels import NOREL_VARIANTS
 from utils.llm_cache import get_llm_cache
 from utils import human_rationales
+from utils.syntax import annotate_docs, doc_text_with_syntax
 import utils.trace_dump as trace_dump
 
 from utils.runtime_config import get_cfg, register_reset
@@ -127,7 +136,8 @@ def _hand_written() -> dict:
 
 # ── CoT cache key ─────────────────────────────────────────────────────────────
 
-def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) -> str:
+def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool,
+                   syntax_block: str = "") -> str:
     """<doc_id>::<fingerprint of everything that shapes the synthesized CoT>.
 
     The fingerprint is what makes the disk cache safe across a queue run: model, prompt and
@@ -145,6 +155,14 @@ def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) ->
     the key must be too. That keeps entries generated then reachable from an unset run — and
     only from an unset run. LangChain's own llm_string, which keys the LLM-level cache in
     utils/llm_cache.py, drops the field when unset in exactly the same way.
+
+    syntax_block follows the same convention, and for the same reason. It is the rendered
+    utils/syntax.py block for this document — hashed, and omitted when empty. Fingerprinting
+    the block rather than the syntax.level setting is deliberate on two counts: a document
+    that gets no block (level "off", spaCy absent, or a non-English document) produces
+    byte-identical synthesis input to every run made before the feature existed, so its key
+    must stay identical too; and hashing the content additionally invalidates the entry when
+    a spaCy model upgrade changes the block, which a level field would silently miss.
     """
     cfg = get_cfg()
     active_ds = cfg["active_dataset"]
@@ -164,6 +182,8 @@ def _cot_cache_key(doc_id: str, blind: bool, rewrite: bool, intra_only: bool) ->
     }
     if reasoning_effort is not None:
         fields["reasoning_effort"] = reasoning_effort
+    if syntax_block:
+        fields["syntax_block"] = sha256(syntax_block.encode("utf-8")).hexdigest()[:16]
     fingerprint = json.dumps(fields, sort_keys=True, ensure_ascii=False)
     return f"{doc_id}::{sha256(fingerprint.encode('utf-8')).hexdigest()[:16]}"
 
@@ -257,6 +277,7 @@ def _load_train_split() -> list:
                 f"({', '.join(sorted(hand)) or 'none found'}) match a document id in the "
                 f"'{split}' split of {repo_id}"
             )
+        annotate_docs(kept)
         return kept
 
     if fs_cfg.get("shuffle_pool"):
@@ -300,6 +321,10 @@ def _load_train_split() -> list:
     if fs_cfg.get("density_stratify"):
         _DOC_DENSITIES = [_doc_density(d) for d in docs]
 
+    # After the pool_size truncation and after the selection indices are fitted, so only the
+    # pool is parsed (not the whole train split) and TF-IDF/BERT still see pristine doc_text.
+    annotate_docs(docs)
+
     return docs
 
 
@@ -318,7 +343,7 @@ def _format_examples(docs: list) -> str:
         gold_out = format_gold_output(gold_triples, pair_list_ids=doc.get("pair_list_ids"))
         parts.append(
             f"--- Example {i} ---\n"
-            f"Text:\n{doc['doc_text']}\n\n"
+            f"Text:\n{doc_text_with_syntax(doc)}\n\n"
             f"Pairs:\n{pair_lines}\n\n"
             f"Output:\n{gold_out}"
         )
@@ -382,7 +407,8 @@ async def _generate_cot_for_doc(
             )
         return hand
 
-    cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
+    cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only,
+                               doc.get("syntax_block", ""))
     if cache_key in _COT_CACHE:
         return _COT_CACHE[cache_key]
 
@@ -540,7 +566,7 @@ async def get_few_shot_message_pairs(
     for doc in docs:
         pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
         human_content = user_template.format(
-            doc_text=doc["doc_text"],
+            doc_text=doc_text_with_syntax(doc),
             pair_lines=pair_lines,
             doc_id=doc.get("id", ""),
         )
@@ -724,7 +750,7 @@ def _dump_cot_to_disk(doc: dict, clean: list, dump_dir: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
         f.write(
             f"Document ID: {doc_id}\n\n"
-            f"--- Document text ---\n{doc['doc_text']}\n\n"
+            f"--- Document text ---\n{doc_text_with_syntax(doc)}\n\n"
             f"--- Synthesized CoT ---\n{cot_text}\n"
         )
 
@@ -779,7 +805,8 @@ async def pregenerate_cot(
             doc_id = fs_doc.get("id", "")
             if doc_id in hand_written:
                 continue
-            cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only)
+            cache_key = _cot_cache_key(doc_id, blind, rewrite, intra_only,
+                                       fs_doc.get("syntax_block", ""))
             if cache_key not in _COT_CACHE and doc_id not in needed:
                 needed[doc_id] = fs_doc
 
@@ -798,7 +825,7 @@ async def pregenerate_cot(
         async with sem:
             pair_lines = format_pair_lines(doc, binary_undirected=binary_undirected, constrain_to_pair_list=constrain_to_pair_list)
             human_content = user_template.format(
-                doc_text=doc["doc_text"],
+                doc_text=doc_text_with_syntax(doc),
                 pair_lines=pair_lines,
                 doc_id=doc.get("id", ""),
             )

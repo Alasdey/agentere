@@ -97,6 +97,42 @@ data:
     - "norel"
 
 
+# ── Syntactic annotation (spaCy) ──
+# Appends a parse-derived annotation block directly after the document text at every
+# prompt-construction site — the prediction prompt, the CoT-synthesis input, the systematic
+# few-shot human turns and the few_shot_examples tool output — so the same block is present in
+# the demonstrations AND in the document being classified. No prompt YAML is edited: the block
+# is spliced in by utils.syntax.doc_text_with_syntax(). doc["doc_text"] itself stays pristine,
+# so TF-IDF / sentence-transformer few-shot selection, the similarity query, causal-graph
+# rendering and the analysis scripts all keep matching on the unannotated text.
+# spaCy runs on the dataset's own token list and sentence boundaries — never on the
+# <ID surface>-marked text, whose markup would wreck tokenisation — so mention ids map to exact
+# tokens and sentence membership is identical to doc["mention_sentence"].
+# English only (en_core_web_sm). Documents in any other language (MECI's causal-da/es/tr/ur,
+# 88% of its test split) get no block rather than a nonsense parse; read MECI per language via
+# per_lang_metrics if you run it. If spaCy or the model is missing the block is omitted
+# everywhere and the run is byte-identical to "off" — this can never break an existing run.
+# Note the block is added to few-shot demonstrations too, including hand-written rationales
+# under few_shot.human_rationales, whose prose will not reference it.
+syntax:
+  level: "off"    # "off"      — no annotation. Default; prompts are byte-identical to every
+                   #              run made before this feature existed.
+                   # "mentions" — one line per event mention: lemma, UPOS, morphology
+                   #              (Tense / VerbForm / derived Voice), dependency relation, head.
+                   # "args"     — "mentions" plus each mention's subject / object / oblique
+                   #              arguments, plus one connective line per sentence
+                   #              (mark / prep / cc / advmod) naming what each attaches to.
+                   # "paths"    — "args" plus the shortest dependency path between the two
+                   #              mentions of every same-sentence candidate pair. Two caveats:
+                   #              (a) it enumerates the same-sentence candidate set, which the
+                   #              open-ended datasets (constrain_to_pair_list: false — ESL,
+                   #              MAVEN-ERE, Causal-TimeBank) deliberately withhold from the
+                   #              prompt, so it is not a pure syntax ablation there;
+                   #              (b) it is the only level that grows quadratically in mentions
+                   #              per sentence — one Causal-TimeBank doc has 559 same-sentence
+                   #              pairs — so it is capped at 200 path lines per document.
+
+
 experiment:
   tracing: "false"
   # tracing_name: "DeepseekV32_meci_714_test_coh_count_resamp"

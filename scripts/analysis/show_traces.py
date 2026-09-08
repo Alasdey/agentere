@@ -26,6 +26,8 @@ import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from utils.syntax import HEADER as _SYNTAX_HEADER
+
 # ── ANSI colours ─────────────────────────────────────────────────────────────
 
 _USE_COLOR = sys.stdout.isatty()
@@ -186,14 +188,19 @@ def _extract_doc_text(trace: List[Dict]) -> str:
     """Pull the document text out of the last HumanMessage (after 'Text:\\n').
 
     Uses 'Pairs to classify' as the end-of-text boundary when present (handles
-    multi-paragraph documents that contain blank lines inside the text).
+    multi-paragraph documents that contain blank lines inside the text), and the
+    utils/syntax.py block header when a run was made with syntax.level set — the
+    block is appended right after the text, so without that boundary it would be
+    captured as part of it and the exact-match gold lookup below would fail.
     Falls back to the first blank line or end-of-string for prompts without
     an explicit pair list.
     """
     for msg in reversed(trace):
         if _msg_type(msg) == "HumanMessage":
             content = _kwargs(msg)["content"]
-            m = re.search(r"Text:\n(.*?)(?=\n\nPairs to classify|\Z)", content, re.DOTALL)
+            m = re.search(
+                rf"Text:\n(.*?)(?=\n\nPairs to classify|\n\n{re.escape(_SYNTAX_HEADER)}|\Z)",
+                content, re.DOTALL)
             if not m:
                 m = re.search(r"Text:\n(.*?)(?:\n\n|\Z)", content, re.DOTALL)
             if m:

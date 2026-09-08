@@ -171,6 +171,16 @@ def load_hf_dataset_parsed(
             "mentions_map": mentions_map,
             "mention_sentence": mention_sentence,
             "pair_list_ids": pair_list_ids,
+            # Token-level fields, passed through untouched for utils/syntax.py. doc_text is
+            # the tokens joined by single spaces with <ID surface> markup wrapped around each
+            # mention span, so parsing `tokens` (never doc_text, whose markup would wreck
+            # tokenisation) yields an exact 1:1 token alignment: `spans` then maps a mention
+            # id to its precise tokens and `sentences` pins the parser to the same
+            # segmentation `mention_sentence` above is built from. Nothing else reads these.
+            "tokens": tokens,
+            "spans": spans,
+            "mentions": mentions,
+            "sentences": sentences,
         }
         
         count += 1
