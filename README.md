@@ -37,6 +37,7 @@ Edit `config.yaml` to control what runs. The key knobs:
 | `few_shot.enabled` | Inject training examples before the LLM call |
 | `few_shot.selection` | `random` or `similarity` (TF-IDF cosine) |
 | `syntax.level` | Append a spaCy parse summary after the document text (`off`/`mentions`/`args`/`paths`) |
+| `syntax.discourse` | Whole-document sections, orthogonal to `level` (`skeleton`, `participants`) |
 | `llm_cache.enabled` | Replay identical CoT-synthesis and tool calls from disk instead of the API |
 
 Results land in `logs/allatonce/run_<timestamp>_<id>.json`.
@@ -102,6 +103,18 @@ spliced in by `utils/syntax.py`.
 | `mentions` | Per event mention: lemma, POS, tense/verb-form/voice, dependency relation and head. | ~350 tok |
 | `args` | `mentions` + each mention's subject/object/oblique arguments + per-sentence connectives. | ~700 tok |
 | `paths` | `args` + the shortest dependency path between each same-sentence candidate pair. | ~1300 tok |
+
+`syntax.discourse` is a separate, orthogonal list — set either, both or neither, with or
+without a `level`:
+
+| Component | Contents | Cost |
+|---|---|---|
+| `skeleton` | One row per sentence over the whole document: predicate, subject, object, polarity/modality, event count. Covers the 47% of sentences with no event mention that every `level` ignores. | O(sentences) |
+| `participants` | Named entities and the sentences each recurs in — a coreference proxy for participants shared between events, and the only signal that crosses a sentence boundary. Enables the NER pipe. | O(tokens) |
+
+Every `level` is mention-centric and `paths` is quadratic in mentions per sentence; both
+discourse components are linear in the text. Running them alone (`level: off`) isolates what
+whole-document context contributes.
 
 spaCy parses the dataset's own `tokens` and `sentences`, never the `<ID surface>`-marked
 `doc_text` — so mention ids map to exact tokens and sentence membership matches

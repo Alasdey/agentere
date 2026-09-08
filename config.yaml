@@ -131,6 +131,22 @@ syntax:
                    #              (b) it is the only level that grows quadratically in mentions
                    #              per sentence — one Causal-TimeBank doc has 559 same-sentence
                    #              pairs — so it is capped at 200 path lines per document.
+  discourse: []    # Document-linear sections, orthogonal to `level` — set either, both or
+                   # neither, with or without a `level`. Where every `level` is mention-centric
+                   # (and `paths` is quadratic in mentions per sentence), these are linear in
+                   # the text and are the only part of the block that says anything about the
+                   # 47% of sentences holding no event mention — 44% of all tokens, otherwise
+                   # invisible to the model.
+                   #   "skeleton"     — one row per sentence over the whole document: predicate,
+                   #                    subject, object, polarity/modality, and how many event
+                   #                    mentions it contains. Contentless boilerplate (the URL
+                   #                    and dateline rows opening most ECB+ docs) is dropped.
+                   #   "participants" — named entities and the sentences each appears in, with
+                   #                    recurring ones first: a cheap coreference proxy, and the
+                   #                    only signal here that crosses a sentence boundary (the
+                   #                    dependency paths of `level: paths` are sentence-clamped).
+                   #                    Enables the spaCy NER pipe, which is off otherwise, and
+                   #                    is the noisiest component on this pre-tokenised text.
 
 
 experiment:

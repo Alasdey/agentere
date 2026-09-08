@@ -1,10 +1,21 @@
 """spaCy-derived syntactic annotation, appended after the document text.
 
-Driven by the top-level `syntax.level` knob in config.yaml ("off" | "mentions" | "args" |
-"paths"). When it is not "off", every prompt-construction site splices the rendered block in
-directly after the document text via `doc_text_with_syntax`, so the same annotation appears in
-the few-shot demonstrations, in the CoT-synthesis input and in the prediction prompt. No prompt
-YAML is edited.
+Driven by two orthogonal knobs under `syntax:` in config.yaml. Whenever either is set, every
+prompt-construction site splices the rendered block in directly after the document text via
+`doc_text_with_syntax`, so the same annotation appears in the few-shot demonstrations, in the
+CoT-synthesis input and in the prediction prompt. No prompt YAML is edited.
+
+  `level`     — "off" | "mentions" | "args" | "paths". Mention-centric and cumulative. Cost
+                grows with the mention count, and "paths" is quadratic in mentions per
+                sentence, which is what the size caps below exist to bound.
+  `discourse` — any of ["skeleton", "participants"]. Document-linear: one row per sentence,
+                one per entity. These are the only sections that describe the 47% of sentences
+                holding no event mention (44% of all tokens), and "participants" is the only
+                signal anywhere in the block that crosses a sentence boundary — the dependency
+                paths of `level: paths` are clamped to a single sentence by construction.
+
+The two are independent so an experiment can attribute a change to whole-text context or to the
+per-mention ladder rather than to both at once; `discourse` alone with `level: off` is valid.
 
 Why the parser never sees doc_text
 ----------------------------------
@@ -29,7 +40,10 @@ English only
 `causal-da/es/tr/ur`) get no block rather than a nonsense parse. The label set is therefore
 ClearNLP/OntoNotes, **not** Universal Dependencies: `dobj`/`prep`/`pobj`/`nsubjpass`, with no
 `obj` and no `obl` (verified against the installed model). English also never populates
-`token.morph["Voice"]`, so passive is derived from `nsubjpass`/`auxpass` children.
+`token.morph["Voice"]` nor `token.morph["Polarity"]`, so the passive is derived from
+`nsubjpass`/`auxpass` children and negation from a `neg` child. Negation is worth the trouble
+despite appearing on only 1% of mentions: "the assistance is *not* helping" inverts the causal
+claim, and a modal auxiliary ("could have caused") is surfaced for the same reason.
 
 Where the block is produced
 ---------------------------
@@ -72,6 +86,13 @@ HEADER = "### Syntax"
 
 LEVELS = ("off", "mentions", "args", "paths")
 
+# Document-linear sections, selected by syntax.discourse and independent of `level`.
+#   "skeleton"     — one line per sentence over the WHOLE document, including the ~47% of
+#                    sentences that contain no event mention and are otherwise invisible.
+#   "participants" — named entities and the sentences each recurs in: a cheap coreference
+#                    proxy for participants shared between events. Needs the NER pipe.
+DISCOURSE_COMPONENTS = ("skeleton", "participants")
+
 _MODEL = "en_core_web_sm"
 _ENGLISH = frozenset({"en", "eng", "english"})
 
@@ -103,6 +124,7 @@ _MAX_PATHS_PER_SENTENCE = 30
 _MAX_PATHS_PER_DOC = 100
 _MAX_MENTION_LINES = 60
 _MAX_BLOCK_CHARS = 8000
+_MAX_PARTICIPANTS = 15
 
 # spaCy's Language object is not safe for concurrent load or use. Annotation runs once per run
 # before any inference concurrency starts, but `few_shot.preload` may be on a worker thread
@@ -126,6 +148,23 @@ def level() -> str:
     return lvl
 
 
+def discourse() -> Tuple[str, ...]:
+    """The validated `syntax.discourse` components, in canonical order.
+
+    Orthogonal to `level`: these are document-linear (one line per sentence, one per entity)
+    rather than mention-centric, so they can be run on their own to separate what whole-text
+    context contributes from what the per-mention ladder contributes.
+    """
+    got = (get_cfg().get("syntax") or {}).get("discourse") or []
+    if isinstance(got, str):
+        got = [got]
+    unknown = [c for c in got if c not in DISCOURSE_COMPONENTS]
+    if unknown:
+        raise ValueError(f"[syntax] unknown syntax.discourse component(s) {unknown}; "
+                         f"expected any of {list(DISCOURSE_COMPONENTS)}")
+    return tuple(c for c in DISCOURSE_COMPONENTS if c in got)
+
+
 def _lang_key(lang: str) -> str:
     """Normalise a dataset language code. MECI uses `causal-en` / `causal-tr` / ...; the other
     datasets default to `eng` (dataprep.py)."""
@@ -135,10 +174,14 @@ def _lang_key(lang: str) -> str:
     return key
 
 
-@lru_cache(maxsize=1)
-def _load_pipeline():
+@lru_cache(maxsize=2)
+def _load_pipeline(with_ner: bool = False):
     """The spaCy pipeline, or None when spaCy or the model is unavailable. Cached including the
-    failure, so a missing install warns once rather than once per document."""
+    failure, so a missing install warns once rather than once per document.
+
+    NER is excluded unless the "participants" discourse component asks for it — it is the one
+    pipe nothing else here needs, and it is not free.
+    """
     try:
         import spacy  # lazy: matches the sklearn/sentence-transformers pattern in few_shot.py
     except ImportError:
@@ -146,7 +189,7 @@ def _load_pipeline():
                                "appended. Add `spacy` and `en-core-web-sm` to pyproject.toml.")
         return None
     try:
-        return spacy.load(_MODEL, exclude=["ner"])
+        return spacy.load(_MODEL) if with_ner else spacy.load(_MODEL, exclude=["ner"])
     except OSError:
         _warn_once("no-model", f"[syntax] spaCy model {_MODEL!r} is not installed — no "
                                f"annotation will be appended. Add `en-core-web-sm` to "
@@ -244,8 +287,14 @@ def _render_range(lo: int, hi: int, sdoc, tok2mention: Dict[int, str],
 
 
 def _morph(tok) -> str:
-    """Tense/VerbForm plus a derived Voice. en_core_web_sm never sets Voice in `morph`, so
-    passive comes from the nsubjpass/auxpass children."""
+    """Tense/VerbForm plus derived Voice, Polarity and modality.
+
+    en_core_web_sm populates neither Voice nor Polarity in `morph`, so both are read off the
+    children: nsubjpass/auxpass for the passive, `neg` for negation. Negation matters out of
+    all proportion to its 1% frequency — "the assistance is *not* helping" inverts the causal
+    claim, and without this the mention line said only `lemma=help`. A modal auxiliary is
+    surfaced for the same reason: "could have caused" asserts far less than "caused".
+    """
     vals = []
     for key in _MORPH_KEYS:
         got = tok.morph.get(key)
@@ -253,6 +302,11 @@ def _morph(tok) -> str:
             vals.append(f"{key}={got[0]}")
     if any(c.dep_ in _PASSIVE_DEPS for c in tok.children):
         vals.append("Voice=Pass")
+    if any(c.dep_ == "neg" for c in tok.children):
+        vals.append("Polarity=Neg")
+    modal = next((c.text for c in tok.children if c.dep_ == "aux" and c.tag_ == "MD"), None)
+    if modal:
+        vals.append(f"Modal={modal}")
     return "|".join(vals)
 
 
@@ -345,21 +399,115 @@ def _format_path(a_label: str, path, sdoc, tok2mention, mentions_map) -> str:
     return " ".join(parts) + f" (len={len(path)})"
 
 
+# ── Document-linear sections ──────────────────────────────────────────────────
+
+def _sentence_root(sdoc, start: int, end: int):
+    """The head of a sentence: the token in [start, end) whose own head lies outside it."""
+    for i in range(start, end):
+        tok = sdoc[i]
+        if tok.head.i == i or not (start <= tok.head.i < end):
+            return tok
+    return sdoc[start]
+
+
+def _skeleton(doc: dict, sdoc, mention_sentence: Dict[str, int],
+              mention_tokens: Dict[str, List[int]]) -> List[str]:
+    """One line per sentence across the WHOLE document — predicate, subject, object, polarity,
+    modality and how many event mentions it holds.
+
+    This is the only part of the block that speaks about sentences containing no event mention,
+    which are 47% of all sentences and 44% of all tokens in the two English corpora. Contentless
+    boilerplate (the URL and dateline rows that open most ECB+ documents) is dropped: no
+    mentions, a non-verbal root, and neither a subject nor an object.
+    """
+    counts: Dict[int, int] = {}
+    for mid in mention_tokens:
+        si = mention_sentence.get(mid)
+        if si is not None:
+            counts[si] = counts.get(si, 0) + 1
+
+    out: List[str] = []
+    for si, (start, end) in enumerate(doc.get("sentences", [])):
+        root = _sentence_root(sdoc, start, end)
+        subj = next((c for c in root.children if c.dep_ in _SUBJ), None)
+        obj = next((c for c in root.children if c.dep_ in _OBJ), None)
+        n = counts.get(si, 0)
+        if not n and root.pos_ not in ("VERB", "AUX") and subj is None and obj is None:
+            continue
+        bits = [f"  S{si + 1}", f"pred={root.lemma_}"]
+        morph = _morph(root)
+        if morph:
+            bits.append(morph)
+        bits.append(f'subj="{subj.text}"' if subj is not None else "subj=-")
+        bits.append(f'obj="{obj.text}"' if obj is not None else "obj=-")
+        bits.append(f"events={n}")
+        out.append(" ".join(bits))
+    return out
+
+
+def _participants(doc: dict, sdoc) -> List[str]:
+    """Named entities and the sentences each appears in.
+
+    An entity recurring across sentences is a cheap stand-in for coreference: two events that
+    share a participant are likelier to be causally linked, and nothing else in the block
+    carries information across a sentence boundary. Recurring entities are listed first, then
+    by first appearance; ties broken on the surface so the section is deterministic.
+    """
+    sentences = doc.get("sentences", [])
+    where: Dict[Tuple[str, str], set] = {}
+    for ent in sdoc.ents:
+        for si, (start, end) in enumerate(sentences):
+            if start <= ent.start < end:
+                where.setdefault((ent.text, ent.label_), set()).add(si + 1)
+                break
+    if not where:
+        return []
+    ranked = sorted(where.items(), key=lambda kv: (-len(kv[1]), min(kv[1]), kv[0][0]))
+    out: List[str] = []
+    for (text, label), sents in ranked[:_MAX_PARTICIPANTS]:
+        marks = ", ".join(f"S{i}" for i in sorted(sents))
+        out.append(f'  "{text}" ({label}) {marks}' + ("  <- recurs" if len(sents) > 1 else ""))
+    omitted = len(ranked) - len(out)
+    if omitted > 0:
+        out.append(f"  ({omitted} further entity/entities omitted)")
+    return out
+
+
 # ── Block rendering ───────────────────────────────────────────────────────────
 
-def _render(doc: dict, sdoc, lvl: str) -> str:
+def _render(doc: dict, sdoc, lvl: str, comps: Tuple[str, ...] = ()) -> str:
     mentions_map = doc.get("mentions_map", {})
     mention_sentence = doc.get("mention_sentence", {})
     sentences = doc.get("sentences", [])
     tok2mention, mention_tokens = _mention_index(doc)
-    if not mention_tokens:
+    if not mention_tokens and not comps:
         return ""
 
-    header = f"{HEADER} (spaCy {_MODEL}; dep = relation to the head token"
+    header = f"{HEADER} (spaCy {_MODEL}"
+    if lvl != "off":
+        header += "; dep = relation to the head token"
     if lvl == "paths":
         header += "; in paths, A -dep-> B means A is a dependent of B, A <-dep- B the reverse"
     header += ")"
     lines: List[str] = [header]
+    mention_tokens_all = mention_tokens
+    if lvl == "off":
+        mention_tokens = {}
+
+    # Document-linear sections come first, and not only because overview-then-detail reads
+    # better: _MAX_BLOCK_CHARS truncates from the end, so anything after the mention sections
+    # would be the first thing dropped on a large document — exactly backwards, since these are
+    # bounded and cheap while the "paths" list that would survive is the quadratic part.
+    if "skeleton" in comps:
+        rows = _skeleton(doc, sdoc, mention_sentence, mention_tokens_all)
+        if rows:
+            lines.append("### Discourse (one row per sentence; events = event mentions in it)")
+            lines.extend(rows)
+    if "participants" in comps:
+        rows = _participants(doc, sdoc)
+        if rows:
+            lines.append("### Participants (named entities and the sentences they appear in)")
+            lines.extend(rows)
 
     by_sentence: Dict[int, List[str]] = {}
     for mid in mention_tokens:
@@ -441,10 +589,11 @@ def _render(doc: dict, sdoc, lvl: str) -> str:
                 if omitted > 0:
                     lines.append(f"    ({omitted} more pair(s) in this sentence omitted)")
 
-    if len(lines) <= 1:
-        return ""
     if omitted_mentions:
         lines.append(f"({omitted_mentions} further mention(s) not annotated)")
+
+    if len(lines) <= 1:
+        return ""
 
     block = "\n".join(lines)
     if len(block) > _MAX_BLOCK_CHARS:
@@ -466,9 +615,10 @@ def annotate_docs(docs: List[dict]) -> None:
     document must not end it.
     """
     lvl = level()
+    comps = discourse()
     for doc in docs:
         doc.setdefault("syntax_block", "")
-    if lvl == "off" or not docs:
+    if (lvl == "off" and not comps) or not docs:
         return
 
     english = [d for d in docs if _lang_key(d.get("lang", "eng")) in _ENGLISH]
@@ -491,13 +641,13 @@ def annotate_docs(docs: List[dict]) -> None:
     # concurrently, and few_shot.preload runs _load_train_split on a worker thread while
     # main() may be annotating the test docs on the event loop.
     with _LOCK:
-        nlp = _load_pipeline()
+        nlp = _load_pipeline(with_ner="participants" in comps)
         if nlp is None:
             return
         for doc in parseable:
             try:
                 sdoc = _build_doc(nlp, doc["tokens"], doc["sentences"])
-                block = _render(doc, sdoc, lvl)
+                block = _render(doc, sdoc, lvl, comps)
             except Exception as exc:  # never abort a run over one document
                 _warn_once(f"render:{doc.get('id', '?')}",
                            f"[syntax] could not annotate doc {doc.get('id', '?')}: "
@@ -507,7 +657,8 @@ def annotate_docs(docs: List[dict]) -> None:
             if block:
                 annotated += 1
 
-    summary = f"[syntax] level={lvl} | annotated {annotated}/{len(docs)} docs"
+    detail = f"level={lvl}" + (f" discourse={'+'.join(comps)}" if comps else "")
+    summary = f"[syntax] {detail} | annotated {annotated}/{len(docs)} docs"
     if skipped:
         summary += f" | skipped {sum(skipped.values())} non-English"
     print(summary)
