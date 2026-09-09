@@ -37,7 +37,7 @@ Edit `config.yaml` to control what runs. The key knobs:
 | `few_shot.enabled` | Inject training examples before the LLM call |
 | `few_shot.selection` | `random` or `similarity` (TF-IDF cosine) |
 | `syntax.level` | Append a spaCy parse summary after the document text (`off`/`mentions`/`args`/`paths`) |
-| `syntax.discourse` | Whole-document sections, orthogonal to `level` (`skeleton`, `participants`) |
+| `syntax.discourse` | Whole-document layers, orthogonal to `level` (`skeleton`, `participants`, `pos`) |
 | `llm_cache.enabled` | Replay identical CoT-synthesis and tool calls from disk instead of the API |
 
 Results land in `logs/allatonce/run_<timestamp>_<id>.json`.
@@ -111,6 +111,7 @@ without a `level`:
 |---|---|---|
 | `skeleton` | One row per sentence over the whole document: predicate, subject, object, polarity/modality, event count. Covers the 47% of sentences with no event mention that every `level` ignores. | O(sentences) |
 | `participants` | Named entities and the sentences each recurs in — a coreference proxy for participants shared between events, and the only signal that crosses a sentence boundary. Enables the NER pipe. | O(tokens) |
+| `pos` | The whole document again, one row per sentence, every token tagged `token/TAG` (Penn Treebank). A second copy alongside the untouched text. | ~1.5x the document |
 
 Every `level` is mention-centric and `paths` is quadratic in mentions per sentence; both
 discourse components are linear in the text. Running them alone (`level: off`) isolates what

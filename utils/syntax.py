@@ -91,7 +91,8 @@ LEVELS = ("off", "mentions", "args", "paths")
 #                    sentences that contain no event mention and are otherwise invisible.
 #   "participants" — named entities and the sentences each recurs in: a cheap coreference
 #                    proxy for participants shared between events. Needs the NER pipe.
-DISCOURSE_COMPONENTS = ("skeleton", "participants")
+#   "pos"          — the whole text again, every token carrying its Penn Treebank tag.
+DISCOURSE_COMPONENTS = ("skeleton", "participants", "pos")
 
 _MODEL = "en_core_web_sm"
 _ENGLISH = frozenset({"en", "eng", "english"})
@@ -475,6 +476,40 @@ def _participants(doc: dict, sdoc) -> List[str]:
 
 # ── Block rendering ───────────────────────────────────────────────────────────
 
+def _pos_text(doc: dict, sdoc) -> List[str]:
+    """The whole document re-emitted one sentence per row, every token tagged `token/TAG`.
+
+    Penn Treebank tags rather than coarse UPOS, which is the better deal on both axes at once:
+    the strings are shorter (`VBD`/`IN` against `VERB`/`ADP`, measured 1.46x the document
+    against 1.68x) and they carry tense and number that UPOS discards — VBD/VBN/VBG is exactly
+    the distinction that bears on whether an event is asserted, resultant or ongoing.
+
+    Mention spans keep their `<ID ...>` markup so ids stay locatable. Discontinuous spans mark
+    only their first token, which is the convention doc_text itself uses for them.
+    """
+    _, mention_tokens = _mention_index(doc)
+    open_at: Dict[int, str] = {}
+    close_at: Dict[int, str] = {}
+    for mid, idxs in mention_tokens.items():
+        open_at[idxs[0]] = mid
+        close_at[idxs[-1] if idxs[-1] - idxs[0] + 1 == len(idxs) else idxs[0]] = mid
+
+    out: List[str] = []
+    for si, (start, end) in enumerate(doc.get("sentences", [])):
+        pieces: List[str] = []
+        for i in range(start, end):
+            tok = sdoc[i]
+            piece = f"{tok.text}/{tok.tag_}"
+            if i in open_at:
+                piece = f"<{open_at[i]} {piece}"
+            if i in close_at:
+                piece = f"{piece}>"
+            pieces.append(piece)
+        if pieces:
+            out.append(f"  S{si + 1} " + " ".join(pieces))
+    return out
+
+
 def _render(doc: dict, sdoc, lvl: str, comps: Tuple[str, ...] = ()) -> str:
     mentions_map = doc.get("mentions_map", {})
     mention_sentence = doc.get("mention_sentence", {})
@@ -591,6 +626,15 @@ def _render(doc: dict, sdoc, lvl: str, comps: Tuple[str, ...] = ()) -> str:
 
     if omitted_mentions:
         lines.append(f"({omitted_mentions} further mention(s) not annotated)")
+
+    if "pos" in comps:
+        rows = _pos_text(doc, sdoc)
+        if rows:
+            # Last on purpose: this is the largest layer and the most redundant one, since the
+            # untagged text is already in the prompt directly above. _MAX_BLOCK_CHARS truncates
+            # from the end, so on an oversized document this is the right thing to lose first.
+            lines.append("### POS (token/TAG, Penn Treebank; mention spans keep their <ID ...> markup)")
+            lines.extend(rows)
 
     if len(lines) <= 1:
         return ""

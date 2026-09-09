@@ -147,6 +147,14 @@ syntax:
                    #                    dependency paths of `level: paths` are sentence-clamped).
                    #                    Enables the spaCy NER pipe, which is off otherwise, and
                    #                    is the noisiest component on this pre-tokenised text.
+                   #   "pos"          — the whole document again, one row per sentence, every
+                   #                    token tagged token/TAG. Penn Treebank tags, not coarse
+                   #                    UPOS: shorter strings (1.46x the document against 1.68x)
+                   #                    AND more information, since VBD/VBN/VBG and NN/NNS carry
+                   #                    tense and number that UPOS drops. The plain text is left
+                   #                    untouched above it, so this is a second copy — the
+                   #                    costliest layer, and rendered last so that the size cap
+                   #                    trims it before anything else.
 
 
 experiment:

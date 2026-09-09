@@ -77,7 +77,7 @@ _defaults:
 
   syntax: &syntax
     level: "off"    # "off" | "mentions" | "args" | "paths" — see config.yaml
-    discourse: []   # any of ["skeleton", "participants"] — orthogonal to level
+    discourse: []   # any of ["skeleton", "participants", "pos"] — orthogonal to level
 
   datasets: &datasets
     maven_ere:
@@ -109,8 +109,8 @@ experiments:
     overrides:
       <<: *base
       syntax:
-        level: "paths"       # "off" | "mentions" | "args" | "paths"
-        discourse: [] # any of ["skeleton", "participants"] 
+        level: "off"       # "off" | "mentions" | "args" | "paths"
+        discourse: ["pos"] # any of ["skeleton", "participants", "pos"] 
       active_dataset: "event_story_line"
       datasets:
         <<: *datasets
@@ -131,7 +131,7 @@ experiments:
         <<: *experiment
         resampling:
           <<: *resampling
-          n_runs: 3
+          n_runs: 7
       model:
         <<: *model
         # default_model_id: "openai/gpt-6-astra"
