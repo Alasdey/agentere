@@ -206,7 +206,7 @@ def _llm_slots() -> asyncio.Semaphore:
     return _LLM_SLOTS
 
 
-async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, steps: list = None, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600):
+async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, max_retries: int, steps: list = None, few_shot_pairs: list = None, reprompt_str: str = "", doc_id: str = "?", timeout: int = 3600, retry_wait: float = 0.0):
     """Retries inference if parsing fails or times out, returns dict with raw+parsed data."""
     last_error = None
     for attempt in range(max_retries + 1):
@@ -221,7 +221,9 @@ async def run_inference_with_retry(graph_ainvoke, system_prompt, user_prompt, ma
         except (ValueError, asyncio.TimeoutError) as e:
             print(f'[{doc_id}] Failed inference attempt {attempt}: {e}')
             last_error = e
-            await asyncio.sleep(1)
+            # No wait by default; only pause between attempts, never after the last one.
+            if retry_wait > 0 and attempt < max_retries:
+                await asyncio.sleep(retry_wait)
 
     raise ValueError(f"[{doc_id}] Max retries reached. Last error: {last_error}")
 

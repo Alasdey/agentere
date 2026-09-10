@@ -17,6 +17,7 @@ dependencies = [
     "en-core-web-sm",
     "tabulate>=0.10.0",
     "torch>=2.0.0",
+    "pdfplumber>=0.11.10",
 ]
 
 # The spaCy pipeline utils/syntax.py loads (see config.yaml `syntax:`). Declared as a real

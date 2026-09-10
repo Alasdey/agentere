@@ -31,7 +31,7 @@ _defaults:
   tools_config: &tools_config
     eci_extractor:
       model_id: "deepseek/deepseek-v3.2"
-      concurrency: 50
+      concurrency: 1 # 50
 
   resampling: &resampling
     enabled: true
@@ -105,13 +105,13 @@ experiments:
   # ───────────────────────────── Extras ───────────────────────────────
   
   
-  - name: "esc_many_resamp"
+  - name: "syntax"
     overrides:
       <<: *base
       syntax:
         level: "off"       # "off" | "mentions" | "args" | "paths"
-        discourse: ["pos"] # any of ["skeleton", "participants", "pos"] 
-      active_dataset: "event_story_line"
+        discourse: [] # any of ["skeleton", "participants", "pos"] 
+      active_dataset: "event_story_line" # maven_ere / event_story_line / causal_timebank
       datasets:
         <<: *datasets
         event_story_line:
@@ -131,12 +131,15 @@ experiments:
         <<: *experiment
         resampling:
           <<: *resampling
-          n_runs: 7
+          n_runs: 3
       model:
         <<: *model
         # default_model_id: "openai/gpt-6-astra"
+        # default_model_id: "anthropic/claude-opus-5"
+        # default_model_id: "anthropic/claude-sonnet-5"
         # default_model_id: "openai/gpt-5.6-sol"
-        default_model_id: "deepseek/deepseek-v4-flash" 
+        default_model_id: "deepseek/deepseek-v4.1-flash" 
+        # default_model_id: "deepseek/deepseek-v4-flash" 
         temperature: 0.0
         # reasoning_effort: "xhigh"
 
