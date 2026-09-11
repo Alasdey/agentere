@@ -49,6 +49,7 @@ _defaults:
     concurrency: 50        # max LLM calls in flight
     doc_concurrency: 50    # max documents open at once
     retries: 3
+    retry_wait: 0          # seconds to wait before each retry (0 = retry immediately)
 
   cot_generation: &cot_generation
     enabled: true
@@ -138,8 +139,8 @@ experiments:
         # default_model_id: "anthropic/claude-opus-5"
         # default_model_id: "anthropic/claude-sonnet-5"
         # default_model_id: "openai/gpt-5.6-sol"
-        default_model_id: "deepseek/deepseek-v4.1-flash" 
-        # default_model_id: "deepseek/deepseek-v4-flash" 
+        # default_model_id: "deepseek/deepseek-v4.1-flash" 
+        default_model_id: "deepseek/deepseek-v4-flash" 
         temperature: 0.0
         # reasoning_effort: "xhigh"
 

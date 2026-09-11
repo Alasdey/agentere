@@ -768,6 +768,7 @@ async def pregenerate_cot(
     blind: bool = False,
     rewrite: bool = True,
     retries: int = 3,
+    retry_wait: float = 0.0,
     dump_dir: Optional[str] = None,
 ) -> None:
     """Generate CoT for every unique few-shot training doc needed across all test_docs.
@@ -846,7 +847,9 @@ async def pregenerate_cot(
                 except Exception as e:
                     last_error = e
                     print(f"[few_shot] CoT generation failed for doc {doc.get('id', '')} (attempt {attempt}): {e}")
-                    await asyncio.sleep(1)
+                    # No wait by default; only pause between attempts, never after the last one.
+                    if retry_wait > 0 and attempt < retries:
+                        await asyncio.sleep(retry_wait)
             else:
                 raise ValueError(f"[few_shot] CoT generation for doc {doc.get('id', '')} failed after {retries} retries: {last_error}")
 

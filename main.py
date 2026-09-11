@@ -233,8 +233,9 @@ async def process_document_resampled(doc, config, graph_ainvoke):
     Returns inputs, outputs, stats, metrics, AND full context trace.
     """
     n_runs = config["experiment"]["resampling"]["n_runs"] if config["experiment"]["resampling"]["enabled"] else 1
-    retries = config["experiment"].get("retries", 3)
-    timeout = config["experiment"].get("timeout", 3600)
+    retries = config["experiment"]["retries"]
+    timeout = config["experiment"]["timeout"]
+    retry_wait = config["experiment"]["retry_wait"]
 
     prompt_cfg = config["prompt"]
     system_prompt = prompt_cfg["system"]
@@ -317,7 +318,7 @@ async def process_document_resampled(doc, config, graph_ainvoke):
             run_inference_with_retry(
                 graph_ainvoke, system_prompt, _prompt_for_run(run_idx), retries, steps,
                 few_shot_sets[run_idx % len(few_shot_sets)] if few_shot_sets else None,
-                reprompt_str, doc_id=doc["id"], timeout=timeout,
+                reprompt_str, doc_id=doc["id"], timeout=timeout, retry_wait=retry_wait,
             )
             for run_idx in range(n_runs)
         ]
@@ -497,7 +498,7 @@ async def _run_standard(config, ds_config, active_labels, graph_ainvoke, kfold_n
 
 
 async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, kfold_n_folds, git_state, _logs_path, _stem):
-    print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment'].get('retries', 0)}")
+    print(f"Engine started. Dataset: {ds_config['name']} | Samples: {ds_config['max_examples']} | Retries: {config['experiment']['retries']}")
 
     if config.get("few_shot", {}).get("enabled"):
         print("Pre-loading few-shot training split...")
@@ -534,6 +535,7 @@ async def _run_standard_inner(config, ds_config, active_labels, graph_ainvoke, k
             blind=fs_cfg["cot_generation"]["blind"],
             rewrite=fs_cfg["cot_generation"]["rewrite"],
             retries=config["experiment"]["retries"],
+            retry_wait=config["experiment"]["retry_wait"],
             dump_dir=fs_cfg["cot_generation"]["dump_dir"],
         )
 
